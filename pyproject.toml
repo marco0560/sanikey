@@ -1,0 +1,174 @@
+[build-system]
+requires = ["setuptools>=68", "wheel", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sanikey"
+dynamic = ["version"]
+description = "Medical documents on a USB key"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [{ name = "Marco Coppola" }]
+dependencies = [
+  "jsonschema>=4.23.0,<5",
+]
+
+[tool.setuptools_scm]
+tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.post\\d+)?)$"
+git_describe_command = "git describe --dirty --tags --long --match v*"
+version_scheme = "post-release"
+local_scheme = "no-local-version"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[project.optional-dependencies]
+dev = [
+  "ruff",
+  "pre-commit",
+  "pytest",
+  "pytest-cov",
+  "mypy",
+  "packaging",
+  "coverage",
+  "codira[bundle-official]",
+  "setuptools-scm>=8",
+]
+docs = [
+  "mkdocs>=1.6,<2",
+  "mkdocs-material>=9.7,<10",
+  "mkdocstrings[python]>=1,<2",
+]
+
+[project.scripts]
+sanikey = "sanikey.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/marco0560/sanikey"
+Repository = "https://github.com/marco0560/sanikey"
+Documentation = "https://marco0560.github.io/sanikey/"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sanikey*"]
+exclude = ["node_modules*", "docs*", "scripts*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+extend-exclude = [
+    ".git",
+    ".mypy_cache",
+    ".mypy_cache_run",
+    ".mypy_cache_verify",
+    ".pre-commit-cache",
+    ".pytest_cache",
+    ".pytest_cache_local",
+    ".pytest_tmp",
+    ".pytest_diag*",
+    ".pt_*",
+    ".ruff_cache",
+    ".ruff_cache_run",
+    ".tmp-pytest",
+    ".tmp_pytest_run",
+    ".venv",
+    "build",
+    "dist",
+    "node_modules",
+    "pytest-cache-files-*",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "BLE",
+    "TRY",
+    "EM",
+    "S110",
+    "S112",
+    "TC",
+    "PTH",
+    "B",
+    "RET",
+    "LOG",
+    "PLR",
+    "RSE",
+    "SIM",
+    "ICN",
+    "TCH",
+    "PIE",
+    "S602",
+    "S607",
+    "S610",
+    "S701",
+    "C901",
+    "PLR0912",
+    "ERA",
+    "TD",
+]
+ignore = [
+    "ANN",
+    "FBT",
+    "S603",
+    "S324",
+    "PLR0911",
+    "PLR0915",
+    "PLR2004",
+    "COM812",
+    "E501",
+    "FIX002",
+    "FURB",
+    "PERF",
+    "B008",
+    "B905",
+]
+
+fixable = ["I", "UP", "B007", "B009"]
+unfixable = ["E501"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+    "S108",
+    "S607",
+    "ARG",
+    "PLR",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-branches = 18
+
+[tool.ruff.lint.isort]
+known-first-party = ["sanikey"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.13"
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+warn_return_any = true
+warn_unused_ignores = true
+show_error_codes = true
+no_implicit_optional = true
+warn_redundant_casts = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

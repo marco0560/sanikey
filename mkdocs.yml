@@ -1,0 +1,38 @@
+site_name: sanikey
+site_description: Medical documents on a USB key
+site_author: Marco Coppola
+
+repo_name: sanikey
+repo_url: https://github.com/marco0560/sanikey
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - fenced_code
+  - footnotes
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting started: getting_started.md
+  - Contributing: CONTRIBUTING.md
+  - Architecture: architecture.md
+  - Scripts: scripts.md
+  - Cheatsheet: cheatsheet.md
+  - Release checklist: release/checklist.md
+  - Release process: release/process.md
+  - Decisions: decisions/index.md

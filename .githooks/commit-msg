@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+if [ -x "$ROOT/.venv/bin/python" ]; then
+  PYTHON="$ROOT/.venv/bin/python"
+elif [ -x "$ROOT/.venv/Scripts/python.exe" ]; then
+  PYTHON="$ROOT/.venv/Scripts/python.exe"
+else
+  PYTHON=python3
+fi
+
+exec "$PYTHON" "$ROOT/.githooks/commit-msg.py" "$1"

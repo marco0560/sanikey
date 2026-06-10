@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+PYTHON_BIN="$REPO_ROOT/.venv/bin/python"
+
+if [ ! -x "$PYTHON_BIN" ]; then
+  echo "ERROR: repository Python is not available: $PYTHON_BIN" >&2
+  echo "Run: uv sync --extra dev" >&2
+  exit 1
+fi
+
+echo "Running release safety audit..."
+scripts/release_audit.sh || exit 1
+
+echo "Running pre-commit checks before push..."
+"$PYTHON_BIN" "$REPO_ROOT/scripts/run_repo_tool.py" pre-commit run --all-files
+
+echo "Running test suite..."
+"$PYTHON_BIN" "$REPO_ROOT/scripts/run_repo_tool.py" pytest -q tests
+
+echo "Pre-push checks completed successfully"
