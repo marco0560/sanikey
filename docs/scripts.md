@@ -63,3 +63,28 @@ Validate that a release tag matches the expected `vX.Y.Z` pattern.
 ## `scripts/changelog_guard.sh`
 
 Validate that `CHANGELOG.md` contains the expected `Unreleased` section.
+
+## SaniKey Compatibility Scripts
+
+The initial implementation exposes operations primarily through the `sanikey`
+CLI. The following scripts are compatibility wrappers that delegate to the
+matching CLI subcommands:
+
+- `scripts/list_patients.py`
+- `scripts/scan_documents.py`
+- `scripts/extract_text.py`
+- `scripts/process_dicom.py`
+- `scripts/build_database.py`
+- `scripts/generate_embeddings.py`
+- `scripts/generate_timeline.py`
+- `scripts/generate_clinical_summary.py`
+- `scripts/build_web.py`
+- `scripts/export_usb.py`
+- `scripts/validate_usb.py`
+- `scripts/deploy_usb.py`
+- `scripts/build_patient.py`
+- `scripts/build_all.py`
+- `scripts/update_archive.py`
+
+Real configuration remains under ignored `config/`. Public examples live under
+`docs/config-example/`, `docs/patients-example/`, and `docs/generated-example/`.

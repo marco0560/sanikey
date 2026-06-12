@@ -427,3 +427,37 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "usb=" in result.stdout
     assert (target / "START-HERE-Patient-A.html").is_file()
+
+
+def test_list_patients_wrapper_script_runs(tmp_path: Path) -> None:
+    """Verify compatibility scripts delegate to the package CLI."""
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/list_patients.py",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "patient-a" in result.stdout
