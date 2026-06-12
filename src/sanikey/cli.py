@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from . import __version__
 from .config import default_accounts_path, load_accounts
+from .documents import extract_text, find_duplicate_documents, scan_documents
 from .errors import SaniKeyError
 from .privacy import validate_privacy
+
+if TYPE_CHECKING:
+    from .config import AccountsConfig, PersonConfig
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,6 +61,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include disabled patients",
     )
     list_parser.set_defaults(func=run_list_patients)
+
+    scan_parser = subparsers.add_parser(
+        "scan-documents",
+        help="Scan configured source documents",
+    )
+    _add_config_arguments(scan_parser)
+    scan_parser.add_argument("--patient", help="Only scan one patient id")
+    scan_parser.set_defaults(func=run_scan_documents)
+
+    extract_parser = subparsers.add_parser(
+        "extract-text",
+        help="Extract supported text from configured source documents",
+    )
+    _add_config_arguments(extract_parser)
+    extract_parser.add_argument("--patient", help="Only process one patient id")
+    extract_parser.set_defaults(func=run_extract_text)
     return parser
 
 
@@ -134,6 +155,79 @@ def run_list_patients(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_scan_documents(args: argparse.Namespace) -> int:
+    """Scan configured source documents and print inventory rows.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    for person in _selected_people(config, args.patient):
+        documents = scan_documents(person)
+        duplicates = find_duplicate_documents(documents)
+        print(
+            f"patient={person.id} documents={len(documents)} duplicates={len(duplicates)}"
+        )
+        for document in documents:
+            print(
+                "\t".join(
+                    (
+                        document.patient_id,
+                        document.kind,
+                        document.category,
+                        document.date or "",
+                        document.title,
+                        document.sha256,
+                        str(document.path),
+                    )
+                )
+            )
+    return 0
+
+
+def run_extract_text(args: argparse.Namespace) -> int:
+    """Extract text from configured source documents.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    for person in _selected_people(config, args.patient):
+        for document in scan_documents(person):
+            extracted = extract_text(document)
+            print(
+                f"{person.id}\t{document.sha256}\tchars={len(extracted.text)}"
+                f"\twarnings={len(extracted.warnings)}"
+            )
+            for warning in extracted.warnings:
+                print(f"WARNING: {document.path}: {warning}")
+    return 0
+
+
 def _add_config_arguments(parser: argparse.ArgumentParser) -> None:
     """Add shared configuration arguments to a subparser.
 
@@ -159,3 +253,28 @@ def _add_config_arguments(parser: argparse.ArgumentParser) -> None:
         default=Path.cwd(),
         help="Repository root used for privacy checks",
     )
+
+
+def _selected_people(
+    config: AccountsConfig,
+    patient_id: str | None,
+) -> tuple[PersonConfig, ...]:
+    """Return enabled people, optionally filtered by id.
+
+    Parameters
+    ----------
+    config : AccountsConfig
+        Accounts configuration object.
+    patient_id : str | None
+        Optional patient id.
+
+    Returns
+    -------
+    tuple[PersonConfig, ...]
+        Selected patient configs.
+    """
+
+    people = config.enabled_people()
+    if patient_id is None:
+        return people
+    return tuple(person for person in people if person.id == patient_id)
