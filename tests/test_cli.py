@@ -270,3 +270,41 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert '"patient_id": "patient-a"' in result.stdout
     assert (tmp_path / "generated" / "manifests" / "manifest.json").is_file()
+
+
+def test_generate_proposals_subcommand_runs(tmp_path: Path) -> None:
+    """Verify generate-proposals writes proposal storage."""
+
+    metadata = tmp_path / "metadata"
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{metadata}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "generate-proposals",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "proposals=1" in result.stdout
+    assert (metadata / "proposed" / "proposals.toml").is_file()

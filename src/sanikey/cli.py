@@ -15,6 +15,7 @@ from .documents import extract_text, find_duplicate_documents, scan_documents
 from .errors import SaniKeyError
 from .metadata import load_curated_metadata
 from .privacy import validate_privacy
+from .proposals import generate_manual_proposals, review_proposal
 
 if TYPE_CHECKING:
     from .config import AccountsConfig, PersonConfig
@@ -126,6 +127,24 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(update_parser)
     update_parser.add_argument("--patient", help="Only update one patient id")
     update_parser.set_defaults(func=run_update_archive)
+
+    proposals_parser = subparsers.add_parser(
+        "generate-proposals",
+        help="Generate deterministic manual-review proposals",
+    )
+    _add_config_arguments(proposals_parser)
+    proposals_parser.add_argument("--patient", help="Only process one patient id")
+    proposals_parser.set_defaults(func=run_generate_proposals)
+
+    review_parser = subparsers.add_parser(
+        "review-proposal",
+        help="Approve or reject a stored proposal",
+    )
+    _add_config_arguments(review_parser)
+    review_parser.add_argument("patient")
+    review_parser.add_argument("proposal_id")
+    review_parser.add_argument("status", choices=("approved", "rejected"))
+    review_parser.set_defaults(func=run_review_proposal)
     return parser
 
 
@@ -422,6 +441,63 @@ def run_update_archive(args: argparse.Namespace) -> int:
     args.mode = "incremental"
     args.patient = str(args.patient)
     return run_build_patient(args)
+
+
+def run_generate_proposals(args: argparse.Namespace) -> int:
+    """Generate deterministic manual-review proposals.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        for person in _selected_people(config, args.patient):
+            proposals = generate_manual_proposals(person.metadata_directory)
+            print(f"patient={person.id} proposals={len(proposals)}")
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    return 0
+
+
+def run_review_proposal(args: argparse.Namespace) -> int:
+    """Approve or reject one stored proposal.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        selected = _selected_people(config, args.patient)
+        if not selected:
+            print(f"ERROR: patient not found or disabled: {args.patient}")
+            return 1
+        updated = review_proposal(
+            selected[0].metadata_directory,
+            args.proposal_id,
+            args.status,
+        )
+        print(f"proposal={updated.id} status={updated.status}")
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    return 0
 
 
 def _add_config_arguments(parser: argparse.ArgumentParser) -> None:
