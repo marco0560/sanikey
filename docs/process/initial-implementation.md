@@ -33,8 +33,8 @@ remain deferred by design:
 | 01 | Preflight and ledger | DA-001..DA-144 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `4b10c5b` |
 | 02 | Core configuration and privacy guard | DA-008..DA-018, DA-113..DA-120 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `e10c88c` |
 | 03 | Domain models and metadata contracts | DA-019..DA-053 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `23719b0` |
-| 04 | Document inventory and text extraction | DA-019..DA-040, DA-121..DA-124 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | Pending |
-| 05 | DICOM catalog | DA-024, DA-086, DA-123 | [ ] | Pending | Pending |
+| 04 | Document inventory and text extraction | DA-019..DA-040, DA-121..DA-124 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `4c5ec39` |
+| 05 | DICOM catalog | DA-024, DA-086, DA-123 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | Pending |
 | 06 | SQLite archive | DA-001..DA-003, DA-041..DA-045, DA-098 | [ ] | Pending | Pending |
 | 07 | Build pipeline | DA-035..DA-040, DA-091..DA-103 | [ ] | Pending | Pending |
 | 08 | AI proposal interface | DA-054..DA-060, DA-100, DA-117 | [ ] | Pending | Pending |

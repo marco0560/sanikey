@@ -145,3 +145,43 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "documents=1" in result.stdout
     assert "Report" in result.stdout
+
+
+def test_process_dicom_subcommand_runs(tmp_path: Path) -> None:
+    """Verify process-dicom catalogs original DICOM supports."""
+
+    source = tmp_path / "source"
+    source.mkdir(parents=True)
+    (source / "20260102 Study.iso").write_bytes(b"iso")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "process-dicom",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "dicom_studies=1" in result.stdout
+    assert "dicom_iso" in result.stdout

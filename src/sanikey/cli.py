@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from . import __version__
 from .config import default_accounts_path, load_accounts
+from .dicom import catalog_dicom_studies
 from .documents import extract_text, find_duplicate_documents, scan_documents
 from .errors import SaniKeyError
 from .privacy import validate_privacy
@@ -77,6 +78,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(extract_parser)
     extract_parser.add_argument("--patient", help="Only process one patient id")
     extract_parser.set_defaults(func=run_extract_text)
+
+    dicom_parser = subparsers.add_parser(
+        "process-dicom",
+        help="Catalog DICOM supports and manual expansion directories",
+    )
+    _add_config_arguments(dicom_parser)
+    dicom_parser.add_argument("--patient", help="Only process one patient id")
+    dicom_parser.set_defaults(func=run_process_dicom)
     return parser
 
 
@@ -225,6 +234,49 @@ def run_extract_text(args: argparse.Namespace) -> int:
             )
             for warning in extracted.warnings:
                 print(f"WARNING: {document.path}: {warning}")
+    return 0
+
+
+def run_process_dicom(args: argparse.Namespace) -> int:
+    """Catalog DICOM supports for configured patients.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    for person in _selected_people(config, args.patient):
+        studies = catalog_dicom_studies(person, scan_documents(person))
+        print(f"patient={person.id} dicom_studies={len(studies)}")
+        for study in studies:
+            extracted = (
+                "" if study.extracted_path is None else str(study.extracted_path)
+            )
+            print(
+                "\t".join(
+                    (
+                        study.patient_id,
+                        study.support_kind,
+                        str(study.support_path),
+                        extracted,
+                        str(len(study.viewer_paths)),
+                        str(len(study.warnings)),
+                    )
+                )
+            )
+            for warning in study.warnings:
+                print(f"WARNING: {study.support_path}: {warning}")
     return 0
 
 
