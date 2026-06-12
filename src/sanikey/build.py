@@ -12,6 +12,7 @@ from .database import build_database
 from .dicom import catalog_dicom_studies
 from .documents import extract_text, find_duplicate_documents, scan_documents
 from .exports import generate_exports
+from .frontend import build_frontend
 from .metadata import load_curated_metadata
 
 if TYPE_CHECKING:
@@ -104,6 +105,7 @@ def build_patient(
         warnings=warnings,
     )
     generate_exports(person, documents, metadata)
+    build_frontend(person)
     checksums_path = _write_checksums(build_root)
     return PatientBuildResult(
         patient_id=person.id,

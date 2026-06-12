@@ -348,3 +348,40 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "patient=patient-a" in result.stdout
     assert (tmp_path / "generated" / "web" / "data" / "summary.json").is_file()
+
+
+def test_build_web_subcommand_runs(tmp_path: Path) -> None:
+    """Verify build-web writes static frontend files."""
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "build-web",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "web=" in result.stdout
+    assert (tmp_path / "generated" / "web" / "index.html").is_file()

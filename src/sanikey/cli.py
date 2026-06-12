@@ -14,6 +14,7 @@ from .dicom import catalog_dicom_studies
 from .documents import extract_text, find_duplicate_documents, scan_documents
 from .errors import SaniKeyError
 from .exports import generate_exports
+from .frontend import build_frontend
 from .metadata import load_curated_metadata
 from .privacy import validate_privacy
 from .proposals import generate_manual_proposals, review_proposal
@@ -154,6 +155,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(exports_parser)
     exports_parser.add_argument("--patient", help="Only process one patient id")
     exports_parser.set_defaults(func=run_generate_exports)
+
+    web_parser = subparsers.add_parser(
+        "build-web",
+        help="Generate static frontend files",
+    )
+    _add_config_arguments(web_parser)
+    web_parser.add_argument("--patient", help="Only process one patient id")
+    web_parser.set_defaults(func=run_build_web)
     return parser
 
 
@@ -529,6 +538,31 @@ def run_generate_exports(args: argparse.Namespace) -> int:
             metadata = load_curated_metadata(person.metadata_directory)
             result = generate_exports(person, scan_documents(person), metadata)
             print(f"patient={person.id} data={result.data_dir}")
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    return 0
+
+
+def run_build_web(args: argparse.Namespace) -> int:
+    """Generate static frontend files.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        for person in _selected_people(config, args.patient):
+            result = build_frontend(person)
+            print(f"patient={person.id} web={result.web_dir}")
     except SaniKeyError as exc:
         print(f"ERROR: {exc}")
         return 1
