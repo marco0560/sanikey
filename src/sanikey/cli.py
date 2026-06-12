@@ -18,6 +18,7 @@ from .frontend import build_frontend
 from .metadata import load_curated_metadata
 from .privacy import validate_privacy
 from .proposals import generate_manual_proposals, review_proposal
+from .usb import export_usb, validate_usb
 
 if TYPE_CHECKING:
     from .config import AccountsConfig, PersonConfig
@@ -163,6 +164,29 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(web_parser)
     web_parser.add_argument("--patient", help="Only process one patient id")
     web_parser.set_defaults(func=run_build_web)
+
+    export_parser = subparsers.add_parser(
+        "export-usb",
+        help="Export generated artefacts to a USB layout directory",
+    )
+    _add_config_arguments(export_parser)
+    export_parser.add_argument("target", type=Path)
+    export_parser.set_defaults(func=run_export_usb)
+
+    validate_usb_parser = subparsers.add_parser(
+        "validate-usb",
+        help="Validate a generated USB layout directory",
+    )
+    validate_usb_parser.add_argument("target", type=Path)
+    validate_usb_parser.set_defaults(func=run_validate_usb)
+
+    deploy_parser = subparsers.add_parser(
+        "deploy-usb",
+        help="Build all enabled patients and export them to a USB layout directory",
+    )
+    _add_config_arguments(deploy_parser)
+    deploy_parser.add_argument("target", type=Path)
+    deploy_parser.set_defaults(func=run_deploy_usb)
     return parser
 
 
@@ -564,6 +588,80 @@ def run_build_web(args: argparse.Namespace) -> int:
             result = build_frontend(person)
             print(f"patient={person.id} web={result.web_dir}")
     except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    return 0
+
+
+def run_export_usb(args: argparse.Namespace) -> int:
+    """Export generated artefacts to a USB layout.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        result = export_usb(config, args.target)
+        print(f"usb={result.root} patients={result.patients} files={result.files}")
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    return 0
+
+
+def run_validate_usb(args: argparse.Namespace) -> int:
+    """Validate a generated USB layout.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    if validate_usb(args.target):
+        print("status=ok")
+        return 0
+    print("status=invalid")
+    return 1
+
+
+def run_deploy_usb(args: argparse.Namespace) -> int:
+    """Build all enabled patients and export them to a USB layout.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        for result in build_all(config, mode="incremental"):
+            print(result_to_json(result))
+        export = export_usb(config, args.target)
+        print(f"usb={export.root} patients={export.patients} files={export.files}")
+        if not validate_usb(args.target):
+            print("ERROR: USB validation failed")
+            return 1
+    except (SaniKeyError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 1
     return 0
