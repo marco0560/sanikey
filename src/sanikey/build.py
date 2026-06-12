@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from .database import build_database
 from .dicom import catalog_dicom_studies
 from .documents import extract_text, find_duplicate_documents, scan_documents
+from .exports import generate_exports
 from .metadata import load_curated_metadata
 
 if TYPE_CHECKING:
@@ -102,6 +103,7 @@ def build_patient(
         duplicates=len(duplicates),
         warnings=warnings,
     )
+    generate_exports(person, documents, metadata)
     checksums_path = _write_checksums(build_root)
     return PatientBuildResult(
         patient_id=person.id,

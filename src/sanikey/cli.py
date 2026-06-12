@@ -13,6 +13,7 @@ from .database import build_database
 from .dicom import catalog_dicom_studies
 from .documents import extract_text, find_duplicate_documents, scan_documents
 from .errors import SaniKeyError
+from .exports import generate_exports
 from .metadata import load_curated_metadata
 from .privacy import validate_privacy
 from .proposals import generate_manual_proposals, review_proposal
@@ -145,6 +146,14 @@ def build_parser() -> argparse.ArgumentParser:
     review_parser.add_argument("proposal_id")
     review_parser.add_argument("status", choices=("approved", "rejected"))
     review_parser.set_defaults(func=run_review_proposal)
+
+    exports_parser = subparsers.add_parser(
+        "generate-exports",
+        help="Generate static JSON frontend/search/timeline exports",
+    )
+    _add_config_arguments(exports_parser)
+    exports_parser.add_argument("--patient", help="Only process one patient id")
+    exports_parser.set_defaults(func=run_generate_exports)
     return parser
 
 
@@ -494,6 +503,32 @@ def run_review_proposal(args: argparse.Namespace) -> int:
             args.status,
         )
         print(f"proposal={updated.id} status={updated.status}")
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    return 0
+
+
+def run_generate_exports(args: argparse.Namespace) -> int:
+    """Generate static JSON exports.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        for person in _selected_people(config, args.patient):
+            metadata = load_curated_metadata(person.metadata_directory)
+            result = generate_exports(person, scan_documents(person), metadata)
+            print(f"patient={person.id} data={result.data_dir}")
     except SaniKeyError as exc:
         print(f"ERROR: {exc}")
         return 1

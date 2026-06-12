@@ -308,3 +308,43 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "proposals=1" in result.stdout
     assert (metadata / "proposed" / "proposals.toml").is_file()
+
+
+def test_generate_exports_subcommand_runs(tmp_path: Path) -> None:
+    """Verify generate-exports writes frontend JSON data."""
+
+    source = tmp_path / "source"
+    source.mkdir(parents=True)
+    (source / "20260102 Report.txt").write_text("synthetic", encoding="utf-8")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "generate-exports",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "patient=patient-a" in result.stdout
+    assert (tmp_path / "generated" / "web" / "data" / "summary.json").is_file()
