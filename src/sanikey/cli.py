@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from . import __version__
+from .build import build_all, build_patient, result_to_json
 from .config import default_accounts_path, load_accounts
 from .database import build_database
 from .dicom import catalog_dicom_studies
@@ -96,6 +97,35 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(database_parser)
     database_parser.add_argument("--patient", help="Only build one patient id")
     database_parser.set_defaults(func=run_build_database)
+
+    build_patient_parser = subparsers.add_parser(
+        "build-patient",
+        help="Run the local build pipeline for one patient",
+    )
+    _add_config_arguments(build_patient_parser)
+    build_patient_parser.add_argument("patient")
+    build_patient_parser.add_argument(
+        "--mode", choices=("full", "incremental", "validation"), default="incremental"
+    )
+    build_patient_parser.set_defaults(func=run_build_patient)
+
+    build_all_parser = subparsers.add_parser(
+        "build-all",
+        help="Run the local build pipeline for all enabled patients",
+    )
+    _add_config_arguments(build_all_parser)
+    build_all_parser.add_argument(
+        "--mode", choices=("full", "incremental", "validation"), default="incremental"
+    )
+    build_all_parser.set_defaults(func=run_build_all)
+
+    update_parser = subparsers.add_parser(
+        "update-archive",
+        help="Run the default incremental archive update",
+    )
+    _add_config_arguments(update_parser)
+    update_parser.add_argument("--patient", help="Only update one patient id")
+    update_parser.set_defaults(func=run_update_archive)
     return parser
 
 
@@ -319,6 +349,79 @@ def run_build_database(args: argparse.Namespace) -> int:
             f"documents={result.documents} dicom_studies={result.dicom_studies}"
         )
     return 0
+
+
+def run_build_patient(args: argparse.Namespace) -> int:
+    """Run the local build pipeline for one patient.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        selected = _selected_people(config, args.patient)
+        if not selected:
+            print(f"ERROR: patient not found or disabled: {args.patient}")
+            return 1
+        print(result_to_json(build_patient(selected[0], mode=args.mode)))
+    except (SaniKeyError, ValueError) as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    return 0
+
+
+def run_build_all(args: argparse.Namespace) -> int:
+    """Run the local build pipeline for all enabled patients.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        for result in build_all(config, mode=args.mode):
+            print(result_to_json(result))
+    except (SaniKeyError, ValueError) as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    return 0
+
+
+def run_update_archive(args: argparse.Namespace) -> int:
+    """Run the default incremental archive update.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    if args.patient is None:
+        args.mode = "incremental"
+        return run_build_all(args)
+    args.mode = "incremental"
+    args.patient = str(args.patient)
+    return run_build_patient(args)
 
 
 def _add_config_arguments(parser: argparse.ArgumentParser) -> None:

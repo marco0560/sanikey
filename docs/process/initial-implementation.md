@@ -35,8 +35,8 @@ remain deferred by design:
 | 03 | Domain models and metadata contracts | DA-019..DA-053 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `23719b0` |
 | 04 | Document inventory and text extraction | DA-019..DA-040, DA-121..DA-124 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `4c5ec39` |
 | 05 | DICOM catalog | DA-024, DA-086, DA-123 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `a7796e0` |
-| 06 | SQLite archive | DA-001..DA-003, DA-041..DA-045, DA-098 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | Pending |
-| 07 | Build pipeline | DA-035..DA-040, DA-091..DA-103 | [ ] | Pending | Pending |
+| 06 | SQLite archive | DA-001..DA-003, DA-041..DA-045, DA-098 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `5312bab` |
+| 07 | Build pipeline | DA-035..DA-040, DA-091..DA-103 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | Pending |
 | 08 | AI proposal interface | DA-054..DA-060, DA-100, DA-117 | [ ] | Pending | Pending |
 | 09 | Search, timeline, and summary exports | DA-061..DA-078, DA-099 | [ ] | Pending | Pending |
 | 10 | Static frontend | DA-079..DA-090, DA-113..DA-115 | [ ] | Pending | Pending |
