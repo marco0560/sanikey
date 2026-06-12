@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING
 
 from . import __version__
 from .config import default_accounts_path, load_accounts
+from .database import build_database
 from .dicom import catalog_dicom_studies
 from .documents import extract_text, find_duplicate_documents, scan_documents
 from .errors import SaniKeyError
+from .metadata import load_curated_metadata
 from .privacy import validate_privacy
 
 if TYPE_CHECKING:
@@ -86,6 +88,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(dicom_parser)
     dicom_parser.add_argument("--patient", help="Only process one patient id")
     dicom_parser.set_defaults(func=run_process_dicom)
+
+    database_parser = subparsers.add_parser(
+        "build-database",
+        help="Build per-patient SQLite archive databases",
+    )
+    _add_config_arguments(database_parser)
+    database_parser.add_argument("--patient", help="Only build one patient id")
+    database_parser.set_defaults(func=run_build_database)
     return parser
 
 
@@ -277,6 +287,37 @@ def run_process_dicom(args: argparse.Namespace) -> int:
             )
             for warning in study.warnings:
                 print(f"WARNING: {study.support_path}: {warning}")
+    return 0
+
+
+def run_build_database(args: argparse.Namespace) -> int:
+    """Build SQLite databases for configured patients.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    for person in _selected_people(config, args.patient):
+        documents = scan_documents(person)
+        metadata = load_curated_metadata(person.metadata_directory)
+        dicom_studies = catalog_dicom_studies(person, documents)
+        result = build_database(person, documents, metadata, dicom_studies)
+        print(
+            f"patient={person.id} database={result.path} "
+            f"documents={result.documents} dicom_studies={result.dicom_studies}"
+        )
     return 0
 
 

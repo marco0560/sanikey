@@ -185,3 +185,45 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "dicom_studies=1" in result.stdout
     assert "dicom_iso" in result.stdout
+
+
+def test_build_database_subcommand_runs(tmp_path: Path) -> None:
+    """Verify build-database creates a per-patient SQLite archive."""
+
+    source = tmp_path / "source"
+    source.mkdir(parents=True)
+    (source / "20260102 Report.txt").write_text("synthetic", encoding="utf-8")
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{metadata}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "build-database",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "documents=1" in result.stdout
+    assert (tmp_path / "generated" / "database" / "medical_archive.db").is_file()
