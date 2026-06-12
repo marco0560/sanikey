@@ -30,8 +30,8 @@ remain deferred by design:
 
 | Phase | Scope | ADR Range | Done | Validation Evidence | Commit |
 | ----- | ----- | --------- | ---- | ------------------- | ------ |
-| 01 | Preflight and ledger | DA-001..DA-144 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `cd72aa2` |
-| 02 | Core configuration and privacy guard | DA-008..DA-018, DA-113..DA-120 | [ ] | Pending | Pending |
+| 01 | Preflight and ledger | DA-001..DA-144 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | `4b10c5b` |
+| 02 | Core configuration and privacy guard | DA-008..DA-018, DA-113..DA-120 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` passed | Pending |
 | 03 | Domain models and metadata contracts | DA-019..DA-053 | [ ] | Pending | Pending |
 | 04 | Document inventory and text extraction | DA-019..DA-040, DA-121..DA-124 | [ ] | Pending | Pending |
 | 05 | DICOM catalog | DA-024, DA-086, DA-123 | [ ] | Pending | Pending |

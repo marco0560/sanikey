@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 MODULE = "sanikey"
 
@@ -30,3 +31,77 @@ def test_info_subcommand_runs() -> None:
     )
     assert result.returncode == 0
     assert "project=sanikey" in result.stdout
+
+
+def test_validate_config_subcommand_runs(tmp_path: Path) -> None:
+    """Verify validate-config accepts synthetic local data paths."""
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "validate-config",
+            "--config",
+            str(config_path),
+            "--repo-root",
+            str(Path.cwd()),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "status=ok" in result.stdout
+
+
+def test_list_patients_subcommand_runs(tmp_path: Path) -> None:
+    """Verify list-patients renders configured patient ids."""
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "list-patients",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "patient-a" in result.stdout
