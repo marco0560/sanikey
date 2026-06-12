@@ -24,22 +24,30 @@ ALLOWED_TYPES = {
     "style",
 }
 ALLOWED_SCOPES = {
+    "bootstrap",
     "build",
     "ci",
     "cli",
     "config",
     "core",
+    "coverage",
+    "curation",
     "decision",
     "dev",
     "docs",
+    "enrichment",
+    "generation",
     "git",
+    "ingestion",
+    "process",
     "release",
     "scaffold",
+    "schema",
     "template",
     "tests",
     "validation",
+    "version",
 }
-
 msg_file = sys.argv[1]
 
 with Path(msg_file).open(encoding="utf-8") as handle:
@@ -49,8 +57,12 @@ pattern = re.compile(
     r"^(?P<type>feat|fix|docs|perf|refactor|test|chore|style)"
     r"(\((?P<scope>[a-z0-9._-]+)\))?"
     r"(?P<breaking>!)?: "
-    r".{1,72}$"
 )
+
+if first_line and len(first_line) > 72:
+    print("ERROR: first line too long or absent.")
+    print("Max length == 72")
+    raise SystemExit(1)
 
 match = pattern.match(first_line)
 if not match:

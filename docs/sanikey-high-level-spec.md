@@ -8,8 +8,8 @@ Obiettivi:
 - Conservazione documenti originali.
 - Supporto PDF e studi DICOM.
 - Ricerca full-text istantanea.
-- Timeline clinica automatica.
-- Storia clinica generata con AI e revisionata.
+- Timeline clinica generata e revisionabile.
+- Bozza di storia clinica assistita da AI e approvata dopo revisione.
 - Nessuna installazione sul PC del medico.
 - Supporto più membri della stessa famiglia sulla stessa chiavetta.
 
@@ -23,7 +23,8 @@ Repository SaniKey
     -> Consultazione browser
 
 Principi:
-- Repository = sorgente autorevole.
+- Repository pubblico = codice, documentazione ed esempi pubblicabili.
+- Configurazione reale e dati paziente = sorgente autorevole locale esclusa da Git.
 - USB = artefatto generato.
 - Dati curati separati dai dati rigenerabili.
 - Ricerca lessicale obbligatoria.
@@ -38,23 +39,17 @@ Ogni paziente possiede un archivio indipendente.
 Esempio:
 
 patients/
-  marco/
-  irene/
-  figlia/
-  figlio/
+  patient-a/
+  patient-b/
 
 La chiavetta contiene:
 
-START-HERE-Marco.html
-START-HERE-Irene.html
-START-HERE-Figlia.html
-START-HERE-Figlio.html
+START-HERE-Patient-A.html
+START-HERE-Patient-B.html
 
 patients/
-  marco/
-  irene/
-  figlia/
-  figlio/
+  patient-a/
+  patient-b/
 
 Ogni archivio è consultabile indipendentemente.
 
@@ -63,13 +58,16 @@ Ogni archivio è consultabile indipendentemente.
 ## 4. Repository
 
 sanikey/
-  config/
-  patients/
-  generated/
-  exports/
   scripts/
   web/
   models/
+  docs/
+    config-example/
+    patients-example/
+    generated-example/
+
+Le directory locali config/, patients/, generated/, exports/ e logs/ contengono
+dati reali o artefatti derivati e sono escluse dal repository pubblico.
 
 ---
 
@@ -85,20 +83,24 @@ Esempio:
 repository_version = "1"
 
 [[person]]
-id = "marco"
-display_name = "Marco"
-source_documents = "/data/medical/marco"
-local_build = "/data/build/marco"
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "/absolute/path/to/patient-a/documents"
+metadata_directory = "/absolute/path/to/patient-a/metadata"
+local_build = "/absolute/path/to/patient-a/generated"
 usb_uuid = "1A2B-3C4D"
 
 [[person]]
-id = "irene"
-display_name = "Irene"
-source_documents = "/data/medical/irene"
-local_build = "/data/build/irene"
+id = "patient-b"
+display_name = "Patient B"
+source_documents = "/absolute/path/to/patient-b/documents"
+metadata_directory = "/absolute/path/to/patient-b/metadata"
+local_build = "/absolute/path/to/patient-b/generated"
 usb_uuid = "1A2B-3C4D"
 
 Il campo usb_uuid identifica la chiavetta autorizzata.
+
+Non esistono percorsi predefiniti per dati reali.
 
 ---
 
@@ -120,23 +122,27 @@ Categorie libere organizzate in directory.
 ## 7. DICOM
 
 Conservare:
-- ISO originale.
-- Contenuto estratto.
+- Supporto originale consegnato dall'ospedale, ISO o ZIP.
+- Contenuto estratto come artefatto generato.
 - Metadati DICOM.
 
 Struttura:
 
 Dischi/
   20250318_RMN_Anca.iso
+  20250318_RMN_Anca.zip
 
-generated/dicom/
+generated/<patient>/dicom/
   20250318_RMN_Anca/
+
+La scelta tra espansione automatica, opzionale in ingestion o manuale resta da
+decidere.
 
 Metadati:
 - data
 - modalità
 - distretto
-- struttura
+- provenienza
 - numero immagini
 - viewer presente
 
@@ -146,11 +152,10 @@ Metadati:
 
 Un database SQLite per paziente.
 
-patients/marco/medical_archive.db
+generated/<patient>/database/medical_archive.db
 
 Tabelle principali:
 
-patients
 documents
 document_series
 document_series_members
@@ -246,7 +251,7 @@ Basata su embeddings precomputati.
 
 Generato staticamente.
 
-patient/
+web/
   index.html
   app.js
   search.json
@@ -280,7 +285,7 @@ Visualizza:
 
 Azioni:
 - Apri PDF
-- Apri ISO
+- Apri supporto DICOM originale
 - Apri Cartella DICOM
 
 ---
@@ -290,11 +295,17 @@ Azioni:
 Struttura:
 
 USB/
-  START-HERE-Marco.html
-  START-HERE-Irene.html
+  START-HERE-Patient-A.html
+  START-HERE-Patient-B.html
   patients/
-    marco/
-    irene/
+    patient-a/
+      medical_archive.db
+      web/
+      documents/
+    patient-b/
+      medical_archive.db
+      web/
+      documents/
 
 Contenuto completamente statico.
 

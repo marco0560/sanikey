@@ -1,5 +1,8 @@
+# Programming artifacts
+
 .venv/
-local-data/
+.vscode/
+node_modules/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -15,4 +18,12 @@ dist/
 *.egg-info/
 site/
 .DS_Store
-.vscode/
+
+# Local Data
+
+config/
+patients/
+generated/
+exports/
+logs/
+local-data/

@@ -172,3 +172,8 @@ warn_redundant_casts = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pymarkdownlnt>=0.9.38",
+]

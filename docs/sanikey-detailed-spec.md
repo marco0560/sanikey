@@ -778,11 +778,11 @@ Ogni archivio deve poter essere generato individualmente.
 Esempi:
 
 ```bash
-build_patient.py marco
+build_patient.py patient-a
 ```
 
 ```bash
-build_patient.py irene
+build_patient.py patient-b
 ```
 
 La build di un paziente non richiede la presenza degli altri.
@@ -808,8 +808,8 @@ Esempio:
 
 ```toml
 [[person]]
-id = "marco"
-display_name = "Marco Coppola"
+id = "patient-a"
+display_name = "Patient A"
 ```
 
 L'identificatore tecnico:
@@ -861,15 +861,15 @@ Esempio:
 
 ```text
 patients/
-├── marco/
+├── patient-a/
 │   ├── documents/
 │   └── metadata/
 │
-├── irene/
+├── patient-b/
 │   ├── documents/
 │   └── metadata/
 │
-└── figlia/
+└── patient-c/
     ├── documents/
     └── metadata/
 ```
@@ -886,17 +886,17 @@ Esempio:
 
 ```text
 build/
-├── marco/
+├── patient-a/
 │   ├── medical_archive.db
 │   ├── web/
 │   └── documents/
 │
-├── irene/
+├── patient-b/
 │   ├── medical_archive.db
 │   ├── web/
 │   └── documents/
 │
-└── figlia/
+└── patient-c/
     ├── medical_archive.db
     ├── web/
     └── documents/
@@ -914,23 +914,23 @@ Esempio:
 
 ```text
 USB/
-├── START-HERE-Marco.html
-├── START-HERE-Irene.html
-├── START-HERE-Figlia.html
+├── START-HERE-Patient-A.html
+├── START-HERE-Patient-B.html
+├── START-HERE-Patient-C.html
 │
 ├── patients/
 │
-│   ├── marco/
+│   ├── patient-a/
 │   │   ├── medical_archive.db
 │   │   ├── web/
 │   │   └── documents/
 │   │
-│   ├── irene/
+│   ├── patient-b/
 │   │   ├── medical_archive.db
 │   │   ├── web/
 │   │   └── documents/
 │   │
-│   └── figlia/
+│   └── patient-c/
 │       ├── medical_archive.db
 │       ├── web/
 │       └── documents/
@@ -949,9 +949,9 @@ Per questo motivo il sistema utilizza file di avvio dedicati.
 Esempio:
 
 ```text
-START-HERE-Marco.html
-START-HERE-Irene.html
-START-HERE-Figlia.html
+START-HERE-Patient-A.html
+START-HERE-Patient-B.html
+START-HERE-Patient-C.html
 ```
 
 Ogni file apre direttamente l'archivio del paziente corrispondente.
@@ -1013,13 +1013,15 @@ La configurazione minima comprende:
 
 ```toml
 [[person]]
-id = "marco"
+id = "patient-a"
 
-display_name = "Marco Coppola"
+display_name = "Patient A"
 
-source_documents = "/data/medical/marco"
+source_documents = "/absolute/path/to/patient-a/documents"
 
-local_build = "/data/build/marco"
+metadata_directory = "/absolute/path/to/patient-a/metadata"
+
+local_build = "/absolute/path/to/patient-a/generated"
 
 usb_uuid = "1A2B-3C4D"
 ```
@@ -1066,52 +1068,6 @@ Le limitazioni pratiche dipendono esclusivamente da:
 * tempi di build.
 
 L'obiettivo principale rimane comunque il supporto di piccoli gruppi familiari.
-
----
-
-### 3.14 Decisioni architetturali
-
-Le seguenti decisioni vengono fissate per il resto del progetto.
-
-#### DA-001
-
-Ogni paziente possiede un archivio indipendente.
-
----
-
-#### DA-002
-
-Ogni paziente possiede un database SQLite indipendente.
-
----
-
-#### DA-003
-
-Ogni paziente possiede un frontend indipendente.
-
----
-
-#### DA-004
-
-La chiavetta USB può contenere più pazienti.
-
----
-
-#### DA-005
-
-La selezione del paziente avviene tramite file HTML dedicati.
-
----
-
-#### DA-006
-
-Non esistono dati condivisi tra archivi di pazienti differenti.
-
----
-
-#### DA-007
-
-La build e il deploy possono essere eseguiti sia per singolo paziente sia per l'intero insieme dei pazienti configurati.
 
 ## 4. Repository Layout
 
@@ -1168,12 +1124,6 @@ La struttura della build locale deve essere il più possibile simile alla strutt
 ```text
 sanikey/
 │
-├── config/
-│
-├── patients/
-│
-├── generated/
-│
 ├── exports/
 │
 ├── scripts/
@@ -1183,15 +1133,44 @@ sanikey/
 ├── models/
 │
 ├── docs/
+│   ├── config-example/
+│   ├── patients-example/
+│   └── generated-example/
 │
 └── logs/
+```
+
+Il repository pubblicato su GitHub non contiene dati personali, configurazioni
+reali, nomi di persone, nomi di strutture sanitarie o percorsi locali esterni.
+
+Le directory locali:
+
+```text
+config/
+patients/
+generated/
+exports/
+logs/
+```
+
+sono escluse dal controllo versione tramite `.gitignore`.
+
+Gli esempi documentali destinati al repository pubblico risiedono
+esclusivamente sotto:
+
+```text
+docs/config-example/
+docs/patients-example/
+docs/generated-example/
 ```
 
 ---
 
 ### 4.4 Directory config
 
-Contiene la configurazione globale del sistema.
+Contiene la configurazione reale locale del sistema.
+
+Questa directory non deve essere caricata su GitHub.
 
 ```text
 config/
@@ -1203,6 +1182,12 @@ config/
 ├── search.toml
 │
 └── deployment.toml
+```
+
+Gli esempi pubblicabili della configurazione risiedono in:
+
+```text
+docs/config-example/
 ```
 
 ---
@@ -1253,18 +1238,26 @@ Definisce:
 
 ### 4.5 Directory patients
 
-Contiene tutte le informazioni autorevoli relative ai pazienti.
+Contiene le informazioni autorevoli locali relative ai pazienti.
+
+Questa directory non deve essere caricata su GitHub.
 
 ```text
 patients/
 │
-├── marco/
+├── patient-a/
 │
-├── irene/
+├── patient-b/
 │
-├── figlia/
+├── patient-c/
 │
-└── figlio/
+└── patient-d/
+```
+
+Gli esempi pubblicabili della struttura paziente risiedono in:
+
+```text
+docs/patients-example/
 ```
 
 ---
@@ -1273,7 +1266,7 @@ patients/
 
 ```text
 patients/
-└── marco/
+└── patient-a/
     │
     ├── documents/
     │
@@ -1284,37 +1277,22 @@ patients/
 
 ### 4.7 Directory documents
 
-Contiene esclusivamente documenti originali.
+Contiene esclusivamente documenti originali locali.
 
-La struttura riportata di seguito rappresenta esclusivamente un esempio basato sull'archivio utilizzato durante la progettazione del sistema.
+La struttura riportata di seguito è un esempio neutro, privo di dati personali.
 
 SaniKey non impone alcun insieme predefinito di categorie documentali. Ogni paziente può organizzare i propri documenti secondo una struttura di directory differente, adattata alle proprie esigenze cliniche e amministrative.
 
 Le categorie vengono trattate dal sistema come metadati derivati e non costituiscono parte del modello dati fondamentale. Di conseguenza, categorie differenti possono coesistere tra pazienti diversi senza richiedere modifiche alla configurazione, al database o agli strumenti di elaborazione.
 
 ```text
-patients/marco/documents/
+patients/patient-a/documents/
 │
-├── AccessiPS/
-├── Analisi/
-├── Artrosi/
-├── ASL-Generalista/
-├── Cardiologo/
-├── Dermatologo/
-├── Diabete/
-├── Ecografie-TAC-RMN-RX/
-├── Fisiatra/
-├── Gastroenterologia/
-├── Genetista/
-├── Invalidità/
-├── Nefrologo/
-├── Neurologia-Ortopedia/
-├── Obesità/
-├── Oculista/
-├── OSAS-ORL-Pneumo/
-├── Proctologo/
-├── Psichiatria/
-└── Terapia del dolore/
+├── laboratory/
+├── imaging/
+├── specialist-visits/
+├── emergency/
+└── administrative/
 ```
 
 I documenti originali non devono essere modificati dal sistema.
@@ -1326,7 +1304,7 @@ I documenti originali non devono essere modificati dal sistema.
 Contiene esclusivamente dati curati.
 
 ```text
-patients/marco/metadata/
+patients/patient-a/metadata/
 │
 ├── document_tags.toml
 ├── problems.toml
@@ -1373,26 +1351,34 @@ series = "Ecocardiogramma"
 
 Contiene artefatti rigenerabili.
 
+Questa directory non deve essere caricata su GitHub.
+
 ```text
 generated/
 │
-├── marco/
+├── patient-a/
 │
-├── irene/
+├── patient-b/
 │
-├── figlia/
+├── patient-c/
 │
-└── figlio/
+└── patient-d/
 ```
 
 Può essere eliminata completamente.
+
+Gli esempi pubblicabili degli artefatti generati risiedono in:
+
+```text
+docs/generated-example/
+```
 
 ---
 
 ### 4.10 Struttura build di un paziente
 
 ```text
-generated/marco/
+generated/patient-a/
 │
 ├── database/
 │
@@ -1414,7 +1400,7 @@ generated/marco/
 Contiene il database SQLite.
 
 ```text
-generated/marco/database/
+generated/patient-a/database/
 │
 └── medical_archive.db
 ```
@@ -1428,7 +1414,7 @@ Questo database è considerato rigenerabile.
 Contiene il testo estratto.
 
 ```text
-generated/marco/extracted_text/
+generated/patient-a/extracted_text/
 ```
 
 Può contenere:
@@ -1446,7 +1432,7 @@ Lo scopo principale è evitare elaborazioni ripetute.
 Contiene gli studi estratti.
 
 ```text
-generated/marco/dicom/
+generated/patient-a/dicom/
 │
 └── 20250318_RMN_Anca/
 ```
@@ -1465,7 +1451,7 @@ Contiene:
 Contiene dati per ricerca semantica.
 
 ```text
-generated/marco/embeddings/
+generated/patient-a/embeddings/
 ```
 
 La presenza di questa directory è opzionale.
@@ -1477,7 +1463,7 @@ La presenza di questa directory è opzionale.
 Contiene artefatti intermedi.
 
 ```text
-generated/marco/timeline/
+generated/patient-a/timeline/
 ```
 
 Esempi:
@@ -1493,7 +1479,7 @@ Esempi:
 Contiene il frontend generato.
 
 ```text
-generated/marco/web/
+generated/patient-a/web/
 │
 ├── index.html
 ├── app.js
@@ -1646,17 +1632,17 @@ Possono essere eliminati periodicamente.
 Utilizzare:
 
 ```text
-marco
-irene
-figlia
-figlio
+patient-a
+patient-b
+patient-c
+patient-d
 ```
 
 Non utilizzare:
 
 ```text
-Marco Coppola
-Irene Rossi
+Patient A
+patient a
 ```
 
 I nomi directory devono essere:
@@ -1701,12 +1687,14 @@ Esempio:
 
 ### 4.24 Artefatti autorevoli
 
-Le seguenti directory costituiscono la sorgente autorevole.
+Le seguenti directory locali costituiscono la sorgente autorevole.
 
 ```text
 config/
 patients/
 ```
+
+Sono escluse dal repository pubblico tramite `.gitignore`.
 
 ---
 
@@ -1721,76 +1709,6 @@ logs/
 ```
 
 La loro eliminazione non deve comportare perdita di informazioni.
-
----
-
-### 4.26 Decisioni architetturali
-
-#### DA-008
-
-I documenti originali risiedono esclusivamente sotto:
-
-```text
-patients/<id>/documents/
-```
-
----
-
-#### DA-009
-
-I metadati curati risiedono esclusivamente sotto:
-
-```text
-patients/<id>/metadata/
-```
-
----
-
-#### DA-010
-
-Tutti gli artefatti generati risiedono sotto:
-
-```text
-generated/
-```
-
----
-
-#### DA-011
-
-La chiavetta USB viene sempre costruita a partire da:
-
-```text
-exports/usb-image/
-```
-
----
-
-#### DA-012
-
-Le directory:
-
-```text
-generated/
-exports/
-logs/
-```
-
-sono considerate completamente rigenerabili.
-
----
-
-#### DA-013
-
-La struttura delle categorie documentali è definita dal singolo archivio paziente e non è vincolata da SaniKey.
-
-Le directory presenti sotto:
-
-```text
-patients/<id>/documents/
-```
-
-vengono rilevate dinamicamente durante la fase di scansione e utilizzate come categorie documentali senza richiedere configurazioni aggiuntive.
 
 ## 5. Configurazione
 
@@ -1824,7 +1742,10 @@ Il sistema deve evitare inferenze non documentate.
 
 #### Versionabile
 
-Tutti i file di configurazione devono poter essere conservati sotto controllo versione.
+Gli esempi di configurazione devono essere conservati sotto controllo versione.
+
+La configurazione reale locale contiene dati sensibili e deve essere esclusa
+dal controllo versione.
 
 ---
 
@@ -1844,6 +1765,8 @@ Errori di configurazione devono interrompere l'esecuzione.
 
 ### 5.3 Directory di configurazione
 
+La configurazione reale si trova in:
+
 ```text
 config/
 │
@@ -1851,6 +1774,15 @@ config/
 ├── ai.toml
 ├── search.toml
 └── deployment.toml
+```
+
+La directory `config/` deve essere esclusa dal repository pubblico tramite
+`.gitignore`.
+
+Gli esempi pubblicabili si trovano in:
+
+```text
+docs/config-example/
 ```
 
 ---
@@ -1865,6 +1797,10 @@ Definisce:
 * i percorsi;
 * le chiavette autorizzate.
 
+Deve contenere esplicitamente tutti i percorsi relativi ai dati reali.
+
+Non esistono percorsi predefiniti.
+
 ---
 
 ### 5.5 Configurazione globale
@@ -1875,15 +1811,6 @@ Esempio:
 [global]
 
 config_version = 1
-
-default_build_root =
-"/srv/sanikey/generated"
-
-default_export_root =
-"/srv/sanikey/exports"
-
-default_usb_uuid =
-"1A2B-3C4D"
 ```
 
 ---
@@ -1900,26 +1827,6 @@ Utilizzata per:
 
 ---
 
-#### default_build_root
-
-Percorso predefinito della build.
-
-Può essere sovrascritto a livello di paziente.
-
----
-
-#### default_export_root
-
-Percorso predefinito degli artefatti esportati.
-
----
-
-#### default_usb_uuid
-
-UUID della chiavetta utilizzata in assenza di override.
-
----
-
 ### 5.6 Definizione di un paziente
 
 Esempio completo:
@@ -1927,18 +1834,18 @@ Esempio completo:
 ```toml
 [[person]]
 
-id = "marco"
+id = "patient-a"
 
-display_name = "Marco Coppola"
+display_name = "Patient A"
 
 source_documents =
-"/data/medical/marco"
+"/absolute/path/to/patient-a/documents"
 
 metadata_directory =
-"/data/medical/marco-metadata"
+"/absolute/path/to/patient-a/metadata"
 
 local_build =
-"/srv/sanikey/generated/marco"
+"/absolute/path/to/patient-a/generated"
 
 usb_uuid =
 "1A2B-3C4D"
@@ -1962,17 +1869,15 @@ Requisiti:
 Esempi validi:
 
 ```text
-marco
-irene
-figlia
-figlio
+patient-a
+patient-b
 ```
 
 Esempi non validi:
 
 ```text
-Marco Coppola
-Irene Rossi
+Patient A
+patient a
 ```
 
 L'identificatore viene utilizzato:
@@ -1996,7 +1901,7 @@ Può contenere:
 Esempio:
 
 ```toml
-display_name = "Marco Coppola"
+display_name = "Patient A"
 ```
 
 ---
@@ -2009,7 +1914,7 @@ Esempio:
 
 ```toml
 source_documents =
-"/mnt/storage/medical/marco"
+"/absolute/path/to/patient-a/documents"
 ```
 
 Questo campo è obbligatorio.
@@ -2020,12 +1925,13 @@ Questo campo è obbligatorio.
 
 I documenti originali possono essere conservati:
 
-* all'interno del repository;
 * su NAS;
 * su disco esterno;
 * in una directory dedicata.
 
 SaniKey non impone una collocazione fisica specifica.
+
+Il percorso reale non deve essere versionato nel repository pubblico.
 
 ---
 
@@ -2037,7 +1943,7 @@ Esempio:
 
 ```toml
 metadata_directory =
-"/srv/sanikey/patients/marco/metadata"
+"/absolute/path/to/patient-a/metadata"
 ```
 
 Contiene:
@@ -2057,7 +1963,7 @@ Esempio:
 
 ```toml
 local_build =
-"/srv/sanikey/generated/marco"
+"/absolute/path/to/patient-a/generated"
 ```
 
 Contiene:
@@ -2094,7 +2000,7 @@ L'UUID identifica fisicamente il dispositivo.
 È preferibile a:
 
 ```text
-/media/marco/SANIKEY
+/media/user/SANIKEY
 ```
 
 poiché:
@@ -2276,6 +2182,13 @@ La validazione controlla:
 * esistenza dei percorsi;
 * consistenza dei valori.
 
+Gli script devono inoltre verificare che:
+
+* `config/accounts.toml` esista prima di accedere a dati reali;
+* tutti i percorsi relativi ai pazienti siano esplicitamente configurati;
+* i file e le directory contenenti dati reali siano esclusi da Git;
+* nessun dato personale venga scritto sotto directory versionate.
+
 ---
 
 ### 5.26 Errori di configurazione
@@ -2298,8 +2211,6 @@ In tali casi la pipeline deve interrompersi immediatamente.
 Durante l'avvio il sistema costruisce una configurazione effettiva risultante da:
 
 ```text
-Default interni
-        ↓
 config/*.toml
         ↓
 Parametri CLI
@@ -2307,37 +2218,7 @@ Parametri CLI
 
 Le opzioni specificate tramite CLI hanno precedenza massima.
 
----
-
-### 5.28 Decisioni architetturali
-
-#### DA-014
-
-La configurazione è espressa esclusivamente in formato TOML.
-
----
-
-#### DA-015
-
-Ogni paziente possiede una sezione dedicata in `accounts.toml`.
-
----
-
-#### DA-016
-
-L'UUID della chiavetta è il meccanismo ufficiale di identificazione dei dispositivi di deploy.
-
----
-
-#### DA-017
-
-Gli errori di configurazione interrompono sempre l'esecuzione.
-
----
-
-#### DA-018
-
-I percorsi dei documenti originali sono configurabili e non devono essere vincolati alla struttura interna del repository.
+I percorsi relativi a dati reali non possiedono default interni.
 
 ## 6. Modello Documentale
 
@@ -2556,23 +2437,29 @@ Questa distinzione serve esclusivamente a determinare il metodo di estrazione de
 
 ---
 
-### 6.11 DICOM ISO
+### 6.11 Supporti DICOM
 
-Un documento `dicom_iso` rappresenta un'immagine disco contenente uno studio diagnostico.
+Un documento `dicom_iso` o `dicom_zip` rappresenta un supporto consegnato da
+una struttura sanitaria e contenente uno studio diagnostico.
 
 Esempio:
 
 ```text
 20250318_RMN_Anca.iso
+20250318_RMN_Anca.zip
 ```
 
 Il sistema deve:
 
-* conservare l'ISO originale;
-* estrarre il contenuto in area generata;
+* conservare il supporto originale;
+* trattare il contenuto estratto come artefatto generato;
 * cercare DICOMDIR;
 * raccogliere metadati;
 * rilevare eventuali viewer inclusi.
+
+La scelta se espandere automaticamente i supporti DICOM, espanderli come
+opzione durante l'ingestion oppure richiedere espansione manuale da parte
+dell'operatore non fa parte delle decisioni iniziali.
 
 ---
 
@@ -2582,7 +2469,8 @@ Una directory DICOM estratta è un artefatto generato.
 
 Non è considerata documento originale.
 
-È rigenerabile a partire dall'ISO.
+È rigenerabile a partire dal supporto originale quando l'espansione è prevista
+dal workflow scelto.
 
 La directory estratta serve per:
 
@@ -2598,7 +2486,7 @@ La directory estratta serve per:
 Uno studio diagnostico è un'entità logica che può collegare:
 
 * referto PDF;
-* ISO DICOM;
+* supporto DICOM originale;
 * directory DICOM estratta;
 * metadati DICOM.
 
@@ -2896,50 +2784,6 @@ Il sistema deve rilevare e segnalare:
 * duplicati.
 
 Gli errori non bloccanti devono essere inclusi in un report di validazione.
-
----
-
-### 6.27 Decisioni architetturali
-
-#### DA-019
-
-L'identità tecnica del documento è basata su SHA256.
-
----
-
-#### DA-020
-
-Il percorso del file è un metadato, non l'identità del documento.
-
----
-
-#### DA-021
-
-I documenti originali non vengono modificati.
-
----
-
-#### DA-022
-
-Le directory documentali sono categorie dinamiche.
-
----
-
-#### DA-023
-
-La serie documentale è distinta dalla categoria.
-
----
-
-#### DA-024
-
-Gli studi diagnostici possono collegare referti PDF e contenuti DICOM.
-
----
-
-#### DA-025
-
-I duplicati tecnici vengono segnalati ma non eliminati automaticamente.
 
 ## 7. Modello di Identità
 
@@ -3581,62 +3425,6 @@ Specialist
 Healthcare Facility
 ```
 
----
-
-### 7.26 Decisioni architetturali
-
-#### DA-026
-
-Le entità cliniche sono distinte dai documenti che le descrivono.
-
----
-
-#### DA-027
-
-Medication e Therapy Episode sono entità differenti.
-
----
-
-#### DA-028
-
-Observation Series e Document Series sono entità differenti.
-
----
-
-#### DA-029
-
-Le campagne di monitoraggio sono entità autonome.
-
----
-
-#### DA-030
-
-Ogni entità derivata deve registrare la propria provenienza.
-
----
-
-#### DA-031
-
-I metadati curati costituiscono la sorgente autorevole delle entità cliniche.
-
----
-
-#### DA-032
-
-I metadati curati sono organizzati per dominio e possono essere partizionati temporalmente.
-
----
-
-#### DA-033
-
-Il modello deve supportare archivi sanitari multi-decennali senza richiedere riorganizzazioni strutturali.
-
----
-
-#### DA-034
-
-Le procedure cliniche sono entità di primo livello e devono essere distinte sia dai documenti che le descrivono sia dagli eventi timeline che le rappresentano cronologicamente.
-
 ## 8. Pipeline di Ingestione
 
 ### 8.1 Scopo
@@ -3898,30 +3686,41 @@ La modifica di un documento invalida automaticamente la cache associata.
 
 ### 8.13 Fase 5 * Elaborazione DICOM
 
-Gli archivi DICOM vengono analizzati separatamente.
+Gli archivi DICOM vengono analizzati separatamente quando è disponibile una
+directory DICOM estratta.
 
 Tipologie supportate:
 
 ```text
 dicom_iso
+dicom_zip
 dicom_directory
 ```
 
 ---
 
-### 8.14 ISO DICOM
+### 8.14 Supporti DICOM originali
 
-Per ogni ISO:
+I supporti DICOM originali possono essere immagini ISO o archivi ZIP consegnati
+da strutture sanitarie.
+
+Il workflow di espansione potrà essere definito in seguito scegliendo tra:
+
+* espansione automatica;
+* espansione opzionale durante l'ingestion;
+* espansione manuale da parte dell'operatore.
+
+Schema logico:
 
 ```text
-ISO
+ISO o ZIP
     ↓
 Estrazione
     ↓
 Analisi
 ```
 
-La ISO originale non viene modificata.
+Il supporto originale non viene modificato.
 
 ---
 
@@ -4223,50 +4022,6 @@ I log devono consentire:
 * diagnostica;
 * riproduzione problemi.
 
----
-
-### 8.35 Decisioni architetturali
-
-#### DA-035
-
-La pipeline è incrementale per impostazione predefinita.
-
----
-
-#### DA-036
-
-L'identità dei documenti è basata su SHA256.
-
----
-
-#### DA-037
-
-L'OCR viene eseguito solo quando necessario.
-
----
-
-#### DA-038
-
-Le informazioni curate hanno sempre precedenza sulle informazioni derivate.
-
----
-
-#### DA-039
-
-Le inferenze AI non sono autorevoli fino all'approvazione.
-
----
-
-#### DA-040
-
-Ogni fase della pipeline deve poter essere rieseguita senza effetti collaterali.
-
----
-
-#### DA-041
-
-Ogni informazione derivata deve conservare la propria provenienza.
-
 ## 9. Database SQLite
 
 ### 9.1 Scopo
@@ -4320,10 +4075,10 @@ Ogni paziente possiede un database indipendente.
 Esempio:
 
 ```text
-generated/marco/database/
+generated/patient-a/database/
 └── medical_archive.db
 
-generated/irene/database/
+generated/patient-b/database/
 └── medical_archive.db
 ```
 
@@ -4349,13 +4104,13 @@ poiché il paziente è già definito dal contesto del database stesso.
 
 Esempio:
 
-generated/marco/database/medical_archive.db
+generated/patient-a/database/medical_archive.db
 
-contiene esclusivamente dati relativi a Marco.
+contiene esclusivamente dati relativi a Patient A.
 
-generated/irene/database/medical_archive.db
+generated/patient-b/database/medical_archive.db
 
-contiene esclusivamente dati relativi a Irene.
+contiene esclusivamente dati relativi a Patient B.
 
 ---
 
@@ -5081,64 +4836,6 @@ Il database viene mantenuto per:
 * future evoluzioni;
 * rigenerazione artefatti.
 
----
-
-### 9.46 Decisioni architetturali
-
-#### DA-042
-
-Ogni paziente possiede un database SQLite indipendente.
-
----
-
-#### DA-043
-
-Procedure e Clinical Events sono entità distinte.
-
----
-
-#### DA-044
-
-Medication e Therapy Episode sono entità distinte.
-
----
-
-#### DA-045
-
-Observation Series e Observation Campaign sono entità distinte.
-
----
-
-#### DA-046
-
-La timeline è una vista aggregata e non una sorgente autorevole.
-
----
-
-#### DA-047
-
-SQLite viene esportato integralmente sulla chiavetta USB.
-
----
-
-#### DA-048
-
-La ricerca full-text utilizza FTS5.
-
----
-
-#### DA-049
-
-Le chiavi esterne SQLite sono obbligatorie.
-
----
-
-#### DA-050
-
-Tutte le entità derivate devono conservare informazioni di provenienza.
-
----
-
 ## 10. Metadati Curati
 
 ### 10.1 Scopo
@@ -5707,56 +5404,6 @@ devices/
 rehabilitation/
 ```
 
----
-
-### 10.36 Decisioni architetturali
-
-#### DA-051
-
-I metadati curati costituiscono la sorgente autorevole delle informazioni strutturate.
-
----
-
-#### DA-052
-
-I metadati curati sono conservati esclusivamente in formato TOML.
-
----
-
-#### DA-053
-
-I metadati sono organizzati per dominio funzionale.
-
----
-
-#### DA-054
-
-I dati longitudinali possono essere partizionati temporalmente.
-
----
-
-#### DA-055
-
-Le proposte AI sono conservate separatamente dai dati curati.
-
----
-
-#### DA-056
-
-I metadati curati non sono rigenerabili.
-
----
-
-#### DA-057
-
-Errori nei metadati curati interrompono la pipeline.
-
----
-
-#### DA-058
-
-Documenti originali e metadati curati costituiscono insieme la sorgente autorevole dell'intero sistema.
-
 ## 11. Generazione e Assistenza AI
 
 ### 11.1 Scopo
@@ -5966,8 +5613,8 @@ Ogni paziente possiede una directory dedicata.
 Esempio:
 
 ```text id="i2m7xh"
-patients/
-└── marco/
+metadata_directory/
+└── patient-a/
     └── metadata/
         └── proposed/
 ```
@@ -6197,56 +5844,6 @@ Il sistema deve privilegiare:
 * tracciabilità;
 
 rispetto alla quantità di proposte generate.
-
----
-
-### 11.31 Decisioni architetturali
-
-#### DA-059
-
-L'AI è utilizzata esclusivamente durante build e manutenzione.
-
----
-
-#### DA-060
-
-L'AI non possiede autorità clinica.
-
----
-
-#### DA-061
-
-Le proposte AI richiedono sempre approvazione umana.
-
----
-
-#### DA-062
-
-Le proposte AI vengono memorizzate in file TOML separati dai metadati curati.
-
----
-
-#### DA-063
-
-Gli artefatti AI sono completamente rigenerabili.
-
----
-
-#### DA-064
-
-Le funzionalità fondamentali del sistema non dipendono dall'AI.
-
----
-
-#### DA-065
-
-Ogni informazione generata dall'AI deve conservare informazioni complete di provenienza.
-
----
-
-#### DA-066
-
-Le elaborazioni AI devono utilizzare una cache incrementale per evitare rigenerazioni inutili di archivi storici di grandi dimensioni.
 
 ## 12. Ricerca
 
@@ -6853,62 +6450,6 @@ Possibili estensioni:
 
 Tali funzionalità non fanno parte della versione iniziale.
 
----
-
-### 12.38 Decisioni architetturali
-
-#### DA-067
-
-La ricerca lessicale è obbligatoria.
-
----
-
-#### DA-068
-
-La ricerca semantica è opzionale.
-
----
-
-#### DA-069
-
-La ricerca deve funzionare completamente offline.
-
----
-
-#### DA-070
-
-Gli embeddings vengono generati esclusivamente durante la build.
-
----
-
-#### DA-071
-
-La ricerca interroga simultaneamente documenti ed entità cliniche.
-
----
-
-#### DA-072
-
-I metadati curati sono indicizzati e ricercabili.
-
----
-
-#### DA-073
-
-Le proposte AI non approvate non compaiono nei risultati standard.
-
----
-
-#### DA-074
-
-La consultazione non richiede modelli AI attivi.
-
----
-
-#### DA-075
-
-La ricerca deve rimanere utilizzabile anche in assenza completa di funzionalità semantiche.
-
 ## 13. Timeline Clinica
 
 ### 13.1 Scopo
@@ -7416,62 +6957,6 @@ Possibili estensioni:
 * visualizzazione grafica delle terapie;
 * sovrapposizione di campagne osservative.
 
----
-
-### 13.33 Decisioni architetturali
-
-#### DA-076
-
-La timeline è una vista derivata e non una sorgente autorevole.
-
----
-
-#### DA-077
-
-La timeline supporta sia eventi puntuali sia intervalli temporali.
-
----
-
-#### DA-078
-
-Le terapie sono rappresentate come intervalli temporali.
-
----
-
-#### DA-079
-
-Le campagne osservative sono rappresentate come intervalli temporali.
-
----
-
-#### DA-080
-
-Gli eventi manuali sono cittadini di prima classe della timeline.
-
----
-
-#### DA-081
-
-Gli override manuali prevalgono sugli elementi generati automaticamente.
-
----
-
-#### DA-082
-
-La timeline è completamente rigenerabile.
-
----
-
-#### DA-083
-
-La consultazione della timeline non richiede componenti AI attivi.
-
----
-
-#### DA-084
-
-La timeline deve funzionare completamente offline all'interno della chiavetta USB.
-
 ## 14. Frontend
 
 ### 14.1 Scopo
@@ -7538,7 +7023,7 @@ Le tecnologie adottate devono privilegiare:
 Il frontend è composto esclusivamente da risorse statiche.
 
 ```text
-frontend/
+web/
 │
 ├── index.html
 ├── assets/
@@ -7631,13 +7116,13 @@ La chiavetta può contenere più archivi indipendenti.
 Esempio:
 
 ```text
-START-HERE-Marco.html
+START-HERE-Patient-A.html
 
-START-HERE-Irene.html
+START-HERE-Patient-B.html
 
-START-HERE-Figlia.html
+START-HERE-Patient-C.html
 
-START-HERE-Figlio.html
+START-HERE-Patient-D.html
 ```
 
 Ogni file rappresenta il punto di ingresso di un archivio indipendente.
@@ -7998,82 +7483,6 @@ Possibili estensioni:
 
 Tali funzionalità non fanno parte della versione iniziale.
 
----
-
-### 14.38 Decisioni architetturali
-
-#### DA-085
-
-Il frontend è composto esclusivamente da risorse statiche.
-
----
-
-#### DA-086
-
-Il frontend deve funzionare direttamente da file system senza backend.
-
----
-
-#### DA-087
-
-Ogni paziente possiede un punto di ingresso HTML indipendente.
-
----
-
-#### DA-088
-
-Il frontend deve funzionare completamente offline.
-
----
-
-#### DA-089
-
-Nessuna dipendenza cloud è consentita durante la consultazione.
-
----
-
-#### DA-090
-
-I grafici vengono generati localmente.
-
----
-
-#### DA-091
-
-Il frontend costituisce un artefatto generato e completamente rigenerabile.
-
----
-
-#### DA-092
-
-La consultazione degli studi diagnostici deve supportare l'apertura dei viewer DICOM eventualmente forniti con il supporto originale.
-
----
-
-#### DA-093
-
-Il frontend utilizza file JSON statici generati durante la build e non interroga direttamente SQLite.
-
----
-
-#### DA-094
-
-Il database SQLite viene comunque esportato sulla chiavetta come artefatto tecnico e diagnostico.
-
----
-
-#### DA-095
-
-La chiavetta USB è considerata un supporto di sola lettura durante la consultazione.
-
----
-
-#### DA-096
-
-La ricerca sulla chiavetta opera esclusivamente su indici pre-generati e non effettua indicizzazioni in tempo reale.
-
----
-
 ## 15. Build Locale
 
 ### 15.1 Scopo
@@ -8157,10 +7566,10 @@ La build completa elabora tutti i pazienti configurati.
 Esempio:
 
 ```text
-Marco
-Irene
-Figlia
-Figlio
+Patient A
+Patient B
+Patient C
+Patient D
 ```
 
 Ogni paziente viene elaborato indipendentemente.
@@ -8355,40 +7764,6 @@ Tutti gli artefatti devono essere ricostruibili a partire da:
 * metadati curati;
 * configurazione.
 
----
-
-### 15.18 Decisioni Architetturali
-
-#### DA-097
-
-La build locale è l'unico meccanismo ufficiale di generazione degli artefatti.
-
-#### DA-098
-
-La modalità incrementale è la modalità operativa predefinita.
-
-#### DA-099
-
-Ogni paziente viene elaborato indipendentemente.
-
-#### DA-100
-
-Le cache di build sono completamente rigenerabili.
-
-#### DA-101
-
-I metadati curati vengono sempre validati prima dell'elaborazione.
-
-#### DA-102
-
-La build genera un report e un manifest verificabili.
-
-#### DA-103
-
-La directory generated/ non contiene dati autorevoli.
-
----
-
 ## 16. Artefatti Generati
 
 ### 16.1 Scopo
@@ -8447,7 +7822,7 @@ generated/
 └── <patient>/
     │
     ├── database/
-    ├── frontend/
+    ├── web/
     ├── search/
     ├── timeline/
     ├── ai/
@@ -8484,7 +7859,7 @@ Non viene interrogato direttamente dal frontend.
 Contiene il frontend statico.
 
 ```text
-frontend/
+web/
 │
 ├── index.html
 ├── css/
@@ -8682,7 +8057,11 @@ dicom/
 
 I contenuti estratti sono considerati artefatti rigenerabili.
 
-Le ISO originali rimangono la sorgente primaria.
+I supporti originali consegnati dalla struttura sanitaria rimangono la sorgente
+primaria.
+
+La modalità di espansione dei supporti DICOM sarà definita da una decisione
+successiva.
 
 ---
 
@@ -8813,7 +8192,7 @@ Può essere eliminata in qualsiasi momento.
 Possono essere copiati sulla chiavetta:
 
 ```text
-frontend/
+web/
 database/
 documents/
 dicom/
@@ -8858,48 +8237,6 @@ generated/
 ```
 
 non deve comportare alcuna perdita informativa.
-
----
-
-### 16.34 Decisioni Architetturali
-
-#### DA-104
-
-Gli artefatti generati non costituiscono sorgente autorevole.
-
-#### DA-105
-
-Il frontend utilizza esclusivamente JSON statici generati durante la build.
-
-#### DA-106
-
-SQLite viene conservato come artefatto tecnico indipendente.
-
-#### DA-107
-
-Gli indici di ricerca vengono generati durante la build.
-
-#### DA-108
-
-La ricerca sulla chiavetta opera esclusivamente su indici pre-generati.
-
-#### DA-109
-
-Gli artefatti AI sono opzionali e completamente rigenerabili.
-
-#### DA-110
-
-Ogni build produce manifest e checksum verificabili.
-
-#### DA-111
-
-Gli artefatti temporanei non vengono esportati sulla chiavetta USB.
-
-#### DA-112
-
-La distribuzione USB opera esclusivamente sugli artefatti esportabili.
-
----
 
 ## 17. Distribuzione USB
 
@@ -8984,7 +8321,7 @@ Esempio:
 ```toml
 [[person]]
 
-id = "marco"
+id = "patient-a"
 
 usb_uuid = "1A2B-3C4D"
 ```
@@ -9063,21 +8400,25 @@ Esempio:
 ```text
 USB/
 │
-├── START-HERE-Marco.html
-├── START-HERE-Irene.html
+├── START-HERE-Patient-A.html
+├── START-HERE-Patient-B.html
 │
-├── marco/
-│   ├── frontend/
-│   ├── database/
-│   ├── documents/
-│   └── dicom/
+├── patients/
 │
-└── irene/
-    ├── frontend/
-    ├── database/
-    ├── documents/
-    └── dicom/
+│   ├── patient-a/
+│   │   ├── medical_archive.db
+│   │   ├── web/
+│   │   └── documents/
+│   │
+│   └── patient-b/
+│       ├── medical_archive.db
+│       ├── web/
+│       └── documents/
+│
+└── SANIKEY-MANIFEST.toml
 ```
+
+La directory `web/` contiene il frontend statico generato per il paziente.
 
 ---
 
@@ -9100,9 +8441,9 @@ Ogni paziente possiede una pagina dedicata.
 Esempi:
 
 ```text
-START-HERE-Marco.html
+START-HERE-Patient-A.html
 
-START-HERE-Irene.html
+START-HERE-Patient-B.html
 ```
 
 ---
@@ -9332,52 +8673,6 @@ Possibili estensioni:
 * immagini ISO complete dell'archivio.
 
 Tali funzionalità non fanno parte della versione iniziale.
-
----
-
-### 17.35 Decisioni Architetturali
-
-#### DA-113
-
-La distribuzione è separata dalla build.
-
-#### DA-114
-
-Le chiavette sono identificate tramite UUID del filesystem.
-
-#### DA-115
-
-La modalità incrementale è la modalità di distribuzione predefinita.
-
-#### DA-116
-
-rsync è il meccanismo preferenziale di sincronizzazione.
-
-#### DA-117
-
-Ogni paziente possiede un archivio completamente indipendente sulla chiavetta.
-
-#### DA-118
-
-Le pagine START-HERE costituiscono il punto di ingresso ufficiale per la consultazione.
-
-#### DA-119
-
-La chiavetta è considerata un supporto di sola lettura durante l'utilizzo.
-
-#### DA-120
-
-La distribuzione deve verificare l'integrità degli artefatti copiati.
-
-#### DA-121
-
-Il filesystem raccomandato è exFAT.
-
-#### DA-122
-
-L'intero contenuto della chiavetta deve poter essere rigenerato a partire dagli artefatti locali.
-
----
 
 ## 18. Sicurezza e Privacy
 
@@ -9662,42 +8957,6 @@ Possibili estensioni:
 
 Tali funzionalità non fanno parte della versione iniziale.
 
----
-
-### 18.25 Decisioni Architetturali
-
-#### DA-123
-
-La consultazione deve funzionare completamente offline.
-
-#### DA-124
-
-Il frontend non utilizza cookie né sistemi di telemetria.
-
-#### DA-125
-
-La chiavetta è considerata un supporto di sola lettura.
-
-#### DA-126
-
-La cifratura della chiavetta non fa parte dei requisiti iniziali.
-
-#### DA-127
-
-La modalità AI locale è la soluzione raccomandata.
-
-#### DA-128
-
-La perdita degli artefatti generati non comporta perdita di dati autorevoli.
-
-#### DA-129
-
-Documenti originali, metadati curati e configurazione costituiscono il nucleo minimo da preservare per il disaster recovery.
-
-#### DA-130
-
-Ogni paziente mantiene un isolamento logico completo anche quando più archivi convivono sulla stessa chiavetta.
-
 ## 19. Operazioni e Manutenzione
 
 ### 19.1 Scopo
@@ -9765,8 +9024,8 @@ Esempio:
 
 ```text
 source_documents/
-└── Marco/
-    └── Cardiologo/
+└── imaging/
+    └── diagnostic-study/
         └── 20261110 Visita Cardiologica.pdf
 ```
 
@@ -10239,70 +9498,6 @@ Possibili estensioni:
 
 Tali funzionalità non fanno parte della versione iniziale.
 
----
-
-### 19.45 Decisioni Architetturali
-
-#### DA-131
-
-I documenti originali non vengono modificati dalla manutenzione ordinaria.
-
-#### DA-132
-
-La build incrementale è il flusso operativo raccomandato.
-
-#### DA-133
-
-Le proposte AI richiedono revisione umana.
-
-#### DA-134
-
-I supporti DICOM vengono conservati integralmente.
-
-#### DA-135
-
-Documents, metadata e config costituiscono il nucleo minimo da includere nei backup.
-
-#### DA-136
-
-Gli artefatti generati possono essere ricostruiti e non richiedono backup obbligatorio.
-
-#### DA-137
-
-La sostituzione di una chiavetta USB richiede l'aggiornamento dell'UUID configurato.
-
-#### DA-138
-
-La manutenzione deve preservare la compatibilità con archivi clinici pluridecennali.
-
-#### DA-139
-
-La chiavetta USB è un supporto di distribuzione e non costituisce un backup.
-
-#### DA-140
-
-I dati autorevoli da salvaguardare sono esclusivamente documents/, metadata/ e config/.
-
-#### DA-141
-
-Gli artefatti generati sono completamente rigenerabili e non richiedono backup obbligatorio.
-
-#### DA-142
-
-Il disaster recovery si basa sul ripristino del repository autorevole seguito da una Build Completa.
-
-#### DA-143
-
-La sostituzione di una chiavetta richiede la registrazione del nuovo UUID e una distribuzione completa.
-
-#### DA-144
-
-La strategia raccomandata prevede almeno un backup locale e un backup esterno indipendente.
-
-#### DA-145
-
-La recuperabilità dell'archivio deve essere verificata periodicamente mediante test di ripristino.
-
 ## 20. Requisiti Tecnici
 
 ### 20.1 Scopo
@@ -10628,44 +9823,6 @@ purché rimangano invariati:
 * metadati curati;
 * formato degli archivi.
 
----
-
-### 20.25 Decisioni Architetturali
-
-#### DA-146
-
-Python costituisce il linguaggio di riferimento dell'implementazione iniziale.
-
-#### DA-147
-
-SQLite è il database di riferimento.
-
-#### DA-148
-
-TOML è il formato standard per configurazione e metadati curati.
-
-#### DA-149
-
-Il frontend utilizza esclusivamente tecnologie web standard.
-
-#### DA-150
-
-La consultazione deve funzionare completamente offline.
-
-#### DA-151
-
-exFAT è il filesystem raccomandato per la distribuzione USB.
-
-#### DA-152
-
-Le librerie specifiche possono essere sostituite senza modificare l'architettura.
-
-#### DA-153
-
-La longevità dei dati prevale sulle scelte tecnologiche di implementazione.
-
----
-
 ## 21. Questioni Aperte e Possibili Evoluzioni
 
 ### 21.1 Scopo
@@ -10873,35 +10030,3 @@ Una futura estensione dovrebbe essere adottata soltanto se:
 * non compromette la portabilità;
 * non riduce la longevità;
 * non aumenta significativamente la complessità operativa.
-
----
-
-### 21.18 Decisioni Architetturali
-
-#### DA-154
-
-La ricerca semantica rimane una funzionalità opzionale.
-
-#### DA-155
-
-FHIR e HL7 sono considerati possibili standard di interoperabilità futura.
-
-#### DA-156
-
-La consultazione assistita da AI non fa parte della versione iniziale.
-
-#### DA-157
-
-La sincronizzazione cloud non fa parte della versione iniziale.
-
-#### DA-158
-
-Le evoluzioni future non devono compromettere la consultazione offline.
-
-#### DA-159
-
-Le evoluzioni future non devono compromettere la longevità degli archivi.
-
-#### DA-160
-
-La semplicità operativa rimane un criterio prioritario nella valutazione delle nuove funzionalità.
