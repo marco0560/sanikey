@@ -6,7 +6,17 @@ from .cli import build_parser
 
 
 def main() -> int:
-    """Parse CLI arguments and dispatch the selected command."""
+    """Parse CLI arguments and dispatch the selected command.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
     parser = build_parser()
     args = parser.parse_args()
     func = getattr(args, "func", None)

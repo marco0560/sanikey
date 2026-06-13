@@ -1,3 +1,0 @@
-Synthetic laboratory report for documentation and tests.
-
-No real patient data is present in this file.

@@ -37,7 +37,17 @@ def _person(tmp_path: Path) -> PersonConfig:
 
 
 def test_catalog_dicom_studies_links_manual_expansion(tmp_path: Path) -> None:
-    """Verify ISO support links to manually expanded generated directory."""
+    """Verify ISO support links to manually expanded generated directory.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = _person(tmp_path)
     person.source_documents.mkdir(parents=True)
@@ -56,7 +66,17 @@ def test_catalog_dicom_studies_links_manual_expansion(tmp_path: Path) -> None:
 
 
 def test_catalog_dicom_studies_warns_when_expansion_missing(tmp_path: Path) -> None:
-    """Verify missing manual expansion is a warning, not deletion or failure."""
+    """Verify missing manual expansion is a warning, not deletion or failure.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = _person(tmp_path)
     person.source_documents.mkdir(parents=True)

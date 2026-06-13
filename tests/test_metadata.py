@@ -14,7 +14,17 @@ if TYPE_CHECKING:
 
 
 def test_load_curated_metadata_reads_supported_files(tmp_path: Path) -> None:
-    """Verify curated metadata files are aggregated."""
+    """Verify curated metadata files are aggregated.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     (tmp_path / "problems.toml").write_text(
         """
@@ -99,7 +109,17 @@ links = ["procedure-a"]
 
 
 def test_load_curated_metadata_allows_missing_directory(tmp_path: Path) -> None:
-    """Verify missing metadata directories produce empty metadata."""
+    """Verify missing metadata directories produce empty metadata.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     metadata = load_curated_metadata(tmp_path / "missing")
 
@@ -108,7 +128,17 @@ def test_load_curated_metadata_allows_missing_directory(tmp_path: Path) -> None:
 
 
 def test_load_curated_metadata_rejects_malformed_items(tmp_path: Path) -> None:
-    """Verify present malformed metadata files fail deterministically."""
+    """Verify present malformed metadata files fail deterministically.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     (tmp_path / "problems.toml").write_text(
         """

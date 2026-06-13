@@ -1,29 +1,91 @@
-# Programming artifacts
+# -------------------------------
+# Codex
+# -------------------------------
+.codex
 
-.venv/
-.vscode/
-node_modules/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-.coverage.*
-.coverage-report.json
-coverage.xml
-htmlcov/
-build/
-dist/
-*.egg-info/
-site/
-.DS_Store
-
+# -------------------------------
 # Local Data
-
+# -------------------------------
 config/
 patients/
 generated/
 exports/
 logs/
 local-data/
+
+# -------------------------------
+# Virtual environments
+# -------------------------------
+.venv/
+venv/
+
+# -------------------------------
+# Codira internal DB
+# -------------------------------
+.codira/
+
+# -------------------------------
+# Build artifacts
+# -------------------------------
+issues.json
+milestones.json
+guidelines.tar.xz
+.coverage-report.json
+
+# -------------------------------
+# Python cache
+# -------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+
+# -------------------------------
+# Tool caches
+# -------------------------------
+.mypy_cache/
+.pytest_cache/
+.pytest_cache_local/
+.pytest_tmp/
+.pytest_diag*/
+.pre-commit-cache/
+.pt_*/
+.ruff_cache/
+.ruff_cache_run/
+.tmp_pytest_run/
+pytest-cache-files-*/
+
+# -----------------------------------
+# Virtual Studio Code configuration
+# -----------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# -------------------------------
+# Build artifacts
+# -------------------------------
+build/
+dist/
+*.egg-info/
+src/codira/_version.py
+repo.tar.xz
+site/
+.coverage-report.json
+
+# -------------------------------
+# Coverage
+# -------------------------------
+.coverage
+.coverage.*
+htmlcov/
+
+# -------------------------------
+# Node (semantic-release)
+# -------------------------------
+node_modules/
+
+# -------------------------------
+# OS
+# -------------------------------
+.DS_Store
+Thumbs.db

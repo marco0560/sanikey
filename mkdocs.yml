@@ -1,5 +1,5 @@
 site_name: sanikey
-site_description: Medical documents on a USB key
+site_description: Documenti medici su chiavetta USB
 site_author: Marco Coppola
 
 repo_name: sanikey
@@ -27,12 +27,27 @@ plugins:
   - search
 
 nav:
-  - Home: index.md
-  - Getting started: getting_started.md
-  - Contributing: CONTRIBUTING.md
-  - Architecture: architecture.md
-  - Scripts: scripts.md
-  - Cheatsheet: cheatsheet.md
-  - Release checklist: release/checklist.md
-  - Release process: release/process.md
-  - Decisions: decisions/index.md
+  - Pagina iniziale: index.md
+  - Guida Utente: user-guide.md
+  - Esempi:
+      - Panoramica: examples.md
+      - Esempio configurazione: config-example/README.md
+      - Esempio pazienti: patients-example/README.md
+      - Esempio artefatti generati: generated-example/README.md
+      - Esempio paziente generato: generated-example/patient-a/README.md
+  - Sviluppo:
+      - Avvio sviluppo: getting_started.md
+      - Architettura: architecture.md
+      - Script: scripts.md
+      - Contribuire: CONTRIBUTING.md
+      - Implementazione iniziale: process/initial-implementation.md
+  - Specifiche:
+      - Specifica alto livello: sanikey-high-level-spec.md
+      - Specifica dettagliata: sanikey-detailed-spec.md
+      - Decisioni iniziali: decisions/decisioni-iniziali.md
+      - Indice decisioni: decisions/index.md
+  - Rilascio:
+      - Lista di controllo: release/checklist.md
+      - Processo: release/process.md
+  - Riferimento:
+      - Promemoria: cheatsheet.md

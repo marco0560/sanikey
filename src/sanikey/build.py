@@ -74,6 +74,11 @@ def build_patient(
     -------
     PatientBuildResult
         Build result.
+
+    Raises
+    ------
+    ValueError
+        If ``mode`` is unsupported.
     """
 
     if mode not in {"full", "incremental", "validation"}:

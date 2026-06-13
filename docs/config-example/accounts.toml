@@ -3,9 +3,9 @@ config_version = 1
 
 [[person]]
 id = "patient-a"
-display_name = "Patient A"
-source_documents = "/absolute/example/path/patient-a/documents"
-metadata_directory = "/absolute/example/path/patient-a/metadata"
-local_build = "/absolute/example/path/patient-a/generated"
+display_name = "Paziente A"
+source_documents = "/percorso/assoluto/esempio/patient-a/documents"
+metadata_directory = "/percorso/assoluto/esempio/patient-a/metadata"
+local_build = "/percorso/assoluto/esempio/patient-a/generated"
 usb_uuid = "1A2B-3C4D"
 enabled = true

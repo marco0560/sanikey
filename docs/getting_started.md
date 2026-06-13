@@ -1,34 +1,34 @@
-# Getting Started
+# Avvio Sviluppo
 
-## Create the local development environment
+## Creare l'Ambiente Locale di Sviluppo
 
 ```bash
 uv run python scripts/bootstrap_dev_environment.py
 ```
 
-The bootstrap script creates `.venv`, installs editable development and
-MkDocs dependencies, installs repo-local Git configuration, and runs the
-standard validation surface unless skipped.
+Lo script di bootstrap crea `.venv`, installa il pacchetto in modalità
+modificabile con le dipendenze di sviluppo e MkDocs, installa la configurazione
+Git locale del repository ed esegue la superficie standard di validazione salvo
+richiesta contraria.
 
-## Repository-owned Git setup
+## Configurazione Git Gestita dal Repository
 
-The bootstrap process installs local Git configuration for this repository,
-including:
+Il processo di bootstrap installa la configurazione Git locale per questo
+repository, inclusi:
 
-- versioned hooks from `.githooks/`
-- the commit template from `.gitmessage`
-- sanctioned local aliases such as `git clean-repo`,
-  `git gen-cheatsheet`, `git release-audit`, and `git release`
+- hook versionati da `.githooks/`
+- template di commit da `.gitmessage`
+- alias locali autorizzati come `git clean-repo`, `git gen-cheatsheet`,
+  `git release-audit` e `git release`
 
-## First-day workflow
+## Flusso del Primo Giorno
 
-After bootstrap, the normal local workflow is:
+Dopo il bootstrap, il flusso locale normale è:
 
 ```bash
 uv run python scripts/validate_repo.py
 mkdocs build --strict
 ```
 
-The installed CLI command is the authoritative user-facing interface. Direct
-`python -m sanikey ...` execution is supported primarily for
-development and debugging.
+Il comando CLI installato è l'interfaccia utente autorevole. L'esecuzione diretta
+`python -m sanikey ...` è supportata principalmente per sviluppo e debug.

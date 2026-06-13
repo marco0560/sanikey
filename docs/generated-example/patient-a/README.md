@@ -1,6 +1,6 @@
-# Generated Example
+# Esempio Generato
 
-This directory documents the expected shape of generated artefacts.
+Questa directory documenta la forma attesa degli artefatti generati.
 
-The real generated output is reproducible from synthetic example inputs and is
-not committed here.
+L'output generato reale è riproducibile dagli input sintetici di esempio e non
+viene committato qui.

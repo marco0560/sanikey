@@ -37,7 +37,17 @@ def _person(tmp_path: Path) -> PersonConfig:
 
 
 def test_scan_documents_builds_stable_records(tmp_path: Path) -> None:
-    """Verify scanner derives category, date, title, kind, and digest."""
+    """Verify scanner derives category, date, title, kind, and digest.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = _person(tmp_path)
     document_dir = person.source_documents / "laboratory"
@@ -59,7 +69,17 @@ def test_scan_documents_builds_stable_records(tmp_path: Path) -> None:
 
 
 def test_duplicate_detection_keeps_documents(tmp_path: Path) -> None:
-    """Verify duplicates are reported without deletion."""
+    """Verify duplicates are reported without deletion.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = _person(tmp_path)
     document_dir = person.source_documents / "reports"
@@ -74,7 +94,17 @@ def test_duplicate_detection_keeps_documents(tmp_path: Path) -> None:
 
 
 def test_extract_text_reads_text_files(tmp_path: Path) -> None:
-    """Verify supported text files are extracted directly."""
+    """Verify supported text files are extracted directly.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = _person(tmp_path)
     document_dir = person.source_documents
@@ -90,7 +120,17 @@ def test_extract_text_reads_text_files(tmp_path: Path) -> None:
 
 
 def test_extract_text_warns_for_dicom_support(tmp_path: Path) -> None:
-    """Verify DICOM support files are catalog-only in v1."""
+    """Verify DICOM support files are catalog-only in v1.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = _person(tmp_path)
     document_dir = person.source_documents

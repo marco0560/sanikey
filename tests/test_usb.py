@@ -13,7 +13,17 @@ if TYPE_CHECKING:
 
 
 def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
-    """Verify simulated USB export layout and validation."""
+    """Verify simulated USB export layout and validation.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = PersonConfig(
         id="patient-a",

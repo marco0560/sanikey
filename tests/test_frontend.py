@@ -12,7 +12,17 @@ if TYPE_CHECKING:
 
 
 def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
-    """Verify frontend generation writes static HTML, CSS, and JS."""
+    """Verify frontend generation writes static HTML, CSS, and JS.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = PersonConfig(
         id="patient-a",

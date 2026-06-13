@@ -10,7 +10,17 @@ from sanikey.usb import export_usb, validate_usb
 
 
 def test_public_examples_build_and_export_demo_usb(tmp_path: Path) -> None:
-    """Verify public synthetic examples can produce a demo USB export."""
+    """Verify public synthetic examples can produce a demo USB export.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     repo_root = Path.cwd()
     person = PersonConfig(

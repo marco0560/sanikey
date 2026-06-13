@@ -37,7 +37,17 @@ def _person(tmp_path: Path) -> PersonConfig:
 
 
 def test_build_patient_writes_manifest_report_checksums(tmp_path: Path) -> None:
-    """Verify a patient build produces verifiable artefacts."""
+    """Verify a patient build produces verifiable artefacts.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = _person(tmp_path)
     person.source_documents.mkdir(parents=True)

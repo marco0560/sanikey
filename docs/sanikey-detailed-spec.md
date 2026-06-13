@@ -154,7 +154,7 @@ Il sistema non prevede:
 * accesso concorrente;
 * sincronizzazione tra utenti;
 * gestione permessi;
-* workflow collaborativi.
+* flusso operativo collaborativi.
 
 L'archivio è gestito da un singolo proprietario.
 
@@ -280,7 +280,7 @@ Supporto USB generato dal repository e destinato alla consultazione da parte del
 SaniKey è composto da tre ambienti distinti:
 
 1. Repository sorgente
-2. Ambiente di build locale
+2. Ambiente di costruzione locale
 3. Chiavetta USB di consultazione
 
 ```text
@@ -289,10 +289,10 @@ SaniKey è composto da tre ambienti distinti:
                  │ SaniKey          │
                  └────────┬─────────┘
                           │
-                          │ Build
+                          │ Costruzione
                           ▼
                  ┌──────────────────┐
-                 │ Build Locale     │
+                 │ Costruzione Locale │
                  │ Artefatti        │
                  │ per paziente     │
                  └────────┬─────────┘
@@ -429,7 +429,7 @@ Non deve:
 
 ---
 
-#### Build
+#### Costruzione
 
 Responsabilità:
 
@@ -711,7 +711,7 @@ Il sistema deve rimanere pienamente utilizzabile anche in loro assenza.
          └───────────────┼───────────────┘
                          │
                          ▼
-                 Pipeline Build
+                 Pipeline di Costruzione
                          │
          ┌───────────────┼───────────────┐
          │               │               │
@@ -771,7 +771,7 @@ Qualora un documento riguardi più persone, esso dovrà essere archiviato separa
 
 ---
 
-#### Build indipendente
+#### Costruzione indipendente
 
 Ogni archivio deve poter essere generato individualmente.
 
@@ -809,7 +809,7 @@ Esempio:
 ```toml
 [[person]]
 id = "patient-a"
-display_name = "Patient A"
+display_name = "Paziente A"
 ```
 
 L'identificatore tecnico:
@@ -1015,13 +1015,13 @@ La configurazione minima comprende:
 [[person]]
 id = "patient-a"
 
-display_name = "Patient A"
+display_name = "Paziente A"
 
-source_documents = "/absolute/path/to/patient-a/documents"
+source_documents = "/percorso/assoluto/patient-a/documents"
 
-metadata_directory = "/absolute/path/to/patient-a/metadata"
+metadata_directory = "/percorso/assoluto/patient-a/metadata"
 
-local_build = "/absolute/path/to/patient-a/generated"
+local_build = "/percorso/assoluto/patient-a/generated"
 
 usb_uuid = "1A2B-3C4D"
 ```
@@ -1041,7 +1041,7 @@ Configurazione
 Documenti
        │
        ▼
-Build
+Costruzione
        │
        ▼
 Database
@@ -1069,7 +1069,7 @@ Le limitazioni pratiche dipendono esclusivamente da:
 
 L'obiettivo principale rimane comunque il supporto di piccoli gruppi familiari.
 
-## 4. Repository Layout
+## 4. Layout del Repository
 
 ### 4.1 Scopo
 
@@ -1641,7 +1641,7 @@ patient-d
 Non utilizzare:
 
 ```text
-Patient A
+Paziente A
 patient a
 ```
 
@@ -1836,16 +1836,16 @@ Esempio completo:
 
 id = "patient-a"
 
-display_name = "Patient A"
+display_name = "Paziente A"
 
 source_documents =
-"/absolute/path/to/patient-a/documents"
+"/percorso/assoluto/patient-a/documents"
 
 metadata_directory =
-"/absolute/path/to/patient-a/metadata"
+"/percorso/assoluto/patient-a/metadata"
 
 local_build =
-"/absolute/path/to/patient-a/generated"
+"/percorso/assoluto/patient-a/generated"
 
 usb_uuid =
 "1A2B-3C4D"
@@ -1876,7 +1876,7 @@ patient-b
 Esempi non validi:
 
 ```text
-Patient A
+Paziente A
 patient a
 ```
 
@@ -1901,7 +1901,7 @@ Può contenere:
 Esempio:
 
 ```toml
-display_name = "Patient A"
+display_name = "Paziente A"
 ```
 
 ---
@@ -1914,7 +1914,7 @@ Esempio:
 
 ```toml
 source_documents =
-"/absolute/path/to/patient-a/documents"
+"/percorso/assoluto/patient-a/documents"
 ```
 
 Questo campo è obbligatorio.
@@ -1943,7 +1943,7 @@ Esempio:
 
 ```toml
 metadata_directory =
-"/absolute/path/to/patient-a/metadata"
+"/percorso/assoluto/patient-a/metadata"
 ```
 
 Contiene:
@@ -1963,7 +1963,7 @@ Esempio:
 
 ```toml
 local_build =
-"/absolute/path/to/patient-a/generated"
+"/percorso/assoluto/patient-a/generated"
 ```
 
 Contiene:
@@ -2470,7 +2470,7 @@ Una directory DICOM estratta è un artefatto generato.
 Non è considerata documento originale.
 
 È rigenerabile a partire dal supporto originale quando l'espansione è prevista
-dal workflow scelto.
+dal flusso operativo scelto.
 
 La directory estratta serve per:
 
@@ -3704,7 +3704,7 @@ dicom_directory
 I supporti DICOM originali possono essere immagini ISO o archivi ZIP consegnati
 da strutture sanitarie.
 
-Il workflow di espansione potrà essere definito in seguito scegliendo tra:
+Il flusso operativo di espansione potrà essere definito in seguito scegliendo tra:
 
 * espansione automatica;
 * espansione opzionale durante l'ingestion;
@@ -3926,7 +3926,7 @@ Vengono prodotti:
 
 ---
 
-### 8.30 Fase 14 * Build Finale
+### 8.30 Fase 14 * Costruzione Finale
 
 La build finale produce l'archivio consultabile del paziente.
 
@@ -4106,11 +4106,11 @@ Esempio:
 
 generated/patient-a/database/medical_archive.db
 
-contiene esclusivamente dati relativi a Patient A.
+contiene esclusivamente dati relativi a Paziente A.
 
 generated/patient-b/database/medical_archive.db
 
-contiene esclusivamente dati relativi a Patient B.
+contiene esclusivamente dati relativi a Paziente B.
 
 ---
 
@@ -6996,7 +6996,7 @@ Tutte le funzionalità devono essere disponibili senza accesso alla rete.
 
 ---
 
-#### Zero Install
+#### Installazione Zero
 
 L'utente deve poter utilizzare il sistema semplicemente aprendo:
 
@@ -7137,7 +7137,7 @@ Ogni archivio viene generato in modo indipendente.
 
 ---
 
-### 14.9 Home Page
+### 14.9 Pagina Iniziale
 
 La schermata iniziale deve mostrare:
 
@@ -7483,11 +7483,11 @@ Possibili estensioni:
 
 Tali funzionalità non fanno parte della versione iniziale.
 
-## 15. Build Locale
+## 15. Costruzione Locale
 
 ### 15.1 Scopo
 
-La Build Locale è il processo mediante il quale i documenti originali e i metadati curati vengono trasformati negli artefatti utilizzati dal frontend e dalla distribuzione USB.
+La Costruzione Locale è il processo mediante il quale i documenti originali e i metadati curati vengono trasformati negli artefatti utilizzati dal frontend e dalla distribuzione USB.
 
 La build viene eseguita esclusivamente sul sistema dell'utente.
 
@@ -7507,7 +7507,7 @@ La build deve:
 
 ---
 
-### 15.3 Modalità di Build
+### 15.3 Modalità di Costruzione
 
 Sono supportate tre modalità operative:
 
@@ -7517,7 +7517,7 @@ incremental
 validation
 ```
 
-#### full build
+#### costruzione completa
 
 Rigenera completamente tutti gli artefatti.
 
@@ -7527,21 +7527,21 @@ Utilizzata:
 * dopo modifiche strutturali;
 * dopo aggiornamenti importanti.
 
-#### incremental build
+#### costruzione incrementale
 
 Rigenera esclusivamente gli elementi modificati.
 
 È la modalità predefinita.
 
-#### build validation
+#### validazione della costruzione
 
 Esegue esclusivamente verifiche senza produrre artefatti.
 
 ---
 
-### 15.4 Build Singolo Paziente
+### 15.4 Costruzione Singolo Paziente
 
-La build normale opera su un singolo paziente.
+La costruzione normale opera su un singolo paziente.
 
 Input:
 
@@ -7559,17 +7559,17 @@ generated/<patient>/
 
 ---
 
-### 15.5 Build Completa
+### 15.5 Costruzione Completa
 
-La build completa elabora tutti i pazienti configurati.
+La costruzione completa elabora tutti i pazienti configurati.
 
 Esempio:
 
 ```text
-Patient A
-Patient B
-Patient C
-Patient D
+Paziente A
+Paziente B
+Paziente C
+Paziente D
 ```
 
 Ogni paziente viene elaborato indipendentemente.
@@ -7578,9 +7578,9 @@ Un errore in un archivio non deve necessariamente impedire l'elaborazione degli 
 
 ---
 
-### 15.6 Fasi della Build
+### 15.6 Fasi della Costruzione
 
-La build esegue le seguenti fasi:
+La costruzione esegue le seguenti fasi:
 
 ```text
 Validazione Configurazione
@@ -7698,7 +7698,7 @@ La build viene interrotta.
 
 ---
 
-### 15.13 Report di Build
+### 15.13 Report di Costruzione
 
 Ogni build genera un report contenente:
 
@@ -7768,7 +7768,7 @@ Tutti gli artefatti devono essere ricostruibili a partire da:
 
 ### 16.1 Scopo
 
-Gli artefatti generati rappresentano il risultato della Build Locale.
+Gli artefatti generati rappresentano il risultato della Costruzione Locale.
 
 Essi costituiscono tutti i dati e le strutture necessarie per:
 
@@ -8092,7 +8092,7 @@ reports/
 
 ---
 
-### 16.22 Build Report
+### 16.22 Report di Costruzione
 
 Riporta:
 
@@ -8104,7 +8104,7 @@ Riporta:
 
 ---
 
-### 16.23 Validation Report
+### 16.23 Report di Validazione
 
 Riporta:
 
@@ -8287,7 +8287,7 @@ Il sistema deve ridurre il rischio di copiare dati sulla chiavetta sbagliata.
 Il flusso generale è:
 
 ```text
-Build Locale
+Costruzione Locale
       ↓
 Artefatti Generati
       ↓
@@ -8644,7 +8644,7 @@ La consultazione non deve alterare il contenuto distribuito.
 Gli aggiornamenti vengono effettuati esclusivamente tramite:
 
 ```text
-Build Locale
+Costruzione Locale
         ↓
 Distribuzione USB
 ```
@@ -8912,7 +8912,7 @@ Metadati Curati
         +
 Configurazione
         ↓
-Nuova Build
+Nuova Costruzione
         ↓
 Nuova Chiavetta
 ```
@@ -9007,7 +9007,7 @@ Nuovo Documento
         ↓
 Importazione
         ↓
-Build Incrementale
+Costruzione Incrementale
         ↓
 Revisione Proposte
         ↓
@@ -9109,7 +9109,7 @@ Le informazioni rifiutate non devono influenzare:
 
 ---
 
-### 19.12 Build Incrementale
+### 19.12 Costruzione Incrementale
 
 Modalità operativa raccomandata.
 
@@ -9121,7 +9121,7 @@ Rigenera esclusivamente:
 
 ---
 
-### 19.13 Build Completa
+### 19.13 Costruzione Completa
 
 Da utilizzare:
 
@@ -9285,7 +9285,7 @@ config/
 
 su un nuovo sistema.
 
-Successivamente viene eseguita una Build Completa.
+Successivamente viene eseguita una Costruzione Completa.
 
 ---
 
@@ -9296,9 +9296,9 @@ In caso di perdita totale del sistema operativo o del computer:
 ```text
 Backup
       ↓
-Ripristino Repository
+Ripristino del Repository
       ↓
-Build Completa
+Costruzione Completa
       ↓
 Nuova Distribuzione USB
 ```
@@ -9700,7 +9700,7 @@ Tutte le funzionalità fondamentali devono operare senza connessione Internet.
 
 ### 20.15 Sistemi Operativi Supportati
 
-Per la Build Locale:
+Per la Costruzione Locale:
 
 * Linux;
 * Windows;

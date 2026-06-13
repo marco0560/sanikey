@@ -142,7 +142,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-125 | La chiavetta USB è un supporto di distribuzione e non costituisce un backup. | 19 |  |
 | DA-126 | I dati autorevoli da salvaguardare sono i percorsi configurati per documenti originali, metadati curati e configurazione locale. | 19 |  |
 | DA-127 | Gli artefatti generati sono completamente rigenerabili e non richiedono backup obbligatorio. | 19 |  |
-| DA-128 | Il disaster recovery si basa sul ripristino dei dati autorevoli locali seguito da una Build Completa. | 19 |  |
+| DA-128 | Il disaster recovery si basa sul ripristino dei dati autorevoli locali seguito da una Costruzione Completa. | 19 |  |
 | DA-129 | La sostituzione di una chiavetta richiede la registrazione del nuovo UUID e una distribuzione completa. | 19 |  |
 | DA-130 | La strategia raccomandata prevede almeno un backup locale e un backup esterno indipendente. | 19 |  |
 | DA-131 | La recuperabilità dell'archivio deve essere verificata periodicamente mediante test di ripristino. | 19 |  |
@@ -176,7 +176,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-006 | Non esistono dati condivisi tra archivi di pazienti differenti. |  |
 | DA-007 | La build e il deploy possono essere eseguiti sia per singolo paziente sia per l'intero insieme dei pazienti configurati. |  |
 
-### Repository Layout
+### Layout del Repository
 
 | ADR | Titolo | Status |
 | ----- | -------- | -------- |
@@ -314,7 +314,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-089 | La chiavetta USB è considerata un supporto di sola lettura durante la consultazione. |  |
 | DA-090 | La ricerca sulla chiavetta opera esclusivamente su indici pre-generati e non effettua indicizzazioni in tempo reale. |  |
 
-### Build Locale
+### Costruzione Locale
 
 | ADR | Titolo | Status |
 | ----- | -------- | -------- |
@@ -375,7 +375,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-125 | La chiavetta USB è un supporto di distribuzione e non costituisce un backup. |  |
 | DA-126 | I dati autorevoli da salvaguardare sono i percorsi configurati per documenti originali, metadati curati e configurazione locale. |  |
 | DA-127 | Gli artefatti generati sono completamente rigenerabili e non richiedono backup obbligatorio. |  |
-| DA-128 | Il disaster recovery si basa sul ripristino dei dati autorevoli locali seguito da una Build Completa. |  |
+| DA-128 | Il disaster recovery si basa sul ripristino dei dati autorevoli locali seguito da una Costruzione Completa. |  |
 | DA-129 | La sostituzione di una chiavetta richiede la registrazione del nuovo UUID e una distribuzione completa. |  |
 | DA-130 | La strategia raccomandata prevede almeno un backup locale e un backup esterno indipendente. |  |
 | DA-131 | La recuperabilità dell'archivio deve essere verificata periodicamente mediante test di ripristino. |  |

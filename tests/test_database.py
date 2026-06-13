@@ -40,7 +40,17 @@ def _person(tmp_path: Path) -> PersonConfig:
 
 
 def test_build_database_inserts_documents_metadata_and_dicom(tmp_path: Path) -> None:
-    """Verify database build creates per-patient SQLite archive."""
+    """Verify database build creates per-patient SQLite archive.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     person = _person(tmp_path)
     documents_dir = person.source_documents / "laboratory"

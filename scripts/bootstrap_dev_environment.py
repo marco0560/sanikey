@@ -26,7 +26,17 @@ REQUIRED_REPO_MARKERS = (
 
 @dataclass(frozen=True)
 class CommandSpec:
-    """Represent a bootstrap subprocess invocation."""
+    """Represent a bootstrap subprocess invocation.
+
+    Parameters
+    ----------
+    description : str
+        User-facing description printed before execution.
+    argv : tuple[str, ...]
+        Command argument vector.
+    cwd : pathlib.Path
+        Working directory for the command.
+    """
 
     description: str
     argv: tuple[str, ...]
@@ -35,21 +45,57 @@ class CommandSpec:
 
 @dataclass(frozen=True)
 class BootstrapOptions:
-    """Hold bootstrap execution options."""
+    """Hold bootstrap execution options.
+
+    Parameters
+    ----------
+    with_docs : bool
+        Whether documentation dependencies should be installed.
+    run_validation : bool
+        Whether the validation command should run after bootstrap.
+    """
 
     with_docs: bool
     run_validation: bool
 
 
 def fail(msg: str, *, exit_code: int = 1) -> None:
-    """Print an error message and terminate the program."""
+    """Print an error message and terminate the program.
+
+    Parameters
+    ----------
+    msg : str
+        Error message to print.
+    exit_code : int, optional
+        Process status used for termination.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    SystemExit
+        Always raised with ``exit_code``.
+    """
 
     print(f"ERROR: {msg}", file=sys.stderr)
     raise SystemExit(exit_code)
 
 
 def resolve_executable(name: str) -> str:
-    """Resolve an executable to an absolute path."""
+    """Resolve an executable to an absolute path.
+
+    Parameters
+    ----------
+    name : str
+        Executable name to resolve from ``PATH``.
+
+    Returns
+    -------
+    str
+        Absolute executable path.
+    """
 
     resolved = shutil.which(name)
     if resolved is None:
@@ -58,7 +104,18 @@ def resolve_executable(name: str) -> str:
 
 
 def detect_repo_root(repo_root: Path | None = None) -> Path:
-    """Resolve and validate the repository root directory."""
+    """Resolve and validate the repository root directory.
+
+    Parameters
+    ----------
+    repo_root : pathlib.Path | None, optional
+        Explicit repository root. When omitted, infer it from this script.
+
+    Returns
+    -------
+    pathlib.Path
+        Validated repository root.
+    """
 
     candidate = (
         repo_root.resolve()
@@ -77,7 +134,18 @@ def detect_repo_root(repo_root: Path | None = None) -> Path:
 
 
 def uv_sync_command(*, with_docs: bool) -> tuple[str, ...]:
-    """Build the uv sync command for the repository environment."""
+    """Build the uv sync command for the repository environment.
+
+    Parameters
+    ----------
+    with_docs : bool
+        Whether documentation dependencies should be included.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Command argument vector.
+    """
 
     command = ["uv", "sync", "--extra", "dev"]
     if with_docs:
@@ -88,7 +156,20 @@ def uv_sync_command(*, with_docs: bool) -> tuple[str, ...]:
 def build_bootstrap_commands(
     *, repo_root: Path, options: BootstrapOptions
 ) -> list[CommandSpec]:
-    """Build the ordered bootstrap command plan."""
+    """Build the ordered bootstrap command plan.
+
+    Parameters
+    ----------
+    repo_root : pathlib.Path
+        Repository root used as command working directory.
+    options : BootstrapOptions
+        Bootstrap execution options.
+
+    Returns
+    -------
+    list[CommandSpec]
+        Ordered command plan.
+    """
 
     commands = [
         CommandSpec(
@@ -119,13 +200,36 @@ def build_bootstrap_commands(
 
 
 def render_command(command: CommandSpec) -> str:
-    """Render a command plan entry for user-readable output."""
+    """Render a command plan entry for user-readable output.
+
+    Parameters
+    ----------
+    command : CommandSpec
+        Command to render.
+
+    Returns
+    -------
+    str
+        Shell-quoted command line.
+    """
 
     return " ".join(shlex.quote(arg) for arg in command.argv)
 
 
 def run_plan(commands: list[CommandSpec], *, dry_run: bool) -> None:
-    """Execute or print the bootstrap plan."""
+    """Execute or print the bootstrap plan.
+
+    Parameters
+    ----------
+    commands : list[CommandSpec]
+        Ordered command plan.
+    dry_run : bool
+        Whether commands should be printed without execution.
+
+    Returns
+    -------
+    None
+    """
 
     for command in commands:
         print(f"==> {command.description}")
@@ -142,7 +246,18 @@ def run_plan(commands: list[CommandSpec], *, dry_run: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Bootstrap the local repository development environment."""
+    """Bootstrap the local repository development environment.
+
+    Parameters
+    ----------
+    argv : list[str] | None, optional
+        Command-line arguments. When omitted, use ``sys.argv``.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
 
     parser = argparse.ArgumentParser(
         description="Install dependencies and configure local Git state.",

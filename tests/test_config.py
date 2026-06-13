@@ -43,7 +43,17 @@ enabled = {str(enabled).lower()}
 
 
 def test_load_accounts_accepts_valid_synthetic_config(tmp_path: Path) -> None:
-    """Verify a complete accounts file loads deterministically."""
+    """Verify a complete accounts file loads deterministically.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     config_path = tmp_path / "accounts.toml"
     config_path.write_text(_accounts_text(tmp_path), encoding="utf-8")
@@ -56,7 +66,16 @@ def test_load_accounts_accepts_valid_synthetic_config(tmp_path: Path) -> None:
 
 
 def test_parse_accounts_rejects_missing_real_paths() -> None:
-    """Verify real-data paths have no implicit defaults."""
+    """Verify real-data paths have no implicit defaults.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
 
     with pytest.raises(ConfigError, match="missing fields"):
         parse_accounts_data(
@@ -69,7 +88,16 @@ def test_parse_accounts_rejects_missing_real_paths() -> None:
 
 
 def test_parse_accounts_rejects_relative_paths() -> None:
-    """Verify patient paths must be absolute."""
+    """Verify patient paths must be absolute.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
 
     with pytest.raises(ConfigError, match="must be absolute"):
         parse_accounts_data(
@@ -91,7 +119,17 @@ def test_parse_accounts_rejects_relative_paths() -> None:
 
 
 def test_parse_accounts_rejects_invalid_patient_id(tmp_path: Path) -> None:
-    """Verify patient ids stay path-safe and stable."""
+    """Verify patient ids stay path-safe and stable.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     with pytest.raises(ConfigError, match="invalid id"):
         parse_accounts_data(
@@ -113,7 +151,17 @@ def test_parse_accounts_rejects_invalid_patient_id(tmp_path: Path) -> None:
 
 
 def test_privacy_rejects_versioned_repo_paths(tmp_path: Path) -> None:
-    """Verify configured real-data paths cannot point into versioned content."""
+    """Verify configured real-data paths cannot point into versioned content.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     repo_root = Path.cwd()
     config_path = tmp_path / "accounts.toml"

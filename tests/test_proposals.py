@@ -16,7 +16,17 @@ if TYPE_CHECKING:
 
 
 def test_generate_manual_proposals_writes_review_file(tmp_path: Path) -> None:
-    """Verify deterministic proposal storage is written under metadata."""
+    """Verify deterministic proposal storage is written under metadata.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     proposals = generate_manual_proposals(tmp_path)
     loaded = load_proposals(tmp_path)
@@ -27,7 +37,17 @@ def test_generate_manual_proposals_writes_review_file(tmp_path: Path) -> None:
 
 
 def test_review_proposal_updates_status(tmp_path: Path) -> None:
-    """Verify proposal review changes only the proposal status."""
+    """Verify proposal review changes only the proposal status.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     proposal = generate_manual_proposals(tmp_path)[0]
     updated = review_proposal(tmp_path, proposal.id, "approved")

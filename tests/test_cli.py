@@ -10,7 +10,16 @@ MODULE = "sanikey"
 
 
 def test_module_help_runs() -> None:
-    """Verify the module help exits successfully."""
+    """Verify the module help exits successfully.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
     result = subprocess.run(
         [sys.executable, "-m", MODULE, "--help"],
         capture_output=True,
@@ -22,7 +31,16 @@ def test_module_help_runs() -> None:
 
 
 def test_info_subcommand_runs() -> None:
-    """Verify the example info subcommand exits successfully."""
+    """Verify the example info subcommand exits successfully.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
     result = subprocess.run(
         [sys.executable, "-m", MODULE, "info"],
         capture_output=True,
@@ -34,7 +52,17 @@ def test_info_subcommand_runs() -> None:
 
 
 def test_validate_config_subcommand_runs(tmp_path: Path) -> None:
-    """Verify validate-config accepts synthetic local data paths."""
+    """Verify validate-config accepts synthetic local data paths.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     config_path = tmp_path / "accounts.toml"
     config_path.write_text(
@@ -72,7 +100,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_list_patients_subcommand_runs(tmp_path: Path) -> None:
-    """Verify list-patients renders configured patient ids."""
+    """Verify list-patients renders configured patient ids.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     config_path = tmp_path / "accounts.toml"
     config_path.write_text(
@@ -108,7 +146,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_scan_documents_subcommand_runs(tmp_path: Path) -> None:
-    """Verify scan-documents renders an inventory from configured paths."""
+    """Verify scan-documents renders an inventory from configured paths.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     source = tmp_path / "source" / "laboratory"
     source.mkdir(parents=True)
@@ -148,7 +196,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_process_dicom_subcommand_runs(tmp_path: Path) -> None:
-    """Verify process-dicom catalogs original DICOM supports."""
+    """Verify process-dicom catalogs original DICOM supports.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     source = tmp_path / "source"
     source.mkdir(parents=True)
@@ -188,7 +246,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_build_database_subcommand_runs(tmp_path: Path) -> None:
-    """Verify build-database creates a per-patient SQLite archive."""
+    """Verify build-database creates a per-patient SQLite archive.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     source = tmp_path / "source"
     source.mkdir(parents=True)
@@ -230,7 +298,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_build_patient_subcommand_runs(tmp_path: Path) -> None:
-    """Verify build-patient runs the local build pipeline."""
+    """Verify build-patient runs the local build pipeline.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     source = tmp_path / "source"
     source.mkdir(parents=True)
@@ -273,7 +351,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_generate_proposals_subcommand_runs(tmp_path: Path) -> None:
-    """Verify generate-proposals writes proposal storage."""
+    """Verify generate-proposals writes proposal storage.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     metadata = tmp_path / "metadata"
     config_path = tmp_path / "accounts.toml"
@@ -311,7 +399,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_generate_exports_subcommand_runs(tmp_path: Path) -> None:
-    """Verify generate-exports writes frontend JSON data."""
+    """Verify generate-exports writes frontend JSON data.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     source = tmp_path / "source"
     source.mkdir(parents=True)
@@ -351,7 +449,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_build_web_subcommand_runs(tmp_path: Path) -> None:
-    """Verify build-web writes static frontend files."""
+    """Verify build-web writes static frontend files.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     config_path = tmp_path / "accounts.toml"
     config_path.write_text(
@@ -388,7 +496,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_deploy_usb_subcommand_runs(tmp_path: Path) -> None:
-    """Verify deploy-usb builds and exports a simulated USB layout."""
+    """Verify deploy-usb builds and exports a simulated USB layout.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     source = tmp_path / "source"
     source.mkdir()
@@ -430,7 +548,17 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_list_patients_wrapper_script_runs(tmp_path: Path) -> None:
-    """Verify compatibility scripts delegate to the package CLI."""
+    """Verify compatibility scripts delegate to the package CLI.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
 
     config_path = tmp_path / "accounts.toml"
     config_path.write_text(
