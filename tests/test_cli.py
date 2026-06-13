@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sanikey import __version__
+
 MODULE = "sanikey"
 
 
@@ -28,6 +30,27 @@ def test_module_help_runs() -> None:
     )
     assert result.returncode == 0
     assert "sanikey" in result.stdout
+
+
+def test_short_version_flag_runs() -> None:
+    """Verify the short version flag exits successfully.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+    result = subprocess.run(
+        [sys.executable, "-m", MODULE, "-V"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == f"sanikey {__version__}"
 
 
 def test_info_subcommand_runs() -> None:

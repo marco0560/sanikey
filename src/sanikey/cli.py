@@ -42,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Medical documents on a USB key",
     )
     parser.add_argument(
+        "-V",
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
