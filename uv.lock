@@ -1835,17 +1835,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
-    { name = "codira", extra = ["bundle-official"] },
-    { name = "coverage" },
-    { name = "mypy" },
-    { name = "packaging" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "setuptools-scm" },
-]
 docs = [
     { name = "mkdocs" },
     { name = "mkdocs-awesome-pages-plugin" },
@@ -1855,30 +1844,41 @@ docs = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "codira", extra = ["bundle-official"] },
+    { name = "coverage" },
+    { name = "mypy" },
+    { name = "packaging" },
+    { name = "pre-commit" },
     { name = "pymarkdownlnt" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "setuptools-scm" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "codira", extras = ["bundle-official"], marker = "extra == 'dev'" },
-    { name = "coverage", marker = "extra == 'dev'" },
     { name = "jsonschema", specifier = ">=4.23.0,<5" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6,<2" },
     { name = "mkdocs-awesome-pages-plugin", marker = "extra == 'docs'", specifier = ">=2.10,<3" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.7,<10" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=1,<2" },
-    { name = "mypy", marker = "extra == 'dev'" },
-    { name = "packaging", marker = "extra == 'dev'" },
-    { name = "pre-commit", marker = "extra == 'dev'" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "setuptools-scm", marker = "extra == 'dev'", specifier = ">=8" },
 ]
-provides-extras = ["dev", "docs"]
+provides-extras = ["docs"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pymarkdownlnt", specifier = ">=0.9.38" }]
+dev = [
+    { name = "codira", extras = ["bundle-official"] },
+    { name = "coverage" },
+    { name = "mypy" },
+    { name = "packaging" },
+    { name = "pre-commit" },
+    { name = "pymarkdownlnt", specifier = ">=0.9.38" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "setuptools-scm", specifier = ">=8" },
+]
 
 [[package]]
 name = "scikit-learn"

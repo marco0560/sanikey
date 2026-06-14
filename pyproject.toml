@@ -14,6 +14,9 @@ dependencies = [
   "jsonschema>=4.23.0,<5",
 ]
 
+[tool.uv]
+python-preference = "only-managed"
+
 [tool.setuptools_scm]
 tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.post\\d+)?)$"
 git_describe_command = "git describe --dirty --tags --long --match v*"
@@ -23,23 +26,26 @@ local_scheme = "no-local-version"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-  "ruff",
-  "pre-commit",
-  "pytest",
-  "pytest-cov",
-  "mypy",
-  "packaging",
-  "coverage",
-  "codira[bundle-official]",
-  "setuptools-scm>=8",
+    "ruff",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "mypy",
+    "packaging",
+    "coverage",
+    "codira[bundle-official]",
+    "setuptools-scm>=8",
+    "pymarkdownlnt>=0.9.38",
 ]
+
+[project.optional-dependencies]
 docs = [
-  "mkdocs>=1.6,<2",
-  "mkdocs-material>=9.7,<10",
-  "mkdocstrings[python]>=1,<2",
-  "mkdocs-awesome-pages-plugin>=2.10,<3",
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.7,<10",
+    "mkdocstrings[python]>=1,<2",
+    "mkdocs-awesome-pages-plugin>=2.10,<3",
 ]
 
 [project.scripts]
@@ -173,8 +179,3 @@ warn_redundant_casts = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[dependency-groups]
-dev = [
-    "pymarkdownlnt>=0.9.38",
-]
