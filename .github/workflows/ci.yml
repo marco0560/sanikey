@@ -40,7 +40,7 @@ jobs:
             done
           }
 
-          retry uv sync --frozen --extra dev --extra docs
+          retry uv sync --frozen --group dev --extra docs
 
 
       - name: Install repo-local Git configuration

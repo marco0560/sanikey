@@ -147,7 +147,7 @@ def uv_sync_command(*, with_docs: bool) -> tuple[str, ...]:
         Command argument vector.
     """
 
-    command = ["uv", "sync", "--extra", "dev"]
+    command = ["uv", "sync", "--group", "dev"]
     if with_docs:
         command.extend(["--extra", "docs"])
     return tuple(command)
