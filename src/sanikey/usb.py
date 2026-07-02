@@ -38,15 +38,36 @@ class UsbExportResult:
     files: int
 
 
+def usb_image_root(config: AccountsConfig) -> Path:
+    """Return the canonical generated USB image directory.
+
+    Parameters
+    ----------
+    config : AccountsConfig
+        Loaded accounts configuration.
+
+    Returns
+    -------
+    pathlib.Path
+        ``exports/usb-image`` under the configuration repository root.
+    """
+
+    root = config.path.parent
+    if root.name == "config":
+        root = root.parent
+    return root / "exports" / "usb-image"
+
+
 def export_usb(config: AccountsConfig, target: Path) -> UsbExportResult:
-    """Export enabled patients to a USB directory layout.
+    """Export enabled patients through the canonical USB image.
 
     Parameters
     ----------
     config : AccountsConfig
         Loaded accounts configuration.
     target : pathlib.Path
-        Target USB root or simulated USB directory.
+        Target USB root or simulated USB directory. The complete USB image is
+        first built under ``exports/usb-image`` and then mirrored here.
 
     Returns
     -------
@@ -54,11 +75,15 @@ def export_usb(config: AccountsConfig, target: Path) -> UsbExportResult:
         Export result.
     """
 
-    target.mkdir(parents=True, exist_ok=True)
+    image_root = usb_image_root(config)
+    _reset_directory(image_root)
     patients = config.enabled_people()
     for person in patients:
-        _export_patient(person, target)
-    manifest = _write_manifest(patients, target)
+        _export_patient(person, image_root)
+    _write_manifest(patients, image_root)
+    if image_root.resolve() != target.resolve():
+        _replace_tree(image_root, target)
+    manifest = target / "SANIKEY-MANIFEST.json"
     return UsbExportResult(
         root=target,
         manifest=manifest,
@@ -150,6 +175,51 @@ def _copy_tree(source: Path, target: Path) -> None:
         shutil.rmtree(target)
     if source.is_dir():
         shutil.copytree(source, target)
+
+
+def _reset_directory(target: Path) -> None:
+    """Create an empty directory.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        Directory to recreate.
+
+    Returns
+    -------
+    None
+    """
+
+    if target.exists():
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    target.mkdir(parents=True)
+
+
+def _replace_tree(source: Path, target: Path) -> None:
+    """Replace a target directory with a copied tree.
+
+    Parameters
+    ----------
+    source : pathlib.Path
+        Source directory to copy.
+    target : pathlib.Path
+        Target directory to replace.
+
+    Returns
+    -------
+    None
+    """
+
+    if target.exists():
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target)
 
 
 def _write_manifest(people: tuple[PersonConfig, ...], target: Path) -> Path:

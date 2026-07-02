@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+import os
+from pathlib import Path
+
+import pytest
 
 from sanikey.build import build_patient
 from sanikey.config import AccountsConfig, PersonConfig
-from sanikey.usb import export_usb, validate_usb
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from sanikey.usb import export_usb, usb_image_root, validate_usb
 
 
 def _person(tmp_path: Path, patient_id: str, display_name: str) -> PersonConfig:
@@ -88,6 +88,8 @@ def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
     assert (result.root / "START-HERE-Patient-A.html").is_file()
     assert (result.root / "patients" / "patient-a" / "medical_archive.db").is_file()
     assert (result.root / "patients" / "patient-a" / "web" / "index.html").is_file()
+    assert (usb_image_root(config) / "START-HERE-Patient-A.html").is_file()
+    assert usb_image_root(config) != result.root
     assert validate_usb(result.root)
 
 
@@ -217,3 +219,62 @@ def test_export_usb_excludes_generated_cache_logs_and_temp(tmp_path: Path) -> No
     assert not any("cache/" in path for path in exported_files)
     assert not any("logs/" in path for path in exported_files)
     assert not any("tmp/" in path for path in exported_files)
+
+
+def test_export_usb_removes_obsolete_target_files(tmp_path: Path) -> None:
+    """Verify mirroring the canonical image removes stale target files.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path, "patient-a", "Patient A")
+    _write_document(person, "20260102 Report.txt", "synthetic")
+    build_patient(person, mode="full")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+    target = tmp_path / "usb"
+    stale = target / "stale.txt"
+    stale.parent.mkdir()
+    stale.write_text("remove me", encoding="utf-8")
+
+    result = export_usb(config, target)
+
+    assert not stale.exists()
+    assert validate_usb(result.root)
+
+
+def test_export_usb_optional_real_filesystem_target(tmp_path: Path) -> None:
+    """Verify export against an explicitly configured real target.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    target_value = os.environ.get("SANIKEY_USB_INTEGRATION_TARGET")
+    if target_value is None:
+        pytest.skip("SANIKEY_USB_INTEGRATION_TARGET is not set")
+    target = Path(target_value)
+    person = _person(tmp_path, "patient-a", "Patient A")
+    _write_document(person, "20260102 Report.txt", "synthetic")
+    build_patient(person, mode="full")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+
+    result = export_usb(config, target)
+
+    assert validate_usb(result.root)

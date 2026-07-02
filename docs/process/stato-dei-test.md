@@ -35,6 +35,9 @@ Aggiornamento 2026-07-02: la suite protegge inoltre:
   esclusione delle proposte AI non approvate dagli export standard e blocco dei
   checksum USB alterati;
 - esclusione di cache, log e directory temporanee generate dall'export USB;
+- costruzione canonica della chiavetta da `exports/usb-image/`, mirror verso il
+  target richiesto, rimozione dei file obsoleti nel target e test opzionale su
+  filesystem reale tramite `SANIKEY_USB_INTEGRATION_TARGET`;
 - assenza di storage browser, cookie, telemetry e URL HTTP(S) negli asset
   frontend generati.
 
@@ -72,7 +75,7 @@ Sono testati export e checksum su directory simulata, ma non:
 - uso preferenziale di `rsync`;
 - fallback di copia;
 - controllo spazio disponibile;
-- rimozione file obsoleti;
+- rimozione file obsoleti: coperto per il mirror del target;
 - atomicità logica;
 - modalità `full`, `incremental` e `verify`;
 - filesystem raccomandato exFAT.
@@ -260,8 +263,8 @@ protetti:
 ## Contratti Deboli o Ambigui
 
 - DA-010 dichiara che la chiavetta viene sempre costruita da
-  `exports/usb-image/`, mentre l'implementazione esporta verso un target passato
-  al comando. Non risultano test che fissino o risolvano questa decisione.
+  `exports/usb-image/`: coperto. L'implementazione costruisce prima
+  l'immagine canonica e poi la copia verso il target passato al comando.
 - DA-044 dichiara FTS5 obbligatorio. La suite conta righe nella tabella FTS, ma
   non esegue query full-text.
 - DA-045 dichiara chiavi esterne SQLite obbligatorie. Il codice abilita
