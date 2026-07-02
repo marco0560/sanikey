@@ -42,6 +42,7 @@ nav:
       - Contribuire: CONTRIBUTING.md
       - Implementazione iniziale: process/initial-implementation.md
       - Stato dei test: process/stato-dei-test.md
+      - Verifica end-to-end con dati reali: process/end-to-end-real-data-verification.md
   - Specifiche:
       - Specifica alto livello: sanikey-high-level-spec.md
       - Specifica dettagliata: sanikey-detailed-spec.md
