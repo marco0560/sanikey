@@ -31,6 +31,10 @@ Aggiornamento 2026-07-02: la suite protegge inoltre:
 - preservazione di contenuto e `mtime` dei documenti originali durante la build;
 - eventi timeline manuali con intervallo `start_date`/`end_date` esportati nel
   JSON statico;
+- errori TOML sintattici nei metadati, vincoli SQLite su terapie senza farmaco,
+  esclusione delle proposte AI non approvate dagli export standard e blocco dei
+  checksum USB alterati;
+- esclusione di cache, log e directory temporanee generate dall'export USB;
 - assenza di storage browser, cookie, telemetry e URL HTTP(S) negli asset
   frontend generati.
 
@@ -135,9 +139,10 @@ Decisioni coinvolte: DA-052, DA-095.
 C'è copertura su un item malformato, ma non su:
 
 - tutti i tipi di file TOML supportati;
-- TOML sintatticamente invalido;
+- TOML sintatticamente invalido: coperto;
 - riferimenti incrociati mancanti;
-- fallimento su foreign key logiche, per esempio terapia senza farmaco.
+- fallimento su foreign key logiche, per esempio terapia senza farmaco: coperto
+  a livello SQLite.
 
 ### Contratto AI
 
@@ -145,7 +150,8 @@ Decisioni coinvolte: DA-054..DA-060, DA-067, DA-100, DA-117.
 
 Sono testati la proposta placeholder e il cambio status. Non risultano test per:
 
-- esclusione delle proposte non approvate da export/search standard;
+- esclusione delle proposte non approvate da export/search standard: coperto per
+  gli export JSON standard;
 - assenza di autorità clinica dell'AI;
 - provenienza AI;
 - cache incrementale AI;
@@ -221,9 +227,9 @@ Decisioni coinvolte: DA-102, DA-103.
 
 Non risultano test che impediscano l'esportazione di:
 
-- cache;
-- log;
-- directory temporanee;
+- cache: coperto per artefatti sotto `local_build`;
+- log: coperto per artefatti sotto `local_build`;
+- directory temporanee: coperto per artefatti sotto `local_build`;
 - artefatti non esportabili.
 
 ### Backup e Disaster Recovery

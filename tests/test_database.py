@@ -5,11 +5,14 @@ from __future__ import annotations
 import sqlite3
 from typing import TYPE_CHECKING
 
+import pytest
+
 from sanikey.config import PersonConfig
 from sanikey.database import build_database, database_path
 from sanikey.dicom import catalog_dicom_studies
 from sanikey.documents import scan_documents
 from sanikey.metadata import load_curated_metadata
+from sanikey.models import CuratedMetadata, TherapyEpisode
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -96,3 +99,31 @@ status = "active"
     assert problem_count == 1
     assert dicom_count == 1
     assert fts_count == 1
+
+
+def test_build_database_rejects_invalid_therapy_reference(tmp_path: Path) -> None:
+    """Verify SQLite foreign keys reject therapies without medications.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "Synthetic text",
+        encoding="utf-8",
+    )
+    documents = scan_documents(person)
+    metadata = CuratedMetadata(
+        therapies=(TherapyEpisode(id="therapy-a", medication_id="missing-drug"),)
+    )
+
+    with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
+        build_database(person, documents, metadata, ())

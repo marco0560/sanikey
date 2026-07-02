@@ -177,3 +177,43 @@ def test_validate_usb_rejects_tampered_checksum(tmp_path: Path) -> None:
     )
 
     assert not validate_usb(result.root)
+
+
+def test_export_usb_excludes_generated_cache_logs_and_temp(tmp_path: Path) -> None:
+    """Verify non-exportable generated artefacts stay off the USB image.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path, "patient-a", "Patient A")
+    _write_document(person, "20260102 Report.txt", "synthetic")
+    build_patient(person, mode="full")
+    for relative in (
+        "cache/internal.tmp",
+        "logs/build.log",
+        "tmp/scratch.tmp",
+    ):
+        path = person.local_build / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("not exportable", encoding="utf-8")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+
+    result = export_usb(config, tmp_path / "usb")
+    exported_files = {
+        path.relative_to(result.root).as_posix()
+        for path in result.root.rglob("*")
+        if path.is_file()
+    }
+
+    assert not any("cache/" in path for path in exported_files)
+    assert not any("logs/" in path for path in exported_files)
+    assert not any("tmp/" in path for path in exported_files)

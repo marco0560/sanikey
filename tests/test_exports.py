@@ -9,6 +9,7 @@ from sanikey.config import PersonConfig
 from sanikey.documents import scan_documents
 from sanikey.exports import generate_exports
 from sanikey.metadata import load_curated_metadata
+from sanikey.proposals import generate_manual_proposals
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -96,3 +97,38 @@ links = ["therapy-a"]
     assert timeline[0]["links"] == ["therapy-a"]
     assert timeline[1]["start_date"] == "2026-01-02"
     assert summary["document_count"] == 1
+
+
+def test_generate_exports_excludes_unapproved_proposals(tmp_path: Path) -> None:
+    """Verify standard exports ignore non-authoritative proposals.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    generate_manual_proposals(person.metadata_directory)
+
+    result = generate_exports(
+        person,
+        scan_documents(person),
+        load_curated_metadata(person.metadata_directory),
+    )
+
+    exported_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (result.documents, result.search, result.timeline, result.summary)
+    )
+    assert "Manual review placeholder" not in exported_text
+    assert "manual-test-provider" not in exported_text
