@@ -22,6 +22,18 @@ La suite protegge soprattutto il percorso minimo single-patient:
 - export JSON, frontend statico e USB single-patient;
 - smoke test CLI per quasi tutti i sottocomandi.
 
+Aggiornamento 2026-07-02: la suite protegge inoltre:
+
+- build multi-paziente con esclusione dei pazienti disabilitati e artefatti
+  database/frontend indipendenti;
+- export USB multi-paziente con archivi separati, esclusione dei pazienti
+  disabilitati e validazione negativa su checksum alterati;
+- preservazione di contenuto e `mtime` dei documenti originali durante la build;
+- eventi timeline manuali con intervallo `start_date`/`end_date` esportati nel
+  JSON statico;
+- assenza di storage browser, cookie, telemetry e URL HTTP(S) negli asset
+  frontend generati.
+
 ## Scoperte Non Protette
 
 ### Multi-Paziente
@@ -30,11 +42,11 @@ Decisioni coinvolte: DA-001..DA-007, DA-108, DA-120.
 
 I test usano quasi sempre un solo paziente. Non risultano test dedicati per:
 
-- isolamento tra pazienti;
-- database indipendenti per più pazienti;
-- frontend indipendenti per più pazienti;
-- pazienti disabilitati;
-- chiavetta con più archivi.
+- isolamento tra pazienti: coperto per build ed export USB;
+- database indipendenti per più pazienti: coperto;
+- frontend indipendenti per più pazienti: coperto;
+- pazienti disabilitati: coperto per build ed export USB;
+- chiavetta con più archivi: coperto per layout simulato.
 
 ### Identificazione USB
 
@@ -157,10 +169,10 @@ Decisioni coinvolte: DA-070..DA-078.
 
 È testata una timeline semplice da documento datato. Non risultano test per:
 
-- intervalli temporali;
+- intervalli temporali: coperto per eventi manuali;
 - terapie come intervalli;
 - campagne osservative;
-- eventi manuali come cittadini di prima classe;
+- eventi manuali come cittadini di prima classe: coperto nell'export statico;
 - override manuali;
 - rigenerabilità e consultazione offline della timeline.
 
@@ -169,11 +181,13 @@ Decisioni coinvolte: DA-070..DA-078.
 Decisioni coinvolte: DA-079..DA-089, DA-113..DA-115.
 
 Sono presenti smoke test su file statici e un controllo parziale sulla parola
-`telemetry`. Non risultano test robusti per:
+`telemetry`. La suite ora controlla anche gli asset generati contro storage
+browser, cookie e URL HTTP(S). Non risultano test robusti per:
 
-- assenza di cookie;
-- assenza di `localStorage` o storage locale;
-- assenza di chiamate cloud;
+- assenza di cookie: coperto tramite assenza di `document.cookie`;
+- assenza di `localStorage` o storage locale: coperto per `localStorage`,
+  `sessionStorage` e `indexedDB`;
+- assenza di chiamate cloud: coperto per URL HTTP(S) statici;
 - funzionamento da `file://`;
 - modalità sola lettura;
 - accessibilità;
@@ -197,9 +211,9 @@ Decisioni coinvolte: DA-021, DA-121, DA-123.
 
 I documenti vengono letti, ma non è verificato esplicitamente che:
 
-- hash e `mtime` restino invariati dopo build/export;
+- hash e `mtime` restino invariati dopo build;
 - ISO e ZIP DICOM siano conservati integralmente;
-- la manutenzione ordinaria non modifichi documenti originali.
+- la manutenzione ordinaria non modifichi documenti originali: coperto per build.
 
 ### Artefatti Non Esportabili
 

@@ -65,6 +65,18 @@ def test_generate_exports_writes_frontend_data(tmp_path: Path) -> None:
 """,
         encoding="utf-8",
     )
+    (person.metadata_directory / "timeline_events.toml").write_text(
+        """
+[[event]]
+id = "therapy-interval"
+title = "Therapy interval"
+start_date = "2026-01-01"
+end_date = "2026-01-31"
+source = "manual"
+links = ["therapy-a"]
+""",
+        encoding="utf-8",
+    )
 
     result = generate_exports(
         person,
@@ -78,5 +90,9 @@ def test_generate_exports_writes_frontend_data(tmp_path: Path) -> None:
     summary = json.loads(result.summary.read_text(encoding="utf-8"))
     assert documents[0]["tags"] == ["report"]
     assert search[0]["text"] == "Report uncategorized report"
-    assert timeline[0]["start_date"] == "2026-01-02"
+    assert timeline[0]["id"] == "therapy-interval"
+    assert timeline[0]["start_date"] == "2026-01-01"
+    assert timeline[0]["end_date"] == "2026-01-31"
+    assert timeline[0]["links"] == ["therapy-a"]
+    assert timeline[1]["start_date"] == "2026-01-02"
     assert summary["document_count"] == 1
