@@ -39,4 +39,18 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert result.script.is_file()
     assert result.stylesheet.is_file()
     assert "Patient A" in result.index.read_text(encoding="utf-8")
-    assert "telemetry" not in result.script.read_text(encoding="utf-8").lower()
+    script = result.script.read_text(encoding="utf-8").lower()
+    index = result.index.read_text(encoding="utf-8").lower()
+    stylesheet = result.stylesheet.read_text(encoding="utf-8").lower()
+    generated = "\n".join((index, script, stylesheet))
+    forbidden_fragments = (
+        "telemetry",
+        "document.cookie",
+        "localstorage",
+        "sessionstorage",
+        "indexeddb",
+        "http://",
+        "https://",
+    )
+    assert not any(fragment in generated for fragment in forbidden_fragments)
+    assert 'loadjson("data/' in script

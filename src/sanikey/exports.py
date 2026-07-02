@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .config import PersonConfig
-    from .models import CuratedMetadata, DocumentRecord
+    from .models import CuratedMetadata, DocumentRecord, Medication, TherapyEpisode
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,10 @@ def generate_exports(
     )
     search_path = _write_json(
         data_dir / "search.json",
-        [_search_payload(document, metadata) for document in documents],
+        [
+            *(_document_search_payload(document, metadata) for document in documents),
+            *_metadata_search_payloads(metadata),
+        ],
     )
     timeline_events = _timeline_events(documents, metadata)
     timeline_path = _write_json(
@@ -137,7 +140,7 @@ def _document_payload(
     }
 
 
-def _search_payload(
+def _document_search_payload(
     document: DocumentRecord,
     metadata: CuratedMetadata,
 ) -> dict[str, Any]:
@@ -186,7 +189,7 @@ def _timeline_events(
         Timeline events sorted by date and title.
     """
 
-    generated = tuple(
+    document_events = tuple(
         TimelineEvent(
             id=f"document-{document.document_id}",
             title=document.title,
@@ -197,11 +200,151 @@ def _timeline_events(
         for document in documents
         if document.date is not None
     )
+    therapy_events = tuple(
+        _therapy_timeline_event(therapy, metadata.medications)
+        for therapy in metadata.therapies
+        if therapy.start_date is not None
+    )
     return tuple(
         sorted(
-            (*metadata.timeline_events, *generated),
+            (*metadata.timeline_events, *therapy_events, *document_events),
             key=lambda item: (item.start_date or "", item.title),
         )
+    )
+
+
+def _metadata_search_payloads(metadata: CuratedMetadata) -> tuple[dict[str, Any], ...]:
+    """Build lexical search payloads for curated clinical entities.
+
+    Parameters
+    ----------
+    metadata : CuratedMetadata
+        Curated metadata.
+
+    Returns
+    -------
+    tuple[dict[str, Any], ...]
+        JSON-serializable search entries.
+    """
+
+    entries: list[dict[str, Any]] = []
+    entries.extend(
+        _entity_search_payload(
+            item_id=problem.id,
+            item_type="problem",
+            title=problem.title,
+            parts=(problem.status,),
+        )
+        for problem in metadata.problems
+    )
+    entries.extend(
+        _entity_search_payload(
+            item_id=medication.id,
+            item_type="medication",
+            title=medication.name,
+            parts=(medication.active_ingredient,),
+        )
+        for medication in metadata.medications
+    )
+    entries.extend(
+        _entity_search_payload(
+            item_id=therapy.id,
+            item_type="therapy",
+            title=therapy.id,
+            parts=(
+                therapy.medication_id,
+                therapy.start_date,
+                therapy.end_date,
+                therapy.dosage,
+            ),
+        )
+        for therapy in metadata.therapies
+    )
+    entries.extend(
+        _entity_search_payload(
+            item_id=procedure.id,
+            item_type="procedure",
+            title=procedure.title,
+            parts=(procedure.date, procedure.status),
+        )
+        for procedure in metadata.procedures
+    )
+    entries.extend(
+        _entity_search_payload(
+            item_id=observation.id,
+            item_type="observation",
+            title=observation.kind,
+            parts=(observation.value, observation.date),
+        )
+        for observation in metadata.observations
+    )
+    return tuple(entries)
+
+
+def _entity_search_payload(
+    *,
+    item_id: str,
+    item_type: str,
+    title: str,
+    parts: tuple[str | None, ...],
+) -> dict[str, Any]:
+    """Build a curated entity search payload.
+
+    Parameters
+    ----------
+    item_id : str
+        Entity id.
+    item_type : str
+        Entity type.
+    title : str
+        Search result title.
+    parts : tuple[str | None, ...]
+        Optional text fragments.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    text = " ".join(item for item in (title, *parts) if item).strip()
+    return {
+        "id": item_id,
+        "type": item_type,
+        "title": title,
+        "text": text,
+        "tags": [],
+    }
+
+
+def _therapy_timeline_event(
+    therapy: TherapyEpisode,
+    medications: tuple[Medication, ...],
+) -> TimelineEvent:
+    """Build a therapy timeline interval.
+
+    Parameters
+    ----------
+    therapy : TherapyEpisode
+        Therapy episode.
+    medications : tuple[Medication, ...]
+        Curated medications used to resolve display names.
+
+    Returns
+    -------
+    TimelineEvent
+        Timeline event for the therapy interval.
+    """
+
+    medication_names = {medication.id: medication.name for medication in medications}
+    medication_name = medication_names.get(therapy.medication_id, therapy.medication_id)
+    return TimelineEvent(
+        id=f"therapy-{therapy.id}",
+        title=f"Terapia: {medication_name}",
+        start_date=therapy.start_date,
+        end_date=therapy.end_date,
+        source="therapy",
+        links=(therapy.id, therapy.medication_id),
     )
 
 

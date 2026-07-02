@@ -9,6 +9,7 @@ from sanikey.config import PersonConfig
 from sanikey.documents import scan_documents
 from sanikey.exports import generate_exports
 from sanikey.metadata import load_curated_metadata
+from sanikey.proposals import generate_manual_proposals
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -65,6 +66,18 @@ def test_generate_exports_writes_frontend_data(tmp_path: Path) -> None:
 """,
         encoding="utf-8",
     )
+    (person.metadata_directory / "timeline_events.toml").write_text(
+        """
+[[event]]
+id = "therapy-interval"
+title = "Therapy interval"
+start_date = "2026-01-01"
+end_date = "2026-01-31"
+source = "manual"
+links = ["therapy-a"]
+""",
+        encoding="utf-8",
+    )
 
     result = generate_exports(
         person,
@@ -78,5 +91,146 @@ def test_generate_exports_writes_frontend_data(tmp_path: Path) -> None:
     summary = json.loads(result.summary.read_text(encoding="utf-8"))
     assert documents[0]["tags"] == ["report"]
     assert search[0]["text"] == "Report uncategorized report"
-    assert timeline[0]["start_date"] == "2026-01-02"
+    assert timeline[0]["id"] == "therapy-interval"
+    assert timeline[0]["start_date"] == "2026-01-01"
+    assert timeline[0]["end_date"] == "2026-01-31"
+    assert timeline[0]["links"] == ["therapy-a"]
+    assert timeline[1]["start_date"] == "2026-01-02"
     assert summary["document_count"] == 1
+
+
+def test_generate_exports_excludes_unapproved_proposals(tmp_path: Path) -> None:
+    """Verify standard exports ignore non-authoritative proposals.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    generate_manual_proposals(person.metadata_directory)
+
+    result = generate_exports(
+        person,
+        scan_documents(person),
+        load_curated_metadata(person.metadata_directory),
+    )
+
+    exported_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (result.documents, result.search, result.timeline, result.summary)
+    )
+    assert "Manual review placeholder" not in exported_text
+    assert "manual-test-provider" not in exported_text
+
+
+def test_generate_exports_indexes_curated_metadata_and_therapy_intervals(
+    tmp_path: Path,
+) -> None:
+    """Verify curated entities are searchable and therapies become intervals.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    person.metadata_directory.mkdir()
+    (person.metadata_directory / "problems.toml").write_text(
+        """
+[[problem]]
+id = "problem-a"
+title = "Hypertension"
+status = "active"
+""",
+        encoding="utf-8",
+    )
+    (person.metadata_directory / "medications.toml").write_text(
+        """
+[[medication]]
+id = "drug-a"
+name = "Drug A"
+active_ingredient = "Ingredient A"
+""",
+        encoding="utf-8",
+    )
+    (person.metadata_directory / "therapies.toml").write_text(
+        """
+[[therapy]]
+id = "therapy-a"
+medication_id = "drug-a"
+start_date = "2026-01-03"
+end_date = "2026-01-31"
+dosage = "1 tablet"
+""",
+        encoding="utf-8",
+    )
+    (person.metadata_directory / "procedures.toml").write_text(
+        """
+[[procedure]]
+id = "procedure-a"
+title = "Procedure A"
+date = "2026-01-04"
+status = "completed"
+""",
+        encoding="utf-8",
+    )
+    (person.metadata_directory / "observations.toml").write_text(
+        """
+[[observation]]
+id = "observation-a"
+kind = "weight"
+value = "70 kg"
+date = "2026-01-05"
+""",
+        encoding="utf-8",
+    )
+
+    result = generate_exports(
+        person,
+        scan_documents(person),
+        load_curated_metadata(person.metadata_directory),
+    )
+
+    search = json.loads(result.search.read_text(encoding="utf-8"))
+    timeline = json.loads(result.timeline.read_text(encoding="utf-8"))
+    search_by_type = {item["type"]: item for item in search}
+    therapy_event = next(item for item in timeline if item["source"] == "therapy")
+
+    assert set(search_by_type) == {
+        "document",
+        "problem",
+        "medication",
+        "therapy",
+        "procedure",
+        "observation",
+    }
+    assert search_by_type["problem"]["text"] == "Hypertension active"
+    assert search_by_type["medication"]["text"] == "Drug A Ingredient A"
+    assert search_by_type["therapy"]["text"] == (
+        "therapy-a drug-a 2026-01-03 2026-01-31 1 tablet"
+    )
+    assert therapy_event["id"] == "therapy-therapy-a"
+    assert therapy_event["title"] == "Terapia: Drug A"
+    assert therapy_event["start_date"] == "2026-01-03"
+    assert therapy_event["end_date"] == "2026-01-31"

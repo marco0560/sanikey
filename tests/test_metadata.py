@@ -150,3 +150,25 @@ id = "missing-title"
 
     with pytest.raises(ConfigError, match="title"):
         load_curated_metadata(tmp_path)
+
+
+def test_load_curated_metadata_rejects_invalid_toml(tmp_path: Path) -> None:
+    """Verify syntactically invalid curated metadata fails.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    (tmp_path / "therapies.toml").write_text(
+        "[[therapy]\nid = 'broken'\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="invalid TOML"):
+        load_curated_metadata(tmp_path)
