@@ -37,16 +37,15 @@ iniziare.
 
 ## Directory locali
 
-Creare un'area privata fuori dal repository, per esempio:
+Creare un'area privata non committata dal repository, per esempio:
 
 ```bash
-mkdir -p ~/sanikey-private/patient-a/documents
-mkdir -p ~/sanikey-private/patient-a/metadata
-mkdir -p ~/sanikey-private/generated/patient-a
-mkdir -p ~/sanikey-private/usb-target
+mkdir -p local-data/{usb-target,generated/marco,marco/{documents,metadata}}
 ```
 
-Inserire in `~/sanikey-private/patient-a/documents` un piccolo campione reale
+con `local-data/` in `.gitignore`.
+
+Inserire in `local-data/marco/documents` un piccolo campione reale
 ma controllato:
 
 - almeno un referto testuale o PDF;
@@ -57,8 +56,8 @@ ma controllato:
 Annotare hash e timestamp prima della build:
 
 ```bash
-find ~/sanikey-private/patient-a/documents -type f -print0 | sort -z | xargs -0 sha256sum > ~/sanikey-private/before.sha256
-find ~/sanikey-private/patient-a/documents -type f -printf '%p\t%T@\n' | sort > ~/sanikey-private/before-mtime.tsv
+find local-data/marco/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/before.sha256
+find local-data/marco/documents -type f -printf '%p\t%T@\n' | sort > local-data/before-mtime.tsv
 ```
 
 ## Configurazione locale
@@ -74,15 +73,13 @@ mkdir -p config
 config_version = 1
 
 [[person]]
-id = "patient-a"
-display_name = "Patient A"
-source_documents = "/home/USER/sanikey-private/patient-a/documents"
-metadata_directory = "/home/USER/sanikey-private/patient-a/metadata"
-local_build = "/home/USER/sanikey-private/generated/patient-a"
+id = "marco"
+display_name = "Marco Coppola
+source_documents = "local-data/marco/documents"
+metadata_directory = "local-data/marco/metadata"
+local_build = "local-data/generated/marco"
 usb_uuid = "MANUAL-TEST-USB"
 ```
-
-Sostituire `/home/USER` con il percorso reale.
 
 Verificare che Git non veda dati privati:
 
@@ -95,7 +92,7 @@ correggere `.gitignore` o i percorsi locali prima di procedere.
 
 ## Metadati curati minimi
 
-Creare metadati minimi in `~/sanikey-private/patient-a/metadata`.
+Creare metadati minimi in `local-data/marco/metadata`.
 
 `clinical_summary.toml` contiene una sintesi clinica libera. Per l'uso corrente
 può essere trattata come anamnesi/sommario narrativo: problemi rilevanti,
@@ -206,8 +203,8 @@ uv run sanikey build-patient patient-a --config config/accounts.toml
 Generare l'export USB verso un target locale di verifica:
 
 ```bash
-uv run sanikey export-usb --config config/accounts.toml ~/sanikey-private/usb-target
-uv run sanikey validate-usb ~/sanikey-private/usb-target
+uv run sanikey export-usb --config config/accounts.toml local-data/usb-target
+uv run sanikey validate-usb local-data/usb-target
 ```
 
 Il secondo comando deve stampare:
@@ -221,30 +218,30 @@ status=ok
 Verificare la presenza degli artefatti principali:
 
 ```bash
-test -f ~/sanikey-private/generated/patient-a/database/medical_archive.db
-test -f ~/sanikey-private/generated/patient-a/web/index.html
-test -f ~/sanikey-private/generated/patient-a/web/data/documents.json
-test -f ~/sanikey-private/generated/patient-a/web/data/search.json
-test -f ~/sanikey-private/generated/patient-a/web/data/timeline.json
-test -f ~/sanikey-private/generated/patient-a/checksums.sha256
+test -f local-data/generated/patient-a/database/medical_archive.db
+test -f local-data/generated/patient-a/web/index.html
+test -f local-data/generated/patient-a/web/data/documents.json
+test -f local-data/generated/patient-a/web/data/search.json
+test -f local-data/generated/patient-a/web/data/timeline.json
+test -f local-data/generated/patient-a/checksums.sha256
 test -f exports/usb-image/SANIKEY-MANIFEST.json
-test -f ~/sanikey-private/usb-target/SANIKEY-MANIFEST.json
+test -f local-data/usb-target/SANIKEY-MANIFEST.json
 ```
 
 Verificare che l'immagine canonica e il target siano validabili:
 
 ```bash
 uv run sanikey validate-usb exports/usb-image
-uv run sanikey validate-usb ~/sanikey-private/usb-target
+uv run sanikey validate-usb local-data/usb-target
 ```
 
 Verificare che i documenti originali non siano stati modificati:
 
 ```bash
-find ~/sanikey-private/patient-a/documents -type f -print0 | sort -z | xargs -0 sha256sum > ~/sanikey-private/after.sha256
-find ~/sanikey-private/patient-a/documents -type f -printf '%p\t%T@\n' | sort > ~/sanikey-private/after-mtime.tsv
-diff -u ~/sanikey-private/before.sha256 ~/sanikey-private/after.sha256
-diff -u ~/sanikey-private/before-mtime.tsv ~/sanikey-private/after-mtime.tsv
+find local-data/marco/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/after.sha256
+find local-data/marco/documents -type f -printf '%p\t%T@\n' | sort > local-data/after-mtime.tsv
+diff -u local-data/before.sha256 local-data/after.sha256
+diff -u local-data/before-mtime.tsv local-data/after-mtime.tsv
 ```
 
 Entrambi i `diff` devono essere vuoti.
@@ -252,7 +249,7 @@ Entrambi i `diff` devono essere vuoti.
 Verificare che cache, log e directory temporanee generate non siano nel target:
 
 ```bash
-find ~/sanikey-private/usb-target \( -name cache -o -name logs -o -name tmp -o -name temporary \) -print
+find local-data/usb-target \( -name cache -o -name logs -o -name tmp -o -name temporary \) -print
 ```
 
 Il comando non deve elencare directory operative non consultabili.
@@ -262,9 +259,9 @@ Il comando non deve elencare directory operative non consultabili.
 Ispezionare i JSON statici:
 
 ```bash
-python -m json.tool ~/sanikey-private/generated/patient-a/web/data/documents.json >/tmp/sanikey-documents.json
-python -m json.tool ~/sanikey-private/generated/patient-a/web/data/search.json >/tmp/sanikey-search.json
-python -m json.tool ~/sanikey-private/generated/patient-a/web/data/timeline.json >/tmp/sanikey-timeline.json
+python -m json.tool local-data/generated/patient-a/web/data/documents.json >/tmp/sanikey-documents.json
+python -m json.tool local-data/generated/patient-a/web/data/search.json >/tmp/sanikey-search.json
+python -m json.tool local-data/generated/patient-a/web/data/timeline.json >/tmp/sanikey-timeline.json
 ```
 
 Controllare manualmente che:
@@ -279,9 +276,9 @@ Controllare manualmente che:
 Verificare il database:
 
 ```bash
-sqlite3 ~/sanikey-private/generated/patient-a/database/medical_archive.db '.tables'
-sqlite3 ~/sanikey-private/generated/patient-a/database/medical_archive.db 'SELECT count(*) FROM documents;'
-sqlite3 ~/sanikey-private/generated/patient-a/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
+sqlite3 local-data/generated/patient-a/database/medical_archive.db '.tables'
+sqlite3 local-data/generated/patient-a/database/medical_archive.db 'SELECT count(*) FROM documents;'
+sqlite3 local-data/generated/patient-a/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
 ```
 
 La query FTS può restituire `0` se il termine scelto non esiste nei titoli,
@@ -292,7 +289,7 @@ categorie o tag. Ripetere con un termine realmente presente.
 Aprire il frontend generato dal target:
 
 ```bash
-xdg-open ~/sanikey-private/usb-target/START-HERE-Patient-A.html
+xdg-open local-data/usb-target/START-HERE-Patient-A.html
 ```
 
 Se `xdg-open` non è disponibile, aprire manualmente il file nel browser.
@@ -313,9 +310,9 @@ Non usare screenshot con dati reali come evidenza persistente nel repository.
 Su una copia del target, alterare un file e verificare il fallimento:
 
 ```bash
-cp -a ~/sanikey-private/usb-target ~/sanikey-private/usb-target-tampered
-printf '\nTAMPER\n' >> ~/sanikey-private/usb-target-tampered/patients/patient-a/web/index.html
-uv run sanikey validate-usb ~/sanikey-private/usb-target-tampered
+cp -a local-data/usb-target local-data/usb-target-tampered
+printf '\nTAMPER\n' >> local-data/usb-target-tampered/patients/patient-a/web/index.html
+uv run sanikey validate-usb local-data/usb-target-tampered
 ```
 
 Il comando deve restituire stato non zero e stampare:
