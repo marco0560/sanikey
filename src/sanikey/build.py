@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING, cast
 
 from .database import build_database
 from .dicom import catalog_dicom_studies
-from .documents import extract_text, find_duplicate_documents, scan_documents
+from .documents import (
+    duplicate_document_warnings,
+    extract_text,
+    find_duplicate_documents,
+    scan_document_inventory,
+    scan_documents,
+)
 from .exports import generate_exports
 from .frontend import build_frontend
 from .metadata import load_curated_metadata
@@ -37,6 +43,8 @@ class PatientBuildResult:
         Duplicate digest count.
     warnings : int
         Non-fatal warning count.
+    warning_messages : tuple[str, ...]
+        Non-fatal warning messages.
     database : pathlib.Path
         Generated database path.
     manifest : pathlib.Path
@@ -52,6 +60,7 @@ class PatientBuildResult:
     documents: int
     duplicates: int
     warnings: int
+    warning_messages: tuple[str, ...]
     database: Path
     manifest: Path
     checksums: Path
@@ -86,14 +95,26 @@ def build_patient(
         raise ValueError(msg)
     build_root = person.local_build
     build_root.mkdir(parents=True, exist_ok=True)
+    inventory = scan_document_inventory(person)
+    duplicates = find_duplicate_documents(inventory)
     documents = scan_documents(person)
     metadata = load_curated_metadata(person.metadata_directory)
     dicom_studies = catalog_dicom_studies(person, documents)
     extracted = tuple(extract_text(document) for document in documents)
-    duplicates = find_duplicate_documents(documents)
-    warnings = sum(len(item.warnings) for item in extracted) + sum(
-        len(study.warnings) for study in dicom_studies
+    warning_messages = (
+        *duplicate_document_warnings(duplicates),
+        *(
+            f"{document.path}: {warning}"
+            for document, extracted_item in zip(documents, extracted, strict=True)
+            for warning in extracted_item.warnings
+        ),
+        *(
+            f"{study.support_path}: {warning}"
+            for study in dicom_studies
+            for warning in study.warnings
+        ),
     )
+    warnings = len(warning_messages)
     db_result = build_database(person, documents, metadata, dicom_studies)
     manifest_path = _write_manifest(
         person,
@@ -107,7 +128,7 @@ def build_patient(
         build_root=build_root,
         documents=len(documents),
         duplicates=len(duplicates),
-        warnings=warnings,
+        warning_messages=warning_messages,
     )
     generate_exports(person, documents, metadata)
     build_frontend(person)
@@ -118,6 +139,7 @@ def build_patient(
         documents=len(documents),
         duplicates=len(duplicates),
         warnings=warnings,
+        warning_messages=warning_messages,
         database=db_result.path,
         manifest=manifest_path,
         checksums=checksums_path,
@@ -232,7 +254,7 @@ def _write_report(
     build_root: Path,
     documents: int,
     duplicates: int,
-    warnings: int,
+    warning_messages: tuple[str, ...],
 ) -> Path:
     """Write a compact JSON build report.
 
@@ -246,8 +268,8 @@ def _write_report(
         Document count.
     duplicates : int
         Duplicate count.
-    warnings : int
-        Warning count.
+    warning_messages : tuple[str, ...]
+        Non-fatal warning messages.
 
     Returns
     -------
@@ -261,7 +283,8 @@ def _write_report(
         "patient_id": person.id,
         "documents": documents,
         "duplicates": duplicates,
-        "warnings": warnings,
+        "warnings": len(warning_messages),
+        "warning_messages": list(warning_messages),
     }
     target.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"

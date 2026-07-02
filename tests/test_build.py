@@ -218,3 +218,35 @@ def test_build_patient_preserves_original_document_bytes_and_mtime(
 
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
     assert source.stat().st_mtime_ns == original_mtime_ns
+
+
+def test_build_patient_skips_duplicate_content_with_warning(tmp_path: Path) -> None:
+    """Verify duplicate-content files do not collide in the database.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    reports = person.source_documents / "reports"
+    reports.mkdir(parents=True)
+    (reports / "20260102 A.txt").write_text("same", encoding="utf-8")
+    (reports / "20260103 B.txt").write_text("same", encoding="utf-8")
+
+    result = build_patient(person, mode="full")
+    report = json.loads(result.report.read_text(encoding="utf-8"))
+
+    assert result.documents == 1
+    assert result.duplicates == 1
+    assert result.warnings == 1
+    assert "20260103 B.txt" in result.warning_messages[0]
+    assert "20260102 A.txt" in result.warning_messages[0]
+    assert report["documents"] == 1
+    assert report["duplicates"] == 1
+    assert report["warning_messages"] == list(result.warning_messages)

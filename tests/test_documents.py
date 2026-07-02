@@ -6,7 +6,13 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from sanikey.config import PersonConfig
-from sanikey.documents import extract_text, find_duplicate_documents, scan_documents
+from sanikey.documents import (
+    duplicate_document_warnings,
+    extract_text,
+    find_duplicate_documents,
+    scan_document_inventory,
+    scan_documents,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -68,8 +74,10 @@ def test_scan_documents_builds_stable_records(tmp_path: Path) -> None:
     assert len(documents[0].sha256) == 64
 
 
-def test_duplicate_detection_keeps_documents(tmp_path: Path) -> None:
-    """Verify duplicates are reported without deletion.
+def test_duplicate_detection_skips_duplicate_content_with_warning(
+    tmp_path: Path,
+) -> None:
+    """Verify duplicate content is reported and skipped for ingestion.
 
     Parameters
     ----------
@@ -87,10 +95,18 @@ def test_duplicate_detection_keeps_documents(tmp_path: Path) -> None:
     (document_dir / "20260102 A.txt").write_text("same", encoding="utf-8")
     (document_dir / "20260103 B.txt").write_text("same", encoding="utf-8")
 
-    duplicates = find_duplicate_documents(scan_documents(person))
+    inventory = scan_document_inventory(person)
+    documents = scan_documents(person)
+    duplicates = find_duplicate_documents(inventory)
+    warnings = duplicate_document_warnings(duplicates)
 
+    assert len(inventory) == 2
+    assert len(documents) == 1
+    assert documents[0].path.name == "20260102 A.txt"
     assert len(duplicates) == 1
     assert len(next(iter(duplicates.values()))) == 2
+    assert "20260103 B.txt" in warnings[0]
+    assert "20260102 A.txt" in warnings[0]
 
 
 def test_extract_text_reads_text_files(tmp_path: Path) -> None:

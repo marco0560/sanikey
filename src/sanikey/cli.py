@@ -11,7 +11,13 @@ from .build import build_all, build_patient, result_to_json
 from .config import default_accounts_path, load_accounts
 from .database import build_database
 from .dicom import catalog_dicom_studies
-from .documents import extract_text, find_duplicate_documents, scan_documents
+from .documents import (
+    duplicate_document_warnings,
+    extract_text,
+    find_duplicate_documents,
+    scan_document_inventory,
+    scan_documents,
+)
 from .errors import SaniKeyError
 from .exports import generate_exports
 from .frontend import build_frontend
@@ -286,11 +292,15 @@ def run_scan_documents(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}")
         return 1
     for person in _selected_people(config, args.patient):
+        inventory = scan_document_inventory(person)
         documents = scan_documents(person)
-        duplicates = find_duplicate_documents(documents)
+        duplicates = find_duplicate_documents(inventory)
         print(
-            f"patient={person.id} documents={len(documents)} duplicates={len(duplicates)}"
+            f"patient={person.id} files={len(inventory)} "
+            f"documents={len(documents)} duplicates={len(duplicates)}"
         )
+        for warning in duplicate_document_warnings(duplicates):
+            print(f"WARNING: {warning}")
         for document in documents:
             print(
                 "\t".join(

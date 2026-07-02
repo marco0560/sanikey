@@ -52,6 +52,23 @@ def scan_documents(person: PersonConfig) -> tuple[DocumentRecord, ...]:
         Deterministically sorted document records.
     """
 
+    return _deduplicate_documents(scan_document_inventory(person))
+
+
+def scan_document_inventory(person: PersonConfig) -> tuple[DocumentRecord, ...]:
+    """Scan every file in a patient's source document directory.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+
+    Returns
+    -------
+    tuple[DocumentRecord, ...]
+        Deterministically sorted document records, including duplicate content.
+    """
+
     root = person.source_documents
     if not root.exists():
         return ()
@@ -81,6 +98,34 @@ def find_duplicate_documents(
     for document in documents:
         grouped.setdefault(document.sha256, []).append(document)
     return {digest: tuple(items) for digest, items in grouped.items() if len(items) > 1}
+
+
+def duplicate_document_warnings(
+    duplicates: dict[str, tuple[DocumentRecord, ...]],
+) -> tuple[str, ...]:
+    """Build warnings for duplicate-content documents.
+
+    Parameters
+    ----------
+    duplicates : dict[str, tuple[DocumentRecord, ...]]
+        Duplicate digest groups.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Human-readable warnings naming the retained file and skipped duplicate.
+    """
+
+    warnings: list[str] = []
+    for digest, documents in sorted(duplicates.items()):
+        retained = documents[0]
+        for skipped in documents[1:]:
+            warnings.append(
+                "duplicate document content skipped: "
+                f"{skipped.path} is identical to {retained.path} "
+                f"(sha256={digest})"
+            )
+    return tuple(warnings)
 
 
 def extract_text(document: DocumentRecord) -> ExtractedText:
@@ -151,6 +196,31 @@ def _record_for_path(path: Path, *, root: Path, patient_id: str) -> DocumentReco
         sha256=digest,
         date=date,
     )
+
+
+def _deduplicate_documents(
+    documents: tuple[DocumentRecord, ...],
+) -> tuple[DocumentRecord, ...]:
+    """Keep only the first document for each content digest.
+
+    Parameters
+    ----------
+    documents : tuple[DocumentRecord, ...]
+        Scanned document records in deterministic order.
+    Returns
+    -------
+    tuple[DocumentRecord, ...]
+        First document for each SHA256 digest.
+    """
+
+    seen: set[str] = set()
+    retained: list[DocumentRecord] = []
+    for document in documents:
+        if document.sha256 in seen:
+            continue
+        seen.add(document.sha256)
+        retained.append(document)
+    return tuple(retained)
 
 
 def _sha256(path: Path) -> str:

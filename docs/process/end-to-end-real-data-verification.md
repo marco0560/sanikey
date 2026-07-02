@@ -136,6 +136,18 @@ Validare la configurazione:
 uv run sanikey validate-config --config config/accounts.toml
 ```
 
+Eseguire una scansione preliminare dei documenti:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml
+```
+
+Se l'output contiene `duplicates=`, leggere eventuali righe `WARNING:`. File con
+lo stesso SHA256 sono identici: SaniKey conserva solo la prima occorrenza
+nell'archivio generato e segnala il file saltato insieme al file trattenuto. In
+presenza di duplicati inattesi, fermarsi e decidere manualmente se rimuovere,
+rinominare o archiviare separatamente una delle copie prima di proseguire.
+
 Eseguire la build completa:
 
 ```bash
@@ -276,6 +288,7 @@ La verifica è superata solo se:
 
 - `validate-config`, `build-patient`, `export-usb` e `validate-usb` completano
   con successo;
+- eventuali duplicati SHA256 sono stati segnalati e valutati manualmente;
 - `exports/usb-image/` e il target di verifica contengono manifest valido;
 - hash e `mtime` dei documenti originali non cambiano;
 - database, JSON e frontend contengono i dati attesi;
