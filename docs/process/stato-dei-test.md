@@ -38,6 +38,8 @@ Aggiornamento 2026-07-02: la suite protegge inoltre:
 - costruzione canonica della chiavetta da `exports/usb-image/`, mirror verso il
   target richiesto, rimozione dei file obsoleti nel target e test opzionale su
   filesystem reale tramite `SANIKEY_USB_INTEGRATION_TARGET`;
+- default incrementale della build programmatica e stabilità di manifest e
+  checksum su build incrementali ripetute senza modifiche agli input;
 - assenza di storage browser, cookie, telemetry e URL HTTP(S) negli asset
   frontend generati.
 
@@ -86,10 +88,11 @@ Decisioni coinvolte: DA-035, DA-039, DA-060, DA-092, DA-094, DA-101, DA-122.
 
 La suite usa principalmente build completa o singola. Non risultano protetti:
 
-- default incrementale;
-- idempotenza delle fasi;
+- default incrementale: coperto per `build_patient`;
+- idempotenza delle fasi: coperta per manifest e checksum su build incrementali
+  ripetute senza modifiche agli input;
 - cache;
-- riesecuzione fase-per-fase;
+- riesecuzione fase-per-fase: coperta per build incrementale ripetuta;
 - assenza di side effect.
 
 ### Precedenza dei Dati Curati

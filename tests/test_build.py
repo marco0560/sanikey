@@ -69,6 +69,65 @@ def test_build_patient_writes_manifest_report_checksums(tmp_path: Path) -> None:
     assert "database/medical_archive.db" in result.checksums.read_text(encoding="utf-8")
 
 
+def test_build_patient_defaults_to_incremental_mode(tmp_path: Path) -> None:
+    """Verify the programmatic build default is incremental.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+
+    result = build_patient(person)
+
+    manifest = json.loads(result.manifest.read_text(encoding="utf-8"))
+    assert manifest["build_mode"] == "incremental"
+
+
+def test_repeated_incremental_build_preserves_manifest_and_checksums(
+    tmp_path: Path,
+) -> None:
+    """Verify repeated unchanged builds keep stable manifest/checksum content.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+
+    first = build_patient(person)
+    first_manifest = json.loads(first.manifest.read_text(encoding="utf-8"))
+    first_checksums = first.checksums.read_text(encoding="utf-8")
+    second = build_patient(person)
+    second_manifest = json.loads(second.manifest.read_text(encoding="utf-8"))
+    second_checksums = second.checksums.read_text(encoding="utf-8")
+
+    assert second_manifest == first_manifest
+    assert second_checksums == first_checksums
+
+
 def test_build_all_skips_disabled_patients_and_isolates_outputs(
     tmp_path: Path,
 ) -> None:

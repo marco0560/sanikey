@@ -6,7 +6,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .database import build_database
 from .dicom import catalog_dicom_studies
@@ -179,18 +179,51 @@ def _write_manifest(
 
     target = build_root / "manifests" / "manifest.json"
     target.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
+    base_payload = {
         "schema_version": 1,
         "patient_id": person.id,
         "build_mode": mode,
-        "generated_at": datetime.now(UTC).isoformat(),
         "documents": documents,
         "warnings": warnings,
+    }
+    payload = {
+        **base_payload,
+        "generated_at": _manifest_generated_at(target, base_payload),
     }
     target.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return target
+
+
+def _manifest_generated_at(target: Path, base_payload: dict[str, object]) -> str:
+    """Return a stable manifest generation timestamp.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        Manifest path.
+    base_payload : dict[str, object]
+        Manifest content excluding ``generated_at``.
+
+    Returns
+    -------
+    str
+        Existing timestamp for unchanged manifests, otherwise current UTC time.
+    """
+
+    if target.is_file():
+        try:
+            existing = json.loads(target.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            existing = {}
+        if (
+            isinstance(existing, dict)
+            and all(existing.get(key) == value for key, value in base_payload.items())
+            and isinstance(existing.get("generated_at"), str)
+        ):
+            return cast("str", existing["generated_at"])
+    return datetime.now(UTC).isoformat()
 
 
 def _write_report(
