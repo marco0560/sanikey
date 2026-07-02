@@ -28,7 +28,23 @@ STOPWORDS = {
 
 
 def slugify(text: str) -> str:
-    """Convert a one-line description into a filesystem-friendly slug."""
+    """Convert a one-line description into a filesystem-friendly slug.
+
+    Parameters
+    ----------
+    text : str
+        Description to convert.
+
+    Returns
+    -------
+    str
+        Filesystem-friendly slug.
+
+    Raises
+    ------
+    ValueError
+        If ``text`` does not produce any slug token.
+    """
     normalized = unicodedata.normalize("NFKD", text)
     normalized = normalized.encode("ascii", "ignore").decode("ascii")
     normalized = re.sub(r"[^a-zA-Z0-9]+", " ", normalized).lower()
@@ -40,7 +56,18 @@ def slugify(text: str) -> str:
 
 
 def next_decision_number(decisions_dir: Path) -> int:
-    """Return the next numeric decision prefix."""
+    """Return the next numeric decision prefix.
+
+    Parameters
+    ----------
+    decisions_dir : pathlib.Path
+        Directory containing decision Markdown files.
+
+    Returns
+    -------
+    int
+        Next available numeric decision prefix.
+    """
     numbers = []
     for path in decisions_dir.glob("*.md"):
         match = re.match(r"(\d+)-", path.name)
@@ -50,13 +77,34 @@ def next_decision_number(decisions_dir: Path) -> int:
 
 
 def fail(message: str) -> None:
-    """Print an error and exit."""
+    """Print an error and exit.
+
+    Parameters
+    ----------
+    message : str
+        Error message to print.
+
+    Returns
+    -------
+    None
+    """
     print(f"ERROR: {message}", file=sys.stderr)
     sys.exit(1)
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Create the decision note and append it to the index."""
+    """Create the decision note and append it to the index.
+
+    Parameters
+    ----------
+    argv : list[str] | None, optional
+        Command-line arguments. When omitted, use ``sys.argv``.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
     parser = argparse.ArgumentParser(description="Create a new decision note.")
     parser.add_argument("--decisions-dir", type=Path, default=DEFAULT_DECISIONS_DIR)
     parser.add_argument("--dry-run", action="store_true")

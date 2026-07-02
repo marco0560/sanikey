@@ -17,7 +17,24 @@ PROTECTED_PATHS = {".venv", ".vscode", "node_modules"}
 
 
 def git_ignored_paths() -> Iterable[Path]:
-    """Yield ignored paths that currently exist in the working tree."""
+    """Yield ignored paths that currently exist in the working tree.
+
+    Parameters
+    ----------
+    None
+
+    Yields
+    ------
+    pathlib.Path
+        Ignored path reported by Git.
+
+    Raises
+    ------
+    RuntimeError
+        If the Git executable cannot be found.
+    subprocess.CalledProcessError
+        If ``git status`` fails.
+    """
     if GIT_EXE is None:
         msg = "git executable not found"
         raise RuntimeError(msg)
@@ -33,7 +50,19 @@ def git_ignored_paths() -> Iterable[Path]:
 
 
 def remove_path(path: Path, dry_run: bool) -> None:
-    """Remove a filesystem path or print the planned removal."""
+    """Remove a filesystem path or print the planned removal.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Filesystem path to remove.
+    dry_run : bool
+        Whether removal should be reported without changing the filesystem.
+
+    Returns
+    -------
+    None
+    """
     if dry_run:
         print(f"[DRY-RUN] Would remove: {path}")
         return
@@ -44,7 +73,17 @@ def remove_path(path: Path, dry_run: bool) -> None:
 
 
 def main() -> int:
-    """Clean ignored artifacts from the repository root."""
+    """Clean ignored artifacts from the repository root.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
     parser = argparse.ArgumentParser(description="Clean ignored repository artifacts.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()

@@ -10,7 +10,17 @@ GIT_EXE = shutil.which("git")
 
 
 def git_alias_entries() -> list[tuple[str, str]]:
-    """Return repo-local Git config entries to install."""
+    """Return repo-local Git config entries to install.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        Git config key/value entries.
+    """
     return [
         ("core.hooksPath", ".githooks"),
         ("commit.template", ".gitmessage"),
@@ -37,7 +47,24 @@ def git_alias_entries() -> list[tuple[str, str]]:
 
 
 def main() -> int:
-    """Apply the repo-local Git configuration entries."""
+    """Apply the repo-local Git configuration entries.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    int
+        Process exit status.
+
+    Raises
+    ------
+    RuntimeError
+        If the Git executable cannot be found.
+    subprocess.CalledProcessError
+        If a Git config command fails.
+    """
     if GIT_EXE is None:
         msg = "git executable not found"
         raise RuntimeError(msg)

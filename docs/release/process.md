@@ -1,38 +1,40 @@
-# Release Process
+# Processo di Rilascio
 
-This template uses a conservative tag-driven release flow.
+Questo template usa un flusso conservativo di rilascio basato su tag.
 
-## Local checks
+## Controlli Locali
 
-Before creating a release tag, verify the repository is in a publishable state:
+Prima di creare un tag di rilascio, verificare che il repository sia in uno
+stato pubblicabile:
 
 ```bash
 git release-audit
 ```
 
-That guard checks:
+Quel guard controlla:
 
-- clean working tree
-- staged state is empty
-- branch is not behind its upstream
-- latest version tag is an ancestor of `HEAD`
-- `CHANGELOG.md` still contains an `Unreleased` section
+- albero di lavoro pulito
+- area di staging vuota
+- branch non arretrato rispetto all'upstream
+- ultimo tag di versione antenato di `HEAD`
+- presenza della sezione `Unreleased` in `CHANGELOG.md`
 
 ## Tagging
 
-Release tags must match `vX.Y.Z`.
+I tag di rilascio devono rispettare `vX.Y.Z`.
 
-Example:
+Esempio:
 
 ```bash
 git tag v0.2.0
 git push --follow-tags
 ```
 
-The template also provides `scripts/tag_guard.sh` for standalone validation of a
-proposed tag.
+Il template fornisce anche `scripts/tag_guard.sh` per validare separatamente un
+tag proposto.
 
 ## GitHub Actions
 
-The generated repository ships with a release workflow that triggers on pushed
-version tags and publishes the built distribution artifacts as a GitHub release.
+Il repository generato include una procedura di rilascio che si attiva sui tag di
+versione inviati e pubblica gli artefatti di distribuzione costruiti come
+release GitHub.

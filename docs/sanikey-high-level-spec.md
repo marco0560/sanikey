@@ -18,8 +18,8 @@ Obiettivi:
 ## 2. Architettura
 
 Repository SaniKey
-    -> Build locale per paziente
-    -> Export USB
+    -> Costruzione locale per paziente
+    -> Esportazione USB
     -> Consultazione browser
 
 Principi:
@@ -84,18 +84,18 @@ repository_version = "1"
 
 [[person]]
 id = "patient-a"
-display_name = "Patient A"
-source_documents = "/absolute/path/to/patient-a/documents"
-metadata_directory = "/absolute/path/to/patient-a/metadata"
-local_build = "/absolute/path/to/patient-a/generated"
+display_name = "Paziente A"
+source_documents = "/percorso/assoluto/patient-a/documents"
+metadata_directory = "/percorso/assoluto/patient-a/metadata"
+local_build = "/percorso/assoluto/patient-a/generated"
 usb_uuid = "1A2B-3C4D"
 
 [[person]]
 id = "patient-b"
-display_name = "Patient B"
-source_documents = "/absolute/path/to/patient-b/documents"
-metadata_directory = "/absolute/path/to/patient-b/metadata"
-local_build = "/absolute/path/to/patient-b/generated"
+display_name = "Paziente B"
+source_documents = "/percorso/assoluto/patient-b/documents"
+metadata_directory = "/percorso/assoluto/patient-b/metadata"
+local_build = "/percorso/assoluto/patient-b/generated"
 usb_uuid = "1A2B-3C4D"
 
 Il campo usb_uuid identifica la chiavetta autorizzata.
@@ -262,7 +262,7 @@ Il browser non accede direttamente a SQLite.
 
 ---
 
-## 15. Home Page
+## 15. Pagina Iniziale
 
 Visualizza:
 - dati paziente
@@ -290,7 +290,7 @@ Azioni:
 
 ---
 
-## 17. Export USB
+## 17. Esportazione USB
 
 Struttura:
 
@@ -364,7 +364,7 @@ update_archive.py
 
 ---
 
-## 21. Workflow
+## 21. Flusso Operativo
 
 Aggiornamento:
 

@@ -1,65 +1,92 @@
-# Scripts
+# Script
 
 ## `scripts/bootstrap_dev_environment.py`
 
-Synchronize the uv-managed environment, configure local Git state, and
-optionally run validation.
+Sincronizza l'ambiente gestito da uv, configura lo stato Git locale ed esegue
+opzionalmente la validazione.
 
-This script verifies the repository root and runs `uv pip check` after
-dependency synchronization.
+Lo script verifica la radice del repository ed esegue `uv pip check` dopo la
+sincronizzazione delle dipendenze.
 
 ## `scripts/install_repo_git_config.py`
 
-Install the repo-local Git configuration expected by the generated project,
-including hooks, commit template, and sanctioned aliases.
+Installa la configurazione Git locale attesa dal progetto generato, inclusi
+hook, template di commit e alias autorizzati.
 
 ## `scripts/run_repo_tool.py`
 
-Run sanctioned repository tools with cache and temporary state outside the
-checkout.
+Esegue gli strumenti autorizzati del repository mantenendo cache e stato
+temporaneo fuori dal checkout.
 
 ## `scripts/validate_repo.py`
 
-Run the standard local validation sequence through `scripts/run_repo_tool.py`.
+Esegue la sequenza standard di validazione locale tramite
+`scripts/run_repo_tool.py`.
 
-Status:
+Stato:
 
-- installed as `git check` by the bootstrap script
-- runs the test suite under coverage and emits `.coverage-report.json`
-- excludes Semgrep by default; regenerate with `--with-semgrep` to opt in
+- installato come `git check` dallo script di bootstrap
+- esegue la suite di test sotto coverage ed emette `.coverage-report.json`
+- esclude Semgrep per default; rigenerare con `--with-semgrep` per attivarlo
 
 ## `scripts/coverage_summary.py`
 
-Render a compact coverage summary from `.coverage-report.json` and enforce the
-repository coverage threshold.
+Renderizza un riepilogo compatto della coverage da `.coverage-report.json` e
+applica la soglia di coverage del repository.
 
 ## `scripts/clean_repo.py`
 
-Remove ignored build and cache artifacts while preserving protected local
-folders such as `.venv`.
+Rimuove artefatti ignorati di build e cache preservando directory locali
+protette come `.venv`.
 
 ## `scripts/generate_cheatsheet.py`
 
-Regenerate `docs/cheatsheet.md` from marked documentation fragments.
+Rigenera `docs/cheatsheet.md` dai frammenti marcati nella documentazione.
 
 ## `scripts/new_decision.py`
 
-Create a new decision note in `docs/decisions/` and update the index.
+Crea una nuova nota decisionale in `docs/decisions/` e aggiorna l'indice.
 
 ## `scripts/pyproject_lint.py`
 
-Run deterministic structural validation for `pyproject.toml`.
+Esegue la validazione strutturale deterministica di `pyproject.toml`.
 
 ## `scripts/release_audit.sh`
 
-Run conservative release safety checks before pushing tags or publishing.
+Esegue controlli conservativi di sicurezza prima di inviare tag o pubblicare.
 
-This script is the implementation behind `git release-audit`.
+Questo script implementa `git release-audit`.
 
 ## `scripts/tag_guard.sh`
 
-Validate that a release tag matches the expected `vX.Y.Z` pattern.
+Valida che un tag di rilascio rispetti il pattern atteso `vX.Y.Z`.
 
 ## `scripts/changelog_guard.sh`
 
-Validate that `CHANGELOG.md` contains the expected `Unreleased` section.
+Valida che `CHANGELOG.md` contenga la sezione attesa `Unreleased`.
+
+## Script di Compatibilità SaniKey
+
+La prima implementazione espone le operazioni principalmente tramite la CLI
+`sanikey`. Gli script seguenti sono wrapper di compatibilità che delegano ai
+sottocomandi CLI corrispondenti:
+
+- `scripts/list_patients.py`
+- `scripts/scan_documents.py`
+- `scripts/extract_text.py`
+- `scripts/process_dicom.py`
+- `scripts/build_database.py`
+- `scripts/generate_embeddings.py`
+- `scripts/generate_timeline.py`
+- `scripts/generate_clinical_summary.py`
+- `scripts/build_web.py`
+- `scripts/export_usb.py`
+- `scripts/validate_usb.py`
+- `scripts/deploy_usb.py`
+- `scripts/build_patient.py`
+- `scripts/build_all.py`
+- `scripts/update_archive.py`
+
+La configurazione reale resta sotto `config/`, directory ignorata da Git. Gli
+esempi pubblici vivono sotto `docs/config-example/`, `docs/patients-example/` e
+`docs/generated-example/`.
