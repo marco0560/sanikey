@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from . import __version__
-from .build import build_all, build_patient, result_to_json
+from .build import PatientBuildResult, build_all, build_patient
 from .config import default_accounts_path, load_accounts
 from .database import build_database
 from .dicom import catalog_dicom_studies
@@ -387,12 +387,53 @@ def _format_scan_verbose(
     )
     rendered = [f"patient={person.id} ingested_documents={len(documents)}"]
     for row_index, row in enumerate(rows):
-        rendered.append(
-            "  ".join(value.ljust(widths[index]) for index, value in enumerate(row))
-        )
+        rendered.append(_format_table_row(row, widths))
         if row_index == 0:
-            rendered.append("  ".join("-" * widths[index] for index in range(len(row))))
+            rendered.append(_format_scan_separator(row, widths))
     return "\n".join(rendered)
+
+
+def _format_table_row(row: tuple[str, ...], widths: tuple[int, ...]) -> str:
+    """Render one table row without padding the final column.
+
+    Parameters
+    ----------
+    row : tuple[str, ...]
+        Table row values.
+    widths : tuple[int, ...]
+        Column widths.
+
+    Returns
+    -------
+    str
+        Rendered row.
+    """
+
+    padded = [value.ljust(widths[index]) for index, value in enumerate(row[:-1])]
+    return "  ".join((*padded, row[-1])).rstrip()
+
+
+def _format_scan_separator(row: tuple[str, ...], widths: tuple[int, ...]) -> str:
+    """Render the scan table separator.
+
+    Parameters
+    ----------
+    row : tuple[str, ...]
+        Header row.
+    widths : tuple[int, ...]
+        Column widths.
+
+    Returns
+    -------
+    str
+        Separator row.
+    """
+
+    separator = tuple(
+        "-" * (4 if index == len(row) - 1 else min(widths[index], 20))
+        for index in range(len(row))
+    )
+    return _format_table_row(separator, widths)
 
 
 def _write_scan_output(
@@ -667,7 +708,7 @@ def run_build_patient(args: argparse.Namespace) -> int:
         if not selected:
             print(f"ERROR: patient not found or disabled: {args.patient}")
             return 1
-        print(result_to_json(build_patient(selected[0], mode=args.mode)))
+        _print_build_result(build_patient(selected[0], mode=args.mode))
     except (SaniKeyError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 1
@@ -691,7 +732,7 @@ def run_build_all(args: argparse.Namespace) -> int:
     try:
         config = load_accounts(args.config)
         for result in build_all(config, mode=args.mode):
-            print(result_to_json(result))
+            _print_build_result(result)
     except (SaniKeyError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 1
@@ -890,7 +931,7 @@ def run_deploy_usb(args: argparse.Namespace) -> int:
     try:
         config = load_accounts(args.config)
         for result in build_all(config, mode="incremental"):
-            print(result_to_json(result))
+            _print_build_result(result)
         export = export_usb(config, args.target)
         print(f"usb={export.root} patients={export.patients} files={export.files}")
         if not validate_usb(args.target):
@@ -900,6 +941,36 @@ def run_deploy_usb(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}")
         return 1
     return 0
+
+
+def _print_build_result(result: PatientBuildResult) -> None:
+    """Print a human-readable patient build result.
+
+    Parameters
+    ----------
+    result : PatientBuildResult
+        Build result.
+
+    Returns
+    -------
+    None
+    """
+
+    print(f"patient={result.patient_id} status=ok")
+    print(
+        f"documents={result.documents} duplicates={result.duplicates} "
+        f"warnings={result.warnings}"
+    )
+    print(f"build_root={result.build_root}")
+    print(f"database={result.database}")
+    print(f"manifest={result.manifest}")
+    print(f"checksums={result.checksums}")
+    print(f"report={result.report}")
+    for warning in result.warning_messages:
+        if warning.startswith("duplicate document content skipped."):
+            print(f"WARNING: {warning}")
+    if result.warnings:
+        print("warning_messages=see report")
 
 
 def _add_config_arguments(parser: argparse.ArgumentParser) -> None:

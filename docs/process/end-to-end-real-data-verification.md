@@ -265,6 +265,10 @@ Eseguire la build completa:
 uv run sanikey build-patient marco --config config/accounts.toml --mode full
 ```
 
+L'output deve essere un riepilogo multi-riga leggibile, non una riga JSON
+minificata. Annotare il percorso `report=...`: contiene il dettaglio completo
+dei warning e deve essere consultato se `warnings` e' maggiore di zero.
+
 Eseguire una build incrementale ripetuta:
 
 ```bash

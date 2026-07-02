@@ -120,6 +120,12 @@ Costruisci un singolo paziente:
 uv run sanikey build-patient patient-a --config config/accounts.toml --mode full
 ```
 
+Il comando stampa un riepilogo leggibile con conteggi, percorsi degli artefatti
+principali e path del report. I warning lunghi o ripetitivi non vengono
+serializzati in stdout: sono conservati nel report JSON indicato dalla riga
+`report=...`. I warning sui documenti duplicati restano visibili anche in
+stdout perché richiedono una decisione manuale.
+
 Costruisci tutti i pazienti abilitati:
 
 ```bash

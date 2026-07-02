@@ -269,6 +269,11 @@ usb_uuid = "1A2B-3C4D"
     assert "patient=patient-a ingested_documents=1" in result.stdout
     assert "02/01/2026" in result.stdout
     assert "laboratory/20260102 Report.txt" in result.stdout
+    assert not any(line.endswith(" ") for line in result.stdout.splitlines())
+    assert (
+        "----------------------------------------------------------------"
+        not in result.stdout
+    )
 
 
 def test_scan_documents_writes_text_output(tmp_path: Path) -> None:
@@ -654,7 +659,9 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert '"patient_id": "patient-a"' in result.stdout
+    assert "patient=patient-a status=ok" in result.stdout
+    assert "documents=1 duplicates=0 warnings=0" in result.stdout
+    assert '"patient_id": "patient-a"' not in result.stdout
     assert (tmp_path / "generated" / "manifests" / "manifest.json").is_file()
 
 
@@ -710,11 +717,11 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert '"documents": 1' in result.stdout
-    assert '"duplicates": 1' in result.stdout
+    assert "documents=1 duplicates=1" in result.stdout
     assert "duplicate document content skipped" in result.stdout
     assert "20260103 B.txt" in result.stdout
     assert "20260102 A.txt" in result.stdout
+    assert "warning_messages=see report" in result.stdout
 
 
 def test_build_patient_subcommand_hides_unexpected_tracebacks(tmp_path: Path) -> None:
