@@ -1017,11 +1017,11 @@ id = "patient-a"
 
 display_name = "Paziente A"
 
-source_documents = "/percorso/assoluto/patient-a/documents"
+source_documents = "local-data/patient-a/documents"
 
-metadata_directory = "/percorso/assoluto/patient-a/metadata"
+metadata_directory = "local-data/patient-a/metadata"
 
-local_build = "/percorso/assoluto/patient-a/generated"
+local_build = "local-data/generated/patient-a"
 
 usb_uuid = "1A2B-3C4D"
 ```
@@ -1839,13 +1839,13 @@ id = "patient-a"
 display_name = "Paziente A"
 
 source_documents =
-"/percorso/assoluto/patient-a/documents"
+"local-data/patient-a/documents"
 
 metadata_directory =
-"/percorso/assoluto/patient-a/metadata"
+"local-data/patient-a/metadata"
 
 local_build =
-"/percorso/assoluto/patient-a/generated"
+"local-data/generated/patient-a"
 
 usb_uuid =
 "1A2B-3C4D"
@@ -1914,10 +1914,15 @@ Esempio:
 
 ```toml
 source_documents =
-"/percorso/assoluto/patient-a/documents"
+"local-data/patient-a/documents"
 ```
 
 Questo campo è obbligatorio.
+
+Il valore puo' essere assoluto oppure relativo alla root del repository quando
+la configurazione e' `config/accounts.toml`. La directory deve restare fuori
+dai contenuti versionati; `local-data/...` e' accettato per dati locali ignorati
+da Git.
 
 ---
 
@@ -1943,7 +1948,7 @@ Esempio:
 
 ```toml
 metadata_directory =
-"/percorso/assoluto/patient-a/metadata"
+"local-data/patient-a/metadata"
 ```
 
 Contiene:
@@ -1963,7 +1968,7 @@ Esempio:
 
 ```toml
 local_build =
-"/percorso/assoluto/patient-a/generated"
+"local-data/generated/patient-a"
 ```
 
 Contiene:

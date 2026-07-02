@@ -12,7 +12,7 @@ from .errors import PrivacyError
 if TYPE_CHECKING:
     from .config import AccountsConfig, PersonConfig
 
-LOCAL_DATA_DIRS = ("config", "patients", "generated", "exports", "logs")
+LOCAL_DATA_DIRS = ("config", "patients", "generated", "exports", "logs", "local-data")
 GIT_EXE = shutil.which("git")
 
 

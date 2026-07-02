@@ -15,15 +15,17 @@ config_version = 1
 [[person]]
 id = "patient-a"
 display_name = "Paziente A"
-source_documents = "/percorso/assoluto/esempio/patient-a/documents"
-metadata_directory = "/percorso/assoluto/esempio/patient-a/metadata"
-local_build = "/percorso/assoluto/esempio/patient-a/generated"
+source_documents = "local-data/patient-a/documents"
+metadata_directory = "local-data/patient-a/metadata"
+local_build = "local-data/generated/patient-a"
 usb_uuid = "1A2B-3C4D"
 enabled = true
 ```
 
-Copia questa struttura in `config/accounts.toml` per l'uso reale, poi sostituisci
-ogni percorso di esempio con un percorso assoluto privato.
+Copia questa struttura in `config/accounts.toml` per l'uso reale, poi
+sostituisci ogni percorso di esempio con un percorso privato. I percorsi relativi
+sono risolti rispetto alla root del repository quando il file si trova in
+`config/accounts.toml`.
 
 ## Esempio di Paziente
 

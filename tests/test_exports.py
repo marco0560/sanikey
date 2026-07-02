@@ -54,7 +54,9 @@ def test_generate_exports_writes_frontend_data(tmp_path: Path) -> None:
 
     person = _person(tmp_path)
     person.source_documents.mkdir(parents=True)
-    (person.source_documents / "20260102 Report.txt").write_text(
+    laboratory = person.source_documents / "laboratory"
+    laboratory.mkdir()
+    (laboratory / "20260102 Report.txt").write_text(
         "synthetic",
         encoding="utf-8",
     )
@@ -62,7 +64,7 @@ def test_generate_exports_writes_frontend_data(tmp_path: Path) -> None:
     (person.metadata_directory / "document_tags.toml").write_text(
         """
 [tags]
-"20260102 Report.txt" = ["report"]
+"laboratory/20260102 Report.txt" = ["report"]
 """,
         encoding="utf-8",
     )
@@ -90,7 +92,7 @@ links = ["therapy-a"]
     timeline = json.loads(result.timeline.read_text(encoding="utf-8"))
     summary = json.loads(result.summary.read_text(encoding="utf-8"))
     assert documents[0]["tags"] == ["report"]
-    assert search[0]["text"] == "Report uncategorized report"
+    assert search[0]["text"] == "Report laboratory report"
     assert timeline[0]["id"] == "therapy-interval"
     assert timeline[0]["start_date"] == "2026-01-01"
     assert timeline[0]["end_date"] == "2026-01-31"

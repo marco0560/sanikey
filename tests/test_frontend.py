@@ -54,3 +54,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     )
     assert not any(fragment in generated for fragment in forbidden_fragments)
     assert 'loadjson("data/' in script
+    assert "function formatdate(value)" in script
+    assert "${match[3]}/${match[2]}/${match[1]}" in script
+    assert "formatdaterange(item.start_date, item.end_date)" in script
+    assert "formatdate(item.date)" in script

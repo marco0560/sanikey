@@ -53,11 +53,11 @@ class PersonConfig:
     display_name : str
         Human-readable name shown in generated artefacts.
     source_documents : pathlib.Path
-        Absolute directory containing original source documents.
+        Directory containing original source documents.
     metadata_directory : pathlib.Path
-        Absolute directory containing curated metadata.
+        Directory containing curated metadata.
     local_build : pathlib.Path
-        Absolute directory for generated artefacts.
+        Directory for generated artefacts.
     usb_uuid : str
         Expected filesystem UUID for deployment.
     enabled : bool
@@ -144,7 +144,7 @@ def load_accounts(path: Path) -> AccountsConfig:
         If the file is missing, malformed, or semantically invalid.
     """
 
-    resolved = path.expanduser()
+    resolved = path.expanduser().resolve(strict=False)
     if not resolved.is_file():
         _fail(f"accounts configuration not found: {resolved}")
     try:
@@ -193,14 +193,16 @@ def parse_accounts_data(data: dict[str, Any], *, path: Path) -> AccountsConfig:
         _fail("at least one [[person]] entry is required")
     people_items = cast("list[Any]", people_data)
 
+    base_dir = _path_base(path)
     people = tuple(
-        _parse_person(item, index=index) for index, item in enumerate(people_items)
+        _parse_person(item, index=index, base_dir=base_dir)
+        for index, item in enumerate(people_items)
     )
     _validate_unique_ids(people)
     return AccountsConfig(config_version=version, people=people, path=path)
 
 
-def _parse_person(item: Any, *, index: int) -> PersonConfig:
+def _parse_person(item: Any, *, index: int, base_dir: Path) -> PersonConfig:
     """Parse one ``[[person]]`` entry.
 
     Parameters
@@ -209,6 +211,8 @@ def _parse_person(item: Any, *, index: int) -> PersonConfig:
         Raw TOML table.
     index : int
         Zero-based person index for diagnostics.
+    base_dir : pathlib.Path
+        Base directory for relative paths.
 
     Returns
     -------
@@ -241,11 +245,13 @@ def _parse_person(item: Any, *, index: int) -> PersonConfig:
     return PersonConfig(
         id=person_id,
         display_name=_require_string(item, "display_name", index=index),
-        source_documents=_require_absolute_path(item, "source_documents", index=index),
-        metadata_directory=_require_absolute_path(
-            item, "metadata_directory", index=index
+        source_documents=_require_path(
+            item, "source_documents", index=index, base_dir=base_dir
         ),
-        local_build=_require_absolute_path(item, "local_build", index=index),
+        metadata_directory=_require_path(
+            item, "metadata_directory", index=index, base_dir=base_dir
+        ),
+        local_build=_require_path(item, "local_build", index=index, base_dir=base_dir),
         usb_uuid=_require_string(item, "usb_uuid", index=index),
         enabled=enabled,
     )
@@ -282,8 +288,30 @@ def _require_string(item: dict[str, Any], field: str, *, index: int) -> str:
     return cast("str", value.strip())
 
 
-def _require_absolute_path(item: dict[str, Any], field: str, *, index: int) -> Path:
-    """Return an absolute path field.
+def _path_base(config_path: Path) -> Path:
+    """Return the base directory used for relative paths.
+
+    Parameters
+    ----------
+    config_path : pathlib.Path
+        Accounts configuration path.
+
+    Returns
+    -------
+    pathlib.Path
+        Repository root for ``config/accounts.toml``, otherwise config parent.
+    """
+
+    parent = config_path.expanduser().resolve(strict=False).parent
+    if parent.name == "config":
+        return parent.parent
+    return parent
+
+
+def _require_path(
+    item: dict[str, Any], field: str, *, index: int, base_dir: Path
+) -> Path:
+    """Return a path field resolved against the configuration base.
 
     Parameters
     ----------
@@ -293,23 +321,25 @@ def _require_absolute_path(item: dict[str, Any], field: str, *, index: int) -> P
         Field name to read.
     index : int
         Person index for diagnostics.
+    base_dir : pathlib.Path
+        Base directory for relative paths.
 
     Returns
     -------
     pathlib.Path
-        Absolute expanded path.
+        Expanded path. Relative values are resolved against ``base_dir``.
 
     Raises
     ------
     ConfigError
-        If the field is missing, non-string, or relative.
+        If the field is missing or non-string.
     """
 
     value = _require_string(item, field, index=index)
     path = Path(value).expanduser()
-    if not path.is_absolute():
-        _fail(f"[[person]] entry {index} field {field} must be absolute")
-    return path
+    if path.is_absolute():
+        return path
+    return base_dir / path
 
 
 def _validate_unique_ids(people: tuple[PersonConfig, ...]) -> None:

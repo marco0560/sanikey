@@ -74,7 +74,7 @@ config_version = 1
 
 [[person]]
 id = "marco"
-display_name = "Marco Coppola
+display_name = "Marco Coppola"
 source_documents = "local-data/marco/documents"
 metadata_directory = "local-data/marco/metadata"
 local_build = "local-data/generated/marco"
@@ -98,22 +98,80 @@ Creare metadati minimi in `local-data/marco/metadata`.
 può essere trattata come anamnesi/sommario narrativo: problemi rilevanti,
 interventi, terapie importanti, allergie note, avvertenze e contesto utile alla
 consultazione. Se il testo ha più righe, usare una stringa TOML multilinea.
+Il testo e' trattato come plain text: eventuali marker Markdown aiutano la
+scrittura ma non vengono convertiti in HTML nel frontend.
 
 Esempio `clinical_summary.toml`:
 
 ```toml
 summary = """
-Sintesi clinica verificata manualmente per il test end-to-end.
-Seconda riga del sommario, se necessaria.
+# Sintesi clinica
+
+## Identificazione clinica
+Paziente seguito per: ...
+Contesto generale: ...
+
+## Problemi attivi rilevanti
+- ...
+- ...
+
+## Anamnesi patologica remota significativa
+- ...
+- ...
+
+## Interventi, ricoveri e accessi rilevanti
+- ...
+
+## Terapie croniche principali
+- ...
+Nota: il dettaglio strutturato delle terapie è in therapies.toml.
+
+## Allergie, intolleranze e reazioni avverse
+- Nessuna nota / ...
+- ...
+
+## Fattori di rischio e abitudini rilevanti
+- ...
+
+## Dispositivi, protesi, impianti
+- ...
+
+## Monitoraggi e follow-up
+- ...
+
+## Avvertenze pratiche per la consultazione
+- Documenti chiave da guardare prima: ...
+- Criticità note: ...
+
+## Data e criterio di aggiornamento
+Aggiornata il: YYYY-MM-DD.
+Fonte: revisione manuale dei documenti presenti in archivio.
 """
 ```
+
+Usare questa distinzione:
+
+- **Anamnesi**: storia clinica, cioè “che cosa è successo nel tempo”.
+- **Sintesi clinica**: riassunto operativo, cioè “che cosa deve capire subito un medico che apre la chiavetta”.
+
+Quindi l’anamnesi è una sezione della sintesi, non l’intera sintesi.
+
+Per SaniKey non duplicare nella sintesi dati già strutturati altrove, se non
+come riepilogo leggibile. Esempio: le terapie dettagliate stanno in
+`therapies.toml`; nella sintesi mettere solo le terapie clinicamente importanti
+o avvertenze.
 
 Esempio `document_tags.toml`:
 
 ```toml
 [tags]
-"NOME-FILE-REALE.pdf" = ["verifica", "reale"]
+"laboratory/20260102 Referto.txt" = ["laboratorio", "emocromo"]
 ```
+
+La chiave e' preferibilmente il percorso relativo a `source_documents`. I tag
+sono stringhe libere e sono usati negli export JSON, nella ricerca e nel
+frontend. Per il riferimento completo dei file TOML vedere
+`docs/process/metadata-toml-reference.md`.
 
 Esempio opzionale `medications.toml`:
 
@@ -190,14 +248,14 @@ rinominare o archiviare separatamente una delle copie prima di proseguire.
 Eseguire la build completa:
 
 ```bash
-uv run sanikey build-patient patient-a --config config/accounts.toml --mode full
+uv run sanikey build-patient marco --config config/accounts.toml --mode full
 ```
 
 Eseguire una build incrementale ripetuta:
 
 ```bash
-uv run sanikey build-patient patient-a --config config/accounts.toml
-uv run sanikey build-patient patient-a --config config/accounts.toml
+uv run sanikey build-patient marco --config config/accounts.toml
+uv run sanikey build-patient marco --config config/accounts.toml
 ```
 
 Generare l'export USB verso un target locale di verifica:
@@ -218,12 +276,12 @@ status=ok
 Verificare la presenza degli artefatti principali:
 
 ```bash
-test -f local-data/generated/patient-a/database/medical_archive.db
-test -f local-data/generated/patient-a/web/index.html
-test -f local-data/generated/patient-a/web/data/documents.json
-test -f local-data/generated/patient-a/web/data/search.json
-test -f local-data/generated/patient-a/web/data/timeline.json
-test -f local-data/generated/patient-a/checksums.sha256
+test -f local-data/generated/marco/database/medical_archive.db
+test -f local-data/generated/marco/web/index.html
+test -f local-data/generated/marco/web/data/documents.json
+test -f local-data/generated/marco/web/data/search.json
+test -f local-data/generated/marco/web/data/timeline.json
+test -f local-data/generated/marco/checksums.sha256
 test -f exports/usb-image/SANIKEY-MANIFEST.json
 test -f local-data/usb-target/SANIKEY-MANIFEST.json
 ```
@@ -259,9 +317,9 @@ Il comando non deve elencare directory operative non consultabili.
 Ispezionare i JSON statici:
 
 ```bash
-python -m json.tool local-data/generated/patient-a/web/data/documents.json >/tmp/sanikey-documents.json
-python -m json.tool local-data/generated/patient-a/web/data/search.json >/tmp/sanikey-search.json
-python -m json.tool local-data/generated/patient-a/web/data/timeline.json >/tmp/sanikey-timeline.json
+python -m json.tool local-data/generated/marco/web/data/documents.json >/tmp/sanikey-documents.json
+python -m json.tool local-data/generated/marco/web/data/search.json >/tmp/sanikey-search.json
+python -m json.tool local-data/generated/marco/web/data/timeline.json >/tmp/sanikey-timeline.json
 ```
 
 Controllare manualmente che:
@@ -276,9 +334,9 @@ Controllare manualmente che:
 Verificare il database:
 
 ```bash
-sqlite3 local-data/generated/patient-a/database/medical_archive.db '.tables'
-sqlite3 local-data/generated/patient-a/database/medical_archive.db 'SELECT count(*) FROM documents;'
-sqlite3 local-data/generated/patient-a/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
+sqlite3 local-data/generated/marco/database/medical_archive.db '.tables'
+sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM documents;'
+sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
 ```
 
 La query FTS può restituire `0` se il termine scelto non esiste nei titoli,
@@ -289,7 +347,7 @@ categorie o tag. Ripetere con un termine realmente presente.
 Aprire il frontend generato dal target:
 
 ```bash
-xdg-open local-data/usb-target/START-HERE-Patient-A.html
+xdg-open local-data/usb-target/START-HERE-Marco-Coppola.html
 ```
 
 Se `xdg-open` non è disponibile, aprire manualmente il file nel browser.
@@ -311,7 +369,7 @@ Su una copia del target, alterare un file e verificare il fallimento:
 
 ```bash
 cp -a local-data/usb-target local-data/usb-target-tampered
-printf '\nTAMPER\n' >> local-data/usb-target-tampered/patients/patient-a/web/index.html
+printf '\nTAMPER\n' >> local-data/usb-target-tampered/patients/marco/web/index.html
 uv run sanikey validate-usb local-data/usb-target-tampered
 ```
 

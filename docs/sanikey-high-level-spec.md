@@ -100,6 +100,10 @@ usb_uuid = "1A2B-3C4D"
 
 Il campo usb_uuid identifica la chiavetta autorizzata.
 
+I percorsi possono essere assoluti oppure relativi alla root del repository
+quando la configurazione e' `config/accounts.toml`. Per dati locali non
+versionati dentro il checkout si usa convenzionalmente `local-data/...`.
+
 Non esistono percorsi predefiniti per dati reali.
 
 ---

@@ -65,6 +65,52 @@ def test_load_accounts_accepts_valid_synthetic_config(tmp_path: Path) -> None:
     assert config.enabled_people()[0].display_name == "Patient A"
 
 
+def test_load_accounts_resolves_relative_config_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify relative config paths still resolve data paths from the repo root.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    config_path = config_dir / "accounts.toml"
+    config_path.write_text(
+        """
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "local-data/patient-a/documents"
+metadata_directory = "local-data/patient-a/metadata"
+local_build = "local-data/generated/patient-a"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    config = load_accounts(Path("config/accounts.toml"))
+
+    assert config.path == config_path
+    assert config.people[0].source_documents == (
+        tmp_path / "local-data" / "patient-a" / "documents"
+    )
+
+
 def test_parse_accounts_rejects_missing_real_paths() -> None:
     """Verify real-data paths have no implicit defaults.
 
@@ -87,35 +133,47 @@ def test_parse_accounts_rejects_missing_real_paths() -> None:
         )
 
 
-def test_parse_accounts_rejects_relative_paths() -> None:
-    """Verify patient paths must be absolute.
+def test_parse_accounts_resolves_relative_paths_from_config_root(
+    tmp_path: Path,
+) -> None:
+    """Verify patient paths can be relative to the repository root.
 
     Parameters
     ----------
-    None
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
 
     Returns
     -------
     None
     """
 
-    with pytest.raises(ConfigError, match="must be absolute"):
-        parse_accounts_data(
-            {
-                "global": {"config_version": 1},
-                "person": [
-                    {
-                        "id": "patient-a",
-                        "display_name": "Patient A",
-                        "source_documents": "relative/documents",
-                        "metadata_directory": "/tmp/metadata",
-                        "local_build": "/tmp/generated",
-                        "usb_uuid": "1A2B-3C4D",
-                    }
-                ],
-            },
-            path=Path("accounts.toml"),
-        )
+    config = parse_accounts_data(
+        {
+            "global": {"config_version": 1},
+            "person": [
+                {
+                    "id": "patient-a",
+                    "display_name": "Patient A",
+                    "source_documents": "local-data/patient-a/documents",
+                    "metadata_directory": "local-data/patient-a/metadata",
+                    "local_build": "local-data/generated/patient-a",
+                    "usb_uuid": "1A2B-3C4D",
+                }
+            ],
+        },
+        path=tmp_path / "config" / "accounts.toml",
+    )
+
+    assert config.people[0].source_documents == (
+        tmp_path / "local-data" / "patient-a" / "documents"
+    )
+    assert config.people[0].metadata_directory == (
+        tmp_path / "local-data" / "patient-a" / "metadata"
+    )
+    assert config.people[0].local_build == (
+        tmp_path / "local-data" / "generated" / "patient-a"
+    )
 
 
 def test_parse_accounts_rejects_invalid_patient_id(tmp_path: Path) -> None:
@@ -177,3 +235,36 @@ def test_privacy_rejects_versioned_repo_paths(tmp_path: Path) -> None:
 
     with pytest.raises(PrivacyError, match="versioned repository content"):
         validate_privacy(config, repo_root=repo_root)
+
+
+def test_privacy_accepts_ignored_local_data_paths() -> None:
+    """Verify configured local-data paths are accepted inside the checkout.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    repo_root = Path.cwd()
+    config = parse_accounts_data(
+        {
+            "global": {"config_version": 1},
+            "person": [
+                {
+                    "id": "patient-a",
+                    "display_name": "Patient A",
+                    "source_documents": "local-data/patient-a/documents",
+                    "metadata_directory": "local-data/patient-a/metadata",
+                    "local_build": "local-data/generated/patient-a",
+                    "usb_uuid": "1A2B-3C4D",
+                }
+            ],
+        },
+        path=repo_root / "config" / "accounts.toml",
+    )
+
+    validate_privacy(config, repo_root=repo_root)

@@ -114,7 +114,7 @@ def _app_js() -> str:
         JavaScript source.
     """
 
-    return """async function loadJson(path) {
+    return r"""async function loadJson(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`Cannot load ${path}`);
   return response.json();
@@ -122,6 +122,18 @@ def _app_js() -> str:
 
 function text(value) {
   return value === null || value === undefined ? "" : String(value);
+}
+
+function formatDate(value) {
+  const rendered = text(value);
+  const match = rendered.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : rendered;
+}
+
+function formatDateRange(startDate, endDate) {
+  const start = formatDate(startDate);
+  const end = formatDate(endDate);
+  return end ? `${start} - ${end}` : start;
 }
 
 function renderSummary(summary) {
@@ -136,7 +148,7 @@ function renderSummary(summary) {
 function renderTimeline(timeline) {
   const target = document.querySelector("#timeline");
   target.innerHTML = "<h2>Timeline</h2>" + timeline.map((item) =>
-    `<article><strong>${text(item.start_date)}</strong> ${text(item.title)}</article>`
+    `<article><strong>${formatDateRange(item.start_date, item.end_date)}</strong> ${text(item.title)}</article>`
   ).join("");
 }
 
@@ -148,7 +160,7 @@ function renderDocuments(documents, query = "") {
   const target = document.querySelector("#documents");
   target.innerHTML = "<h2>Documenti</h2>" + selected.map((item) =>
     `<article><h3>${text(item.title)}</h3>
-      <p>${text(item.date)} ${text(item.category)} ${text(item.kind)}</p>
+      <p>${formatDate(item.date)} ${text(item.category)} ${text(item.kind)}</p>
       <p>${item.tags.map(text).join(", ")}</p>
       <a href="${text(item.path)}">Apri originale</a></article>`
   ).join("");

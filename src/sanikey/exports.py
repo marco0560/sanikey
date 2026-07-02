@@ -136,7 +136,7 @@ def _document_payload(
         "category": document.category,
         "kind": document.kind,
         "path": str(document.path),
-        "tags": list(metadata.document_tags.get(document.path.name, document.tags)),
+        "tags": list(_document_tags(document, metadata)),
     }
 
 
@@ -159,7 +159,7 @@ def _document_search_payload(
         JSON-serializable payload.
     """
 
-    tags = metadata.document_tags.get(document.path.name, document.tags)
+    tags = _document_tags(document, metadata)
     text = " ".join((document.title, document.category, " ".join(tags))).strip()
     return {
         "id": document.document_id,
@@ -168,6 +168,33 @@ def _document_search_payload(
         "text": text,
         "tags": list(tags),
     }
+
+
+def _document_tags(
+    document: DocumentRecord,
+    metadata: CuratedMetadata,
+) -> tuple[str, ...]:
+    """Return curated tags for one document.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Document record.
+    metadata : CuratedMetadata
+        Curated metadata.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Curated or derived tags.
+    """
+
+    path = document.path.as_posix()
+    for key, tags in metadata.document_tags.items():
+        normalized = key.replace("\\", "/")
+        if path.endswith(f"/{normalized}") or document.path.name == normalized:
+            return tags
+    return document.tags
 
 
 def _timeline_events(

@@ -69,9 +69,12 @@ Ogni voce `[[person]]` contiene:
 
 - `id`: identificativo tecnico stabile in minuscolo.
 - `display_name`: etichetta visualizzata negli artefatti generati.
-- `source_documents`: percorso assoluto ai documenti sorgente.
-- `metadata_directory`: percorso assoluto ai metadati curati.
-- `local_build`: percorso assoluto degli artefatti generati.
+- `source_documents`: percorso ai documenti sorgente, assoluto oppure relativo
+  alla root del repository quando la configurazione e' `config/accounts.toml`.
+- `metadata_directory`: percorso ai metadati curati, assoluto oppure relativo
+  alla stessa base.
+- `local_build`: percorso degli artefatti generati, assoluto oppure relativo
+  alla stessa base.
 - `usb_uuid`: UUID atteso del filesystem USB o identificativo di deploy.
 - `enabled`: booleano opzionale, abilitato per default.
 

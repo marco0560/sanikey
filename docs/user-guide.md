@@ -7,8 +7,8 @@ archivio medico locale ed esportarlo in una struttura USB.
 
 Il repository pubblico non deve contenere dati personali, nomi reali di
 pazienti, documenti clinici reali o percorsi locali privati. I dati reali
-restano in directory locali referenziate da `config/accounts.toml`; la directory
-`config` è esclusa da Git.
+restano in directory locali referenziate da `config/accounts.toml`; le directory
+`config` e `local-data` sono escluse da Git.
 
 Gli esempi pubblicabili sotto `docs/config-example`, `docs/patients-example` e
 `docs/generated-example` sono fixture di documentazione.
@@ -37,13 +37,33 @@ mkdir -p config
 cp docs/config-example/accounts.toml config/accounts.toml
 ```
 
-Modifica `config/accounts.toml` in modo che ogni percorso sia assoluto e
-locale:
+Modifica `config/accounts.toml` in modo che ogni percorso punti a una directory
+locale privata. I percorsi possono essere assoluti oppure relativi alla root del
+repository quando il file si trova in `config/accounts.toml`:
 
 - `source_documents`: documenti originali ricevuti da ospedali o operatori.
 - `metadata_directory`: file di metadati curati per il paziente.
 - `local_build`: artefatti generati per il paziente.
 - `usb_uuid`: UUID atteso del filesystem USB o identificativo di deploy.
+
+Esempio locale:
+
+```toml
+[global]
+config_version = 1
+
+[[person]]
+id = "marco"
+display_name = "Marco Coppola"
+source_documents = "local-data/marco/documents"
+metadata_directory = "local-data/marco/metadata"
+local_build = "local-data/generated/marco"
+usb_uuid = "MANUAL-TEST-USB"
+```
+
+I percorsi dentro `local-data/` sono accettati perché la directory è ignorata da
+Git. Percorsi dentro directory versionate del repository, per esempio `docs/` o
+`src/`, vengono rifiutati.
 
 Valida la configurazione e gli invarianti di privacy:
 
@@ -165,5 +185,5 @@ Usa prima questi controlli:
 - `uv run python scripts/validate_repo.py`
 
 Gli errori di configurazione indicano di solito un file privato mancante, un
-percorso non assoluto, un identificativo paziente non valido o una violazione
-degli invarianti di privacy.
+percorso risolto nella base sbagliata, un identificativo paziente non valido o
+una violazione degli invarianti di privacy.
