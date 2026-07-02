@@ -40,6 +40,8 @@ Aggiornamento 2026-07-02: la suite protegge inoltre:
   filesystem reale tramite `SANIKEY_USB_INTEGRATION_TARGET`;
 - default incrementale della build programmatica e stabilità di manifest e
   checksum su build incrementali ripetute senza modifiche agli input;
+- ricerca JSON su metadati curati e timeline derivata da terapie come
+  intervalli temporali;
 - assenza di storage browser, cookie, telemetry e URL HTTP(S) negli asset
   frontend generati.
 
@@ -170,8 +172,10 @@ Decisioni coinvolte: DA-061..DA-069, DA-090.
 Sono testati payload JSON e presenza FTS, ma non:
 
 - query FTS reali;
-- ricerca su entità cliniche;
-- metadati curati ricercabili;
+- ricerca su entità cliniche: coperto nell'export JSON per problemi, farmaci,
+  terapie, procedure e osservazioni;
+- metadati curati ricercabili: coperto nell'export JSON per problemi, farmaci,
+  terapie, procedure e osservazioni;
 - assenza o disabilitazione della ricerca semantica;
 - fallback utilizzabile senza embedding.
 
@@ -182,7 +186,7 @@ Decisioni coinvolte: DA-070..DA-078.
 È testata una timeline semplice da documento datato. Non risultano test per:
 
 - intervalli temporali: coperto per eventi manuali;
-- terapie come intervalli;
+- terapie come intervalli: coperto nell'export statico;
 - campagne osservative;
 - eventi manuali come cittadini di prima classe: coperto nell'export statico;
 - override manuali;
