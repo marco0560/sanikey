@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -28,6 +29,7 @@ from .usb import export_usb, validate_usb
 
 if TYPE_CHECKING:
     from .config import AccountsConfig, PersonConfig
+    from .models import DocumentRecord
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,6 +85,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_arguments(scan_parser)
     scan_parser.add_argument("--patient", help="Only scan one patient id")
+    scan_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print a human-readable ingested document list",
+    )
+    scan_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Write the ingested document list to a file",
+    )
+    scan_parser.add_argument(
+        "--format",
+        choices=("text", "csv"),
+        default=None,
+        help="Output file format, valid only with --output",
+    )
     scan_parser.set_defaults(func=run_scan_documents)
 
     extract_parser = subparsers.add_parser(
@@ -273,7 +292,7 @@ def run_list_patients(args: argparse.Namespace) -> int:
 
 
 def run_scan_documents(args: argparse.Namespace) -> int:
-    """Scan configured source documents and print inventory rows.
+    """Scan configured source documents and optionally print inventory rows.
 
     Parameters
     ----------
@@ -286,11 +305,15 @@ def run_scan_documents(args: argparse.Namespace) -> int:
         Process exit status.
     """
 
+    if args.output is None and args.format is not None:
+        print("ERROR: --format is valid only with --output")
+        return 1
     try:
         config = load_accounts(args.config)
     except SaniKeyError as exc:
         print(f"ERROR: {exc}")
         return 1
+    output_rows: list[tuple[PersonConfig, DocumentRecord]] = []
     for person in _selected_people(config, args.patient):
         inventory = scan_document_inventory(person)
         documents = scan_documents(person)
@@ -301,21 +324,222 @@ def run_scan_documents(args: argparse.Namespace) -> int:
         )
         for warning in duplicate_document_warnings(duplicates):
             print(f"WARNING: {warning}")
-        for document in documents:
-            print(
-                "\t".join(
-                    (
-                        document.patient_id,
-                        document.kind,
-                        document.category,
-                        document.date or "",
-                        document.title,
-                        document.sha256,
-                        str(document.path),
-                    )
-                )
+        if args.verbose:
+            print(_format_scan_verbose(person, documents))
+        output_rows.extend((person, document) for document in documents)
+    if args.output is not None:
+        try:
+            _write_scan_output(
+                args.output,
+                output_rows,
+                output_format=args.format or "text",
             )
+        except OSError as exc:
+            print(f"ERROR: cannot write scan output: {exc}")
+            return 1
     return 0
+
+
+def _format_scan_verbose(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+) -> str:
+    """Render a readable scan inventory table for stdout.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    documents : tuple[DocumentRecord, ...]
+        Deduplicated document records.
+
+    Returns
+    -------
+    str
+        Human-readable table.
+    """
+
+    if not documents:
+        return f"patient={person.id} ingested_documents=0"
+    rows = [
+        (
+            "patient",
+            "kind",
+            "date",
+            "category",
+            "sha256",
+            "file",
+        ),
+        *(
+            (
+                document.patient_id,
+                document.kind,
+                _format_display_date(document.date),
+                document.category,
+                document.sha256[:12],
+                _source_relative_path(person, document),
+            )
+            for document in documents
+        ),
+    ]
+    widths = tuple(
+        max(len(row[index]) for row in rows) for index in range(len(rows[0]))
+    )
+    rendered = [f"patient={person.id} ingested_documents={len(documents)}"]
+    for row_index, row in enumerate(rows):
+        rendered.append(
+            "  ".join(value.ljust(widths[index]) for index, value in enumerate(row))
+        )
+        if row_index == 0:
+            rendered.append("  ".join("-" * widths[index] for index in range(len(row))))
+    return "\n".join(rendered)
+
+
+def _write_scan_output(
+    output_path: Path,
+    rows: list[tuple[PersonConfig, DocumentRecord]],
+    *,
+    output_format: str,
+) -> None:
+    """Write scan inventory rows to a user-selected file.
+
+    Parameters
+    ----------
+    output_path : pathlib.Path
+        Destination file path.
+    rows : list[tuple[PersonConfig, DocumentRecord]]
+        Patient and document rows.
+    output_format : str
+        Output format, either ``text`` or ``csv``.
+
+    Returns
+    -------
+    None
+    """
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_format == "csv":
+        _write_scan_csv(output_path, rows)
+        return
+    _write_scan_text(output_path, rows)
+
+
+def _write_scan_csv(
+    output_path: Path,
+    rows: list[tuple[PersonConfig, DocumentRecord]],
+) -> None:
+    """Write scan inventory rows as CSV.
+
+    Parameters
+    ----------
+    output_path : pathlib.Path
+        Destination file path.
+    rows : list[tuple[PersonConfig, DocumentRecord]]
+        Patient and document rows.
+
+    Returns
+    -------
+    None
+    """
+
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            ("patient_id", "kind", "category", "date", "title", "sha256", "path")
+        )
+        for _person, document in rows:
+            writer.writerow(_scan_legacy_row(document))
+
+
+def _write_scan_text(
+    output_path: Path,
+    rows: list[tuple[PersonConfig, DocumentRecord]],
+) -> None:
+    """Write scan inventory rows in legacy tab-separated text format.
+
+    Parameters
+    ----------
+    output_path : pathlib.Path
+        Destination file path.
+    rows : list[tuple[PersonConfig, DocumentRecord]]
+        Patient and document rows.
+
+    Returns
+    -------
+    None
+    """
+
+    lines = ["\t".join(_scan_legacy_row(document)) for _person, document in rows]
+    output_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def _scan_legacy_row(document: DocumentRecord) -> tuple[str, ...]:
+    """Return the legacy scan inventory row.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Document record.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Legacy row fields.
+    """
+
+    return (
+        document.patient_id,
+        document.kind,
+        document.category,
+        document.date or "",
+        document.title,
+        document.sha256,
+        str(document.path),
+    )
+
+
+def _format_display_date(value: str | None) -> str:
+    """Format an ISO date for display.
+
+    Parameters
+    ----------
+    value : str | None
+        ISO date or missing value.
+
+    Returns
+    -------
+    str
+        Italian display date or empty string.
+    """
+
+    if value is None:
+        return ""
+    match = value.split("-")
+    if len(match) == 3 and all(part.isdigit() for part in match):
+        return f"{match[2]}/{match[1]}/{match[0]}"
+    return value
+
+
+def _source_relative_path(person: PersonConfig, document: DocumentRecord) -> str:
+    """Return a document path relative to the source root when possible.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    document : DocumentRecord
+        Document record.
+
+    Returns
+    -------
+    str
+        Relative path or absolute path fallback.
+    """
+
+    try:
+        return document.path.relative_to(person.source_documents).as_posix()
+    except ValueError:
+        return str(document.path)
 
 
 def run_extract_text(args: argparse.Namespace) -> int:

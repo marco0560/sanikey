@@ -239,6 +239,20 @@ Eseguire una scansione preliminare dei documenti:
 uv run sanikey scan-documents --config config/accounts.toml
 ```
 
+Il comando stampa solo il riepilogo per paziente e gli eventuali warning. Per
+leggere a schermo l'inventario dei documenti ingeriti:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml --verbose
+```
+
+Per conservare l'inventario completo in un file riprocessabile:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan-documents.tsv --format text
+uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan-documents.csv --format csv
+```
+
 Se l'output contiene `duplicates=`, leggere eventuali righe `WARNING:`. File con
 lo stesso SHA256 sono identici: SaniKey conserva solo la prima occorrenza
 nell'archivio generato e segnala il file saltato insieme al file trattenuto. In

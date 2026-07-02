@@ -113,7 +113,7 @@ def duplicate_document_warnings(
     Returns
     -------
     tuple[str, ...]
-        Human-readable warnings naming the retained file and skipped duplicate.
+        Human-readable warnings naming the identical files.
     """
 
     warnings: list[str] = []
@@ -121,9 +121,9 @@ def duplicate_document_warnings(
         retained = documents[0]
         for skipped in documents[1:]:
             warnings.append(
-                "duplicate document content skipped: "
-                f"{skipped.path} is identical to {retained.path} "
-                f"(sha256={digest})"
+                "duplicate document content skipped. "
+                "The following files are identical "
+                f"(sha256={digest}): \n{retained.path}\n{skipped.path}"
             )
     return tuple(warnings)
 

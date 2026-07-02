@@ -105,8 +105,13 @@ def test_duplicate_detection_skips_duplicate_content_with_warning(
     assert documents[0].path.name == "20260102 A.txt"
     assert len(duplicates) == 1
     assert len(next(iter(duplicates.values()))) == 2
-    assert "20260103 B.txt" in warnings[0]
-    assert "20260102 A.txt" in warnings[0]
+    warning_lines = warnings[0].splitlines()
+    assert len(warning_lines) == 3
+    assert warning_lines[0].startswith(
+        "duplicate document content skipped. The following files are identical (sha256="
+    )
+    assert warning_lines[1].endswith("20260102 A.txt")
+    assert warning_lines[2].endswith("20260103 B.txt")
 
 
 def test_extract_text_reads_text_files(tmp_path: Path) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import subprocess
 import sys
 from pathlib import Path
@@ -169,7 +170,7 @@ usb_uuid = "1A2B-3C4D"
 
 
 def test_scan_documents_subcommand_runs(tmp_path: Path) -> None:
-    """Verify scan-documents renders an inventory from configured paths.
+    """Verify scan-documents renders only a summary by default.
 
     Parameters
     ----------
@@ -215,7 +216,291 @@ usb_uuid = "1A2B-3C4D"
     )
     assert result.returncode == 0
     assert "documents=1" in result.stdout
-    assert "Report" in result.stdout
+    assert "Report" not in result.stdout
+
+
+def test_scan_documents_verbose_renders_readable_inventory(tmp_path: Path) -> None:
+    """Verify verbose scan-documents renders a readable inventory table.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source" / "laboratory"
+    source.mkdir(parents=True)
+    (source / "20260102 Report.txt").write_text("synthetic", encoding="utf-8")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+            "--verbose",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "patient=patient-a ingested_documents=1" in result.stdout
+    assert "02/01/2026" in result.stdout
+    assert "laboratory/20260102 Report.txt" in result.stdout
+
+
+def test_scan_documents_writes_text_output(tmp_path: Path) -> None:
+    """Verify scan-documents writes legacy text output on request.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source" / "laboratory"
+    source.mkdir(parents=True)
+    document_path = source / "20260102 Report.txt"
+    document_path.write_text("synthetic", encoding="utf-8")
+    config_path = tmp_path / "accounts.toml"
+    output_path = tmp_path / "scan.txt"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+            "--output",
+            str(output_path),
+            "--format",
+            "text",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    fields = output_path.read_text(encoding="utf-8").strip().split("\t")
+    assert result.returncode == 0
+    assert "Report" not in result.stdout
+    assert fields[:5] == ["patient-a", "text", "laboratory", "2026-01-02", "Report"]
+    assert fields[6] == str(document_path)
+
+
+def test_scan_documents_writes_csv_output(tmp_path: Path) -> None:
+    """Verify scan-documents writes CSV output on request.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source" / "laboratory"
+    source.mkdir(parents=True)
+    document_path = source / "20260102 Report.txt"
+    document_path.write_text("synthetic", encoding="utf-8")
+    config_path = tmp_path / "accounts.toml"
+    output_path = tmp_path / "scan.csv"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+            "--output",
+            str(output_path),
+            "--format",
+            "csv",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    rows = list(csv.reader(output_path.read_text(encoding="utf-8").splitlines()))
+    assert result.returncode == 0
+    assert rows[0] == [
+        "patient_id",
+        "kind",
+        "category",
+        "date",
+        "title",
+        "sha256",
+        "path",
+    ]
+    assert rows[1][:5] == ["patient-a", "text", "laboratory", "2026-01-02", "Report"]
+    assert rows[1][6] == str(document_path)
+
+
+def test_scan_documents_rejects_format_without_output(tmp_path: Path) -> None:
+    """Verify --format is accepted only with --output.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+            "--format",
+            "text",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "--format is valid only with --output" in result.stdout
+
+
+def test_scan_documents_duplicate_warning_uses_three_lines(tmp_path: Path) -> None:
+    """Verify duplicate warnings are readable in scan-documents output.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "20260102 A.txt").write_text("same", encoding="utf-8")
+    (source / "20260103 B.txt").write_text("same", encoding="utf-8")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    warning_lines = [
+        line
+        for line in result.stdout.splitlines()
+        if line.startswith("WARNING:") or line.endswith(".txt")
+    ]
+    assert result.returncode == 0
+    assert warning_lines[0].startswith(
+        "WARNING: duplicate document content skipped. "
+        "The following files are identical (sha256="
+    )
+    assert warning_lines[1].endswith("20260102 A.txt")
+    assert warning_lines[2].endswith("20260103 B.txt")
 
 
 def test_process_dicom_subcommand_runs(tmp_path: Path) -> None:

@@ -84,6 +84,29 @@ ciascun paziente. L'implementazione attuale esegue scansione deterministica,
 estrae il testo supportato, cataloga i supporti DICOM e registra i metadati in
 un archivio SQLite generato.
 
+Per verificare il numero di file rilevati senza stampare l'intero inventario:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml
+```
+
+Per ispezionare a schermo la lista dei documenti ingeriti:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml --verbose
+```
+
+Per salvare l'inventario in un file riprocessabile:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan.txt --format text
+uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan.csv --format csv
+```
+
+`--format` e' valido solo insieme a `--output`. Il formato `text` usa la riga
+tab-separated estesa con paziente, tipo, categoria, data ISO, titolo, SHA256 e
+path assoluto. Il formato `csv` usa gli stessi campi con intestazione.
+
 I file ISO e ZIP DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. L'espansione in directory DICOM è attualmente manuale; la scelta tra
 espansione automatica, opzionale durante l'ingestion o manuale è una decisione
