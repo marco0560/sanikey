@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .cli import build_parser
+from .errors import SaniKeyError
 
 
 def main() -> int:
@@ -23,7 +24,14 @@ def main() -> int:
     if func is None:
         parser.print_help()
         return 0
-    return int(func(args))
+    try:
+        return int(func(args))
+    except (SaniKeyError, ValueError) as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR: unexpected failure: {exc}")
+        return 1
 
 
 if __name__ == "__main__":

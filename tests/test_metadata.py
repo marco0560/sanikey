@@ -41,6 +41,8 @@ status = "active"
 id = "drug-a"
 name = "Drug A"
 active_ingredient = "Ingredient A"
+form = "compresse"
+strength_per_unit = "100 mg"
 """,
         encoding="utf-8",
     )
@@ -51,6 +53,8 @@ id = "therapy-a"
 medication_id = "drug-a"
 start_date = "2026-01-01"
 dosage = "1 tablet"
+schedule = ["risveglio", "cena"]
+instructions = "dopo il pasto"
 """,
         encoding="utf-8",
     )
@@ -92,7 +96,7 @@ links = ["procedure-a"]
         encoding="utf-8",
     )
     (tmp_path / "clinical_summary.toml").write_text(
-        'summary = "Synthetic summary."\n',
+        'summary = """Synthetic summary.\nSecond line."""\n',
         encoding="utf-8",
     )
 
@@ -100,12 +104,16 @@ links = ["procedure-a"]
 
     assert metadata.problems[0].id == "hypertension"
     assert metadata.medications[0].name == "Drug A"
+    assert metadata.medications[0].form == "compresse"
+    assert metadata.medications[0].strength_per_unit == "100 mg"
     assert metadata.therapies[0].medication_id == "drug-a"
+    assert metadata.therapies[0].schedule == ("risveglio", "cena")
+    assert metadata.therapies[0].instructions == "dopo il pasto"
     assert metadata.procedures[0].status == "completed"
     assert metadata.observations[0].value == "70 kg"
     assert metadata.timeline_events[0].links == ("procedure-a",)
     assert metadata.document_tags["20260101 Report.pdf"] == ("report", "test")
-    assert metadata.clinical_summary == "Synthetic summary."
+    assert metadata.clinical_summary == "Synthetic summary.\nSecond line."
 
 
 def test_load_curated_metadata_allows_missing_directory(tmp_path: Path) -> None:

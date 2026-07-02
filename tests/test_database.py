@@ -73,6 +73,27 @@ status = "active"
 """,
         encoding="utf-8",
     )
+    (person.metadata_directory / "medications.toml").write_text(
+        """
+[[medication]]
+id = "drug-a"
+name = "Drug A"
+active_ingredient = "Ingredient A"
+form = "compresse"
+strength_per_unit = "100 mg"
+""",
+        encoding="utf-8",
+    )
+    (person.metadata_directory / "therapies.toml").write_text(
+        """
+[[therapy]]
+id = "therapy-a"
+medication_id = "drug-a"
+schedule = ["risveglio", "cena"]
+instructions = "dopo il pasto"
+""",
+        encoding="utf-8",
+    )
     documents = scan_documents(person)
     result = build_database(
         person,
@@ -89,6 +110,18 @@ status = "active"
         problem_count = connection.execute("SELECT count(*) FROM problems").fetchone()[
             0
         ]
+        medication = connection.execute(
+            """
+            SELECT active_ingredient, form, strength_per_unit
+            FROM medications WHERE id = 'drug-a'
+            """
+        ).fetchone()
+        therapy = connection.execute(
+            """
+            SELECT schedule, instructions
+            FROM therapies WHERE id = 'therapy-a'
+            """
+        ).fetchone()
         dicom_count = connection.execute(
             "SELECT count(*) FROM dicom_studies"
         ).fetchone()[0]
@@ -97,6 +130,8 @@ status = "active"
         ).fetchone()[0]
     assert document_count == 2
     assert problem_count == 1
+    assert medication == ("Ingredient A", "compresse", "100 mg")
+    assert therapy == ("risveglio,cena", "dopo il pasto")
     assert dicom_count == 1
     assert fts_count == 1
 

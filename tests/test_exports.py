@@ -171,6 +171,8 @@ status = "active"
 id = "drug-a"
 name = "Drug A"
 active_ingredient = "Ingredient A"
+form = "compresse"
+strength_per_unit = "100 mg"
 """,
         encoding="utf-8",
     )
@@ -182,6 +184,8 @@ medication_id = "drug-a"
 start_date = "2026-01-03"
 end_date = "2026-01-31"
 dosage = "1 tablet"
+schedule = ["risveglio", "cena"]
+instructions = "dopo il pasto"
 """,
         encoding="utf-8",
     )
@@ -226,9 +230,11 @@ date = "2026-01-05"
         "observation",
     }
     assert search_by_type["problem"]["text"] == "Hypertension active"
-    assert search_by_type["medication"]["text"] == "Drug A Ingredient A"
+    assert search_by_type["medication"]["text"] == (
+        "Drug A Ingredient A compresse 100 mg"
+    )
     assert search_by_type["therapy"]["text"] == (
-        "therapy-a drug-a 2026-01-03 2026-01-31 1 tablet"
+        "therapy-a drug-a 2026-01-03 2026-01-31 1 tablet risveglio cena dopo il pasto"
     )
     assert therapy_event["id"] == "therapy-therapy-a"
     assert therapy_event["title"] == "Terapia: Drug A"

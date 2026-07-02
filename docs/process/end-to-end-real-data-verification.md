@@ -97,10 +97,18 @@ correggere `.gitignore` o i percorsi locali prima di procedere.
 
 Creare metadati minimi in `~/sanikey-private/patient-a/metadata`.
 
+`clinical_summary.toml` contiene una sintesi clinica libera. Per l'uso corrente
+può essere trattata come anamnesi/sommario narrativo: problemi rilevanti,
+interventi, terapie importanti, allergie note, avvertenze e contesto utile alla
+consultazione. Se il testo ha più righe, usare una stringa TOML multilinea.
+
 Esempio `clinical_summary.toml`:
 
 ```toml
-summary = "Sintesi clinica verificata manualmente per il test end-to-end."
+summary = """
+Sintesi clinica verificata manualmente per il test end-to-end.
+Seconda riga del sommario, se necessaria.
+"""
 ```
 
 Esempio `document_tags.toml`:
@@ -110,23 +118,57 @@ Esempio `document_tags.toml`:
 "NOME-FILE-REALE.pdf" = ["verifica", "reale"]
 ```
 
-Esempio opzionale `medications.toml` e `therapies.toml`:
+Esempio opzionale `medications.toml`:
 
 ```toml
 [[medication]]
-id = "drug-a"
-name = "Farmaco A"
-active_ingredient = "Principio A"
+id = "atenololo"
+name = "Atenololo 100mg"
+active_ingredient = "Atenololo"
+form = "compresse"
+strength_per_unit = "100 mg"
+
+[[medication]]
+id = "cardioaspirina"
+name = "Cardioaspirina"
+active_ingredient = "Acido acetilsalicilico"
+form = "compresse rivestite"
+strength_per_unit = "100 mg"
 ```
+
+`name` è il nome commerciale o la denominazione visibile sulla confezione.
+`active_ingredient` è il principio attivo. `form` descrive il formato fisico
+usato nella terapia, per esempio `compresse`, `compresse rivestite`, `capsule`,
+`bustine`, `gocce`, `fiale`. `strength_per_unit` conserva quantità e unità in un
+unico campo leggibile, per esempio `100 mg`.
+
+Esempio opzionale `therapies.toml`:
 
 ```toml
 [[therapy]]
 id = "therapy-a"
-medication_id = "drug-a"
-start_date = "2026-01-01"
-end_date = "2026-01-31"
+medication_id = "atenololo"
 dosage = "1 compressa"
+schedule = ["mattino"]
+instructions = "dopo colazione"
+
+[[therapy]]
+id = "therapy-b"
+medication_id = "cardioaspirina"
+start_date = "2021-04-01"
+dosage = "1 compressa"
+schedule = ["cena"]
+instructions = "dopo il pasto"
 ```
+
+`schedule` è una lista di indicazioni leggibili. Può contenere orari puntuali
+come `08:00` o fasce/etichette come `risveglio`, `mattino`, `pranzo`, `cena`,
+`sera`, `notte`. `instructions` contiene indicazioni libere come `lontano dai
+pasti`, `dopo il pasto` o `prima di coricarsi`.
+
+Se la data di inizio è sconosciuta, omettere `start_date`. Se la terapia è
+ancora in corso o permanente, omettere `end_date`. Non usare date fittizie per
+forzare l'ordinamento: è meglio lasciare esplicitamente sconosciuto il dato.
 
 ## Esecuzione pipeline
 

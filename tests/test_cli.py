@@ -432,6 +432,72 @@ usb_uuid = "1A2B-3C4D"
     assert "20260102 A.txt" in result.stdout
 
 
+def test_build_patient_subcommand_hides_unexpected_tracebacks(tmp_path: Path) -> None:
+    """Verify runtime failures are reported without stack dumps.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir(parents=True)
+    (source / "20260102 Report.txt").write_text("synthetic", encoding="utf-8")
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    (metadata / "therapies.toml").write_text(
+        """
+[[therapy]]
+id = "therapy-a"
+medication_id = "missing-drug"
+""",
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{metadata}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "build-patient",
+            "patient-a",
+            "--config",
+            str(config_path),
+            "--mode",
+            "full",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "ERROR:" in result.stdout
+    assert "Traceback" not in result.stdout
+    assert "Traceback" not in result.stderr
+
+
 def test_generate_proposals_subcommand_runs(tmp_path: Path) -> None:
     """Verify generate-proposals writes proposal storage.
 

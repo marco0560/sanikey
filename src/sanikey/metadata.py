@@ -193,6 +193,8 @@ def _medication_from_table(item: dict[str, Any], path: Path, index: int) -> Medi
         id=_required_string(item, "id", path, index),
         name=_required_string(item, "name", path, index),
         active_ingredient=_optional_string(item, "active_ingredient"),
+        form=_optional_string(item, "form"),
+        strength_per_unit=_optional_string(item, "strength_per_unit"),
     )
 
 
@@ -220,6 +222,8 @@ def _therapy_from_table(item: dict[str, Any], path: Path, index: int) -> Therapy
         start_date=_optional_string(item, "start_date"),
         end_date=_optional_string(item, "end_date"),
         dosage=_optional_string(item, "dosage"),
+        schedule=_string_tuple(item.get("schedule", ()), path, "schedule", index),
+        instructions=_optional_string(item, "instructions"),
     )
 
 

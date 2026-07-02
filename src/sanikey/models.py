@@ -102,11 +102,17 @@ class Medication:
         Medication name.
     active_ingredient : str | None, optional
         Active ingredient when known.
+    form : str | None, optional
+        Pharmaceutical form, for example ``compresse``.
+    strength_per_unit : str | None, optional
+        Active ingredient amount per unit, for example ``100 mg``.
     """
 
     id: str
     name: str
     active_ingredient: str | None = None
+    form: str | None = None
+    strength_per_unit: str | None = None
 
 
 @dataclass(frozen=True)
@@ -125,6 +131,10 @@ class TherapyEpisode:
         ISO end date.
     dosage : str | None, optional
         Human-readable dosage.
+    schedule : tuple[str, ...]
+        Human-readable intake times or time bands.
+    instructions : str | None, optional
+        Free-text intake instructions.
     """
 
     id: str
@@ -132,6 +142,8 @@ class TherapyEpisode:
     start_date: str | None = None
     end_date: str | None = None
     dosage: str | None = None
+    schedule: tuple[str, ...] = ()
+    instructions: str | None = None
 
 
 @dataclass(frozen=True)

@@ -141,7 +141,9 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         CREATE TABLE medications (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
-            active_ingredient TEXT
+            active_ingredient TEXT,
+            form TEXT,
+            strength_per_unit TEXT
         );
 
         CREATE TABLE therapies (
@@ -150,6 +152,8 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             start_date TEXT,
             end_date TEXT,
             dosage TEXT,
+            schedule TEXT NOT NULL,
+            instructions TEXT,
             FOREIGN KEY (medication_id) REFERENCES medications(id)
         );
 
@@ -254,16 +258,38 @@ def _insert_metadata(connection: sqlite3.Connection, metadata: CuratedMetadata) 
         ((item.id, item.title, item.status) for item in metadata.problems),
     )
     connection.executemany(
-        "INSERT INTO medications(id, name, active_ingredient) VALUES (?, ?, ?)",
-        ((item.id, item.name, item.active_ingredient) for item in metadata.medications),
-    )
-    connection.executemany(
         """
-        INSERT INTO therapies(id, medication_id, start_date, end_date, dosage)
+        INSERT INTO medications(id, name, active_ingredient, form, strength_per_unit)
         VALUES (?, ?, ?, ?, ?)
         """,
         (
-            (item.id, item.medication_id, item.start_date, item.end_date, item.dosage)
+            (
+                item.id,
+                item.name,
+                item.active_ingredient,
+                item.form,
+                item.strength_per_unit,
+            )
+            for item in metadata.medications
+        ),
+    )
+    connection.executemany(
+        """
+        INSERT INTO therapies(
+            id, medication_id, start_date, end_date, dosage, schedule, instructions
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            (
+                item.id,
+                item.medication_id,
+                item.start_date,
+                item.end_date,
+                item.dosage,
+                ",".join(item.schedule),
+                item.instructions,
+            )
             for item in metadata.therapies
         ),
     )

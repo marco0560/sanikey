@@ -242,7 +242,11 @@ def _metadata_search_payloads(metadata: CuratedMetadata) -> tuple[dict[str, Any]
             item_id=medication.id,
             item_type="medication",
             title=medication.name,
-            parts=(medication.active_ingredient,),
+            parts=(
+                medication.active_ingredient,
+                medication.form,
+                medication.strength_per_unit,
+            ),
         )
         for medication in metadata.medications
     )
@@ -256,6 +260,8 @@ def _metadata_search_payloads(metadata: CuratedMetadata) -> tuple[dict[str, Any]
                 therapy.start_date,
                 therapy.end_date,
                 therapy.dosage,
+                " ".join(therapy.schedule) or None,
+                therapy.instructions,
             ),
         )
         for therapy in metadata.therapies
