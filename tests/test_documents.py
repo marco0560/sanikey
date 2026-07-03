@@ -207,6 +207,41 @@ def test_extract_text_uses_ocrmypdf_when_pymupdf_is_unavailable(
     assert extracted.warnings == ()
 
 
+def test_extract_text_reads_synthetic_pdf_with_pymupdf(tmp_path: Path) -> None:
+    """Verify real PyMuPDF extraction on a synthetic non-sensitive PDF.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    import fitz
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Synthetic Report.pdf"
+    pdf = fitz.open()
+    page = pdf.new_page()
+    page.insert_text(
+        (72, 72),
+        "Synthetic non-sensitive PDF text for PyMuPDF integration testing.",
+    )
+    pdf.save(path)
+    pdf.close()
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "Synthetic non-sensitive PDF text" in extracted.text
+    assert extracted.warnings == ()
+
+
 def test_extract_text_keeps_sufficient_pymupdf_text(
     tmp_path: Path,
     monkeypatch,
