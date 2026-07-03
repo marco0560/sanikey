@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
 DICOM_EXTENSIONS = {".iso": "dicom_iso", ".zip": "dicom_zip"}
 TEXT_EXTENSIONS = {".txt", ".md"}
+MIN_PDF_TEXT_CHARACTERS = 40
 
 
 @dataclass(frozen=True)
@@ -307,11 +308,19 @@ def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:
     """
 
     pymupdf_result = _extract_pdf_text_with_pymupdf(document)
-    if pymupdf_result is not None:
+    if pymupdf_result is not None and _has_sufficient_pdf_text(pymupdf_result.text):
         return pymupdf_result
     ocrmypdf_result = _extract_pdf_text_with_ocrmypdf(document)
     if ocrmypdf_result is not None:
         return ocrmypdf_result
+    if pymupdf_result is not None:
+        return ExtractedText(
+            document_id=document.document_id,
+            text=pymupdf_result.text,
+            warnings=(
+                "PyMuPDF extracted insufficient text and no OCR provider is available",
+            ),
+        )
     return ExtractedText(
         document_id=document.document_id,
         text="",
@@ -343,6 +352,25 @@ def _extract_pdf_text_with_pymupdf(document: DocumentRecord) -> ExtractedText | 
     with fitz.open(document.path) as pdf:
         text = "\n".join(page.get_text() for page in pdf)
     return ExtractedText(document_id=document.document_id, text=text)
+
+
+def _has_sufficient_pdf_text(text: str) -> bool:
+    """Return whether extracted PDF text is sufficient to skip OCR.
+
+    Parameters
+    ----------
+    text : str
+        Extracted text.
+
+    Returns
+    -------
+    bool
+        ``True`` when text has enough non-whitespace characters.
+    """
+
+    return sum(1 for character in text if not character.isspace()) >= (
+        MIN_PDF_TEXT_CHARACTERS
+    )
 
 
 def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText | None:

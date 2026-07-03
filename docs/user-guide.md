@@ -112,14 +112,15 @@ sorgente. L'espansione in directory DICOM è attualmente manuale; la scelta tra
 espansione automatica, opzionale durante l'ingestion o manuale è una decisione
 rimandata.
 
-Per i PDF, SaniKey estrae testo con il primo provider disponibile:
+Per i PDF, SaniKey sceglie automaticamente il provider:
 
-- `PyMuPDF` (`fitz`), se installato come dipendenza Python;
-- `OCRmyPDF`, se disponibile come comando di sistema.
+- usa `PyMuPDF` (`fitz`) quando il PDF contiene testo digitale sufficiente;
+- passa a `OCRmyPDF`, se disponibile come comando di sistema, quando PyMuPDF
+  manca o produce testo vuoto/insufficiente.
 
 `OCRmyPDF` è quindi una dipendenza di sistema supportata. Se nessun provider è
 disponibile, il PDF resta catalogato ma l'estrazione testo viene saltata con un
-warning esplicito sui provider mancanti.
+warning esplicito sui provider mancanti o insufficienti.
 
 ## Costruire un Archivio
 

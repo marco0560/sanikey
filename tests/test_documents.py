@@ -207,6 +207,137 @@ def test_extract_text_uses_ocrmypdf_when_pymupdf_is_unavailable(
     assert extracted.warnings == ()
 
 
+def test_extract_text_keeps_sufficient_pymupdf_text(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify sufficient PyMuPDF text avoids OCR.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Report.pdf"
+    path.write_bytes(b"%PDF synthetic")
+    document = scan_documents(person)[0]
+
+    monkeypatch.setattr(
+        documents_module,
+        "_extract_pdf_text_with_pymupdf",
+        lambda item: documents_module.ExtractedText(
+            document_id=item.document_id,
+            text="This is enough extracted text from a digital PDF document.",
+        ),
+    )
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: None)
+
+    extracted = extract_text(document)
+
+    assert extracted.text.startswith("This is enough")
+    assert extracted.warnings == ()
+
+
+def test_extract_text_uses_ocr_when_pymupdf_text_is_insufficient(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify weak PyMuPDF extraction falls back to OCRmyPDF.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Report.pdf"
+    path.write_bytes(b"%PDF synthetic")
+    document = scan_documents(person)[0]
+
+    def fake_run(command, **_kwargs):
+        sidecar = Path(command[command.index("--sidecar") + 1])
+        sidecar.write_text("ocr text after weak native extraction", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(
+        documents_module,
+        "_extract_pdf_text_with_pymupdf",
+        lambda item: documents_module.ExtractedText(
+            document_id=item.document_id,
+            text="   \n",
+        ),
+    )
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: "/usr/bin/ocrmypdf")
+    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == "ocr text after weak native extraction"
+    assert extracted.warnings == ()
+
+
+def test_extract_text_warns_when_pymupdf_text_is_insufficient_without_ocr(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify weak PyMuPDF extraction warns when OCR is unavailable.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Report.pdf"
+    path.write_bytes(b"%PDF synthetic")
+    document = scan_documents(person)[0]
+
+    monkeypatch.setattr(
+        documents_module,
+        "_extract_pdf_text_with_pymupdf",
+        lambda item: documents_module.ExtractedText(
+            document_id=item.document_id,
+            text="short",
+        ),
+    )
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: None)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == "short"
+    assert extracted.warnings == (
+        "PyMuPDF extracted insufficient text and no OCR provider is available",
+    )
+
+
 def test_extract_text_warns_when_no_pdf_provider_is_available(
     tmp_path: Path,
     monkeypatch,
