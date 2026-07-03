@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .models import DocumentRecord
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .config import PersonConfig
 
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
@@ -291,7 +293,7 @@ def _document_kind(path: Path) -> str:
 
 
 def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:
-    """Extract PDF text through optional PyMuPDF when available.
+    """Extract PDF text through the first available provider.
 
     Parameters
     ----------
@@ -301,17 +303,98 @@ def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:
     Returns
     -------
     ExtractedText
-        Extracted text or warning when the optional provider is unavailable.
+        Extracted text or warning when no provider is available.
+    """
+
+    pymupdf_result = _extract_pdf_text_with_pymupdf(document)
+    if pymupdf_result is not None:
+        return pymupdf_result
+    ocrmypdf_result = _extract_pdf_text_with_ocrmypdf(document)
+    if ocrmypdf_result is not None:
+        return ocrmypdf_result
+    return ExtractedText(
+        document_id=document.document_id,
+        text="",
+        warnings=(
+            "No PDF text extraction provider available; install PyMuPDF "
+            "or configure OCRmyPDF",
+        ),
+    )
+
+
+def _extract_pdf_text_with_pymupdf(document: DocumentRecord) -> ExtractedText | None:
+    """Extract PDF text with PyMuPDF when installed.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        PDF document.
+
+    Returns
+    -------
+    ExtractedText | None
+        Extracted text, or ``None`` when PyMuPDF is unavailable.
     """
 
     try:
         import fitz
     except ImportError:
-        return ExtractedText(
-            document_id=document.document_id,
-            text="",
-            warnings=("PyMuPDF not installed; PDF text extraction skipped",),
-        )
+        return None
     with fitz.open(document.path) as pdf:
         text = "\n".join(page.get_text() for page in pdf)
     return ExtractedText(document_id=document.document_id, text=text)
+
+
+def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText | None:
+    """Extract PDF text with system OCRmyPDF sidecar output when available.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        PDF document.
+
+    Returns
+    -------
+    ExtractedText | None
+        Extracted text, warning from OCRmyPDF, or ``None`` when unavailable.
+    """
+
+    executable = shutil.which("ocrmypdf")
+    if executable is None:
+        return None
+    with tempfile.TemporaryDirectory(prefix="sanikey-ocr-") as directory:
+        temp_root = Path(directory)
+        sidecar = temp_root / "document.txt"
+        output_pdf = temp_root / "document.pdf"
+        completed = subprocess.run(
+            [
+                executable,
+                "--skip-text",
+                "--sidecar",
+                str(sidecar),
+                str(document.path),
+                str(output_pdf),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            detail = completed.stderr.strip() or completed.stdout.strip()
+            if not detail:
+                detail = f"exit status {completed.returncode}"
+            return ExtractedText(
+                document_id=document.document_id,
+                text="",
+                warnings=(f"OCRmyPDF failed; PDF text extraction skipped: {detail}",),
+            )
+        if not sidecar.is_file():
+            return ExtractedText(
+                document_id=document.document_id,
+                text="",
+                warnings=("OCRmyPDF did not produce text sidecar",),
+            )
+        return ExtractedText(
+            document_id=document.document_id,
+            text=sidecar.read_text(encoding="utf-8", errors="replace"),
+        )
