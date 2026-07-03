@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 import sanikey.documents as documents_module
 from sanikey.config import PersonConfig
@@ -239,6 +242,62 @@ def test_extract_text_reads_synthetic_pdf_with_pymupdf(tmp_path: Path) -> None:
     extracted = extract_text(document)
 
     assert "Synthetic non-sensitive PDF text" in extracted.text
+    assert extracted.warnings == ()
+
+
+def test_extract_text_reads_image_only_pdf_with_ocrmypdf(tmp_path: Path) -> None:
+    """Verify OCRmyPDF extraction on a synthetic image-only PDF.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    if shutil.which("ocrmypdf") is None or shutil.which("tesseract") is None:
+        pytest.skip("OCRmyPDF and Tesseract are required for this integration test")
+
+    import fitz
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    source_pdf = tmp_path / "source-text.pdf"
+    source = fitz.open()
+    page = source.new_page(width=595, height=842)
+    page.insert_text(
+        (72, 160),
+        "SYNTHETIC OCR TEST",
+        fontsize=48,
+    )
+    source.save(source_pdf)
+    source.close()
+
+    rendered = fitz.open(source_pdf)
+    pixmap = rendered[0].get_pixmap(dpi=250)
+    rendered.close()
+
+    image_only_path = document_dir / "20260102 Synthetic OCR Report.pdf"
+    image_only = fitz.open()
+    image_page = image_only.new_page(width=pixmap.width, height=pixmap.height)
+    image_page.insert_image(
+        image_page.rect,
+        stream=pixmap.tobytes("png"),
+    )
+    image_only.save(image_only_path)
+    image_only.close()
+    document = scan_documents(person)[0]
+
+    native_text = documents_module._extract_pdf_text_with_pymupdf(document)
+    extracted = extract_text(document)
+
+    assert native_text is not None
+    assert not documents_module._has_sufficient_pdf_text(native_text.text)
+    assert "SYNTHETIC OCR TEST" in " ".join(extracted.text.split())
     assert extracted.warnings == ()
 
 
