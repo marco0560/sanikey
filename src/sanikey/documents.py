@@ -312,8 +312,16 @@ def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:
         return pymupdf_result
     ocrmypdf_result = _extract_pdf_text_with_ocrmypdf(document)
     if ocrmypdf_result is not None:
+        if pymupdf_result is not None and pymupdf_result.warnings:
+            return ExtractedText(
+                document_id=document.document_id,
+                text=ocrmypdf_result.text,
+                warnings=(*pymupdf_result.warnings, *ocrmypdf_result.warnings),
+            )
         return ocrmypdf_result
     if pymupdf_result is not None:
+        if pymupdf_result.warnings:
+            return pymupdf_result
         return ExtractedText(
             document_id=document.document_id,
             text=pymupdf_result.text,
@@ -349,8 +357,18 @@ def _extract_pdf_text_with_pymupdf(document: DocumentRecord) -> ExtractedText | 
         import fitz
     except ImportError:
         return None
-    with fitz.open(document.path) as pdf:
-        text = "\n".join(page.get_text() for page in pdf)
+    try:
+        with fitz.open(document.path) as pdf:
+            text = "\n".join(page.get_text() for page in pdf)
+    except (fitz.FileDataError, RuntimeError, ValueError) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(
+                "PyMuPDF could not extract PDF text; falling back to OCRmyPDF "
+                f"if available: {exc}",
+            ),
+        )
     return ExtractedText(document_id=document.document_id, text=text)
 
 

@@ -301,6 +301,84 @@ def test_extract_text_reads_image_only_pdf_with_ocrmypdf(tmp_path: Path) -> None
     assert extracted.warnings == ()
 
 
+def test_extract_text_falls_back_to_ocr_when_pymupdf_raises(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify malformed PDFs keep PyMuPDF warning and continue with OCR.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Malformed Report.pdf"
+    path.write_bytes(b"%PDF-1.7\nnot a valid page tree\n")
+    document = scan_documents(person)[0]
+
+    def fake_run(command, **_kwargs):
+        sidecar = Path(command[command.index("--sidecar") + 1])
+        sidecar.write_text("ocr text after pymupdf failure", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: "/usr/bin/ocrmypdf")
+    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == "ocr text after pymupdf failure"
+    assert len(extracted.warnings) == 1
+    assert extracted.warnings[0].startswith(
+        "PyMuPDF could not extract PDF text; falling back to OCRmyPDF if available:"
+    )
+
+
+def test_extract_text_warns_when_pymupdf_raises_without_ocr(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify malformed PDFs are reported when OCR is unavailable.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Malformed Report.pdf"
+    path.write_bytes(b"%PDF-1.7\nnot a valid page tree\n")
+    document = scan_documents(person)[0]
+
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: None)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == ""
+    assert len(extracted.warnings) == 1
+    assert extracted.warnings[0].startswith(
+        "PyMuPDF could not extract PDF text; falling back to OCRmyPDF if available:"
+    )
+
+
 def test_extract_text_keeps_sufficient_pymupdf_text(
     tmp_path: Path,
     monkeypatch,
