@@ -2404,6 +2404,8 @@ dicom_iso
 dicom_directory
 image
 text
+archive
+office
 other
 ```
 
@@ -2465,6 +2467,30 @@ Il sistema deve:
 La scelta se espandere automaticamente i supporti DICOM, espanderli come
 opzione durante l'ingestion oppure richiedere espansione manuale da parte
 dell'operatore non fa parte delle decisioni iniziali.
+
+#### 6.11.1 Archivi
+
+Gli archivi `.zip`, `.7z` e `.rar` possono comparire tra i documenti sorgente.
+
+Il sistema deve:
+
+* conservare l'archivio originale;
+* calcolare SHA256 sull'archivio originale;
+* estrarre un inventario testuale dei file contenuti;
+* segnalare con warning archivi cifrati, corrotti o non leggibili.
+
+L'implementazione iniziale non espande automaticamente gli archivi nei documenti
+interni. L'inventario serve per ricerca, audit manuale e diagnosi preliminare.
+
+#### 6.11.2 Documenti Office e OpenDocument
+
+Il sistema può estrarre testo da documenti `.docx`, `.xlsx`, `.odt` e `.ods`.
+
+Per documenti legacy `.doc` e `.xls`, l'estrazione richiede LibreOffice o
+`soffice` disponibile come comando di sistema.
+
+Se l'estrazione non è possibile, il documento deve restare catalogato e il
+problema deve essere registrato come warning.
 
 ---
 
@@ -9650,9 +9676,23 @@ PDF
 PDF/A
 DICOM
 DICOM ISO
+ZIP
+7Z
+RAR
+DOCX
+XLSX
+ODT
+ODS
+DOC
+XLS
 ```
 
 sono considerati formati supportati.
+
+Per `ZIP`, `7Z` e `RAR` il supporto iniziale consiste nell'inventario dei file
+contenuti, non nell'espansione automatica e ingestione ricorsiva dei contenuti.
+Per `DOC` e `XLS` il supporto dipende dalla presenza di LibreOffice o `soffice`
+nel sistema locale di build.
 
 ---
 

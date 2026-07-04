@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import zipfile
 from dataclasses import replace
 from pathlib import Path
 
@@ -76,6 +77,42 @@ def test_scan_documents_builds_stable_records(tmp_path: Path) -> None:
     assert len(documents[0].sha256) == 64
 
 
+def test_scan_documents_classifies_archive_and_office_kinds(
+    tmp_path: Path,
+) -> None:
+    """Verify archive and office document kind classification.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    (document_dir / "20260102 Archive.7z").write_bytes(b"archive")
+    (document_dir / "20260103 Legacy.rar").write_bytes(b"rar")
+    (document_dir / "20260104 Support.zip").write_bytes(b"zip")
+    (document_dir / "20260105 Report.docx").write_bytes(b"docx")
+    (document_dir / "20260106 Workbook.xlsx").write_bytes(b"xlsx")
+
+    documents = scan_document_inventory(person)
+    kinds = {document.path.name: document.kind for document in documents}
+
+    assert kinds == {
+        "20260102 Archive.7z": "archive",
+        "20260103 Legacy.rar": "archive",
+        "20260104 Support.zip": "dicom_zip",
+        "20260105 Report.docx": "office",
+        "20260106 Workbook.xlsx": "office",
+    }
+
+
 def test_duplicate_detection_skips_duplicate_content_with_warning(
     tmp_path: Path,
 ) -> None:
@@ -140,6 +177,276 @@ def test_extract_text_reads_text_files(tmp_path: Path) -> None:
 
     assert extracted.text == "hello"
     assert extracted.warnings == ()
+
+
+def test_extract_text_lists_zip_archive_contents(tmp_path: Path) -> None:
+    """Verify ZIP files produce an archive inventory.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Archive.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("report.txt", "hello")
+        archive.writestr("nested/image.dcm", "dicom")
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "zip archive contents:" in extracted.text
+    assert "nested/image.dcm" in extracted.text
+    assert "report.txt" in extracted.text
+    assert extracted.warnings == ()
+
+
+def test_extract_text_lists_7z_archive_contents(tmp_path: Path) -> None:
+    """Verify 7z files produce an archive inventory.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    import py7zr
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    payload = tmp_path / "payload"
+    payload.mkdir(parents=True)
+    (payload / "report.txt").write_text("hello", encoding="utf-8")
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Archive.7z"
+    with py7zr.SevenZipFile(path, "w") as archive:
+        archive.write(payload / "report.txt", "report.txt")
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "7z archive contents:" in extracted.text
+    assert "report.txt" in extracted.text
+    assert extracted.warnings == ()
+
+
+def test_extract_text_reads_docx_documents(tmp_path: Path) -> None:
+    """Verify DOCX text extraction.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    import docx
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Report.docx"
+    document_file = docx.Document()
+    document_file.add_paragraph("Synthetic DOCX text")
+    document_file.save(path)
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "Synthetic DOCX text" in extracted.text
+    assert extracted.warnings == ()
+
+
+def test_extract_text_reads_xlsx_workbooks(tmp_path: Path) -> None:
+    """Verify XLSX text extraction.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    import openpyxl
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Workbook.xlsx"
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Vitals"
+    worksheet["A1"] = "Peso"
+    worksheet["B1"] = "70 kg"
+    workbook.save(path)
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "[Vitals]" in extracted.text
+    assert "Peso\t70 kg" in extracted.text
+    assert extracted.warnings == ()
+
+
+def test_extract_text_reads_odt_documents(tmp_path: Path) -> None:
+    """Verify ODT text extraction.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    from odf.opendocument import OpenDocumentText
+    from odf.text import P
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Report.odt"
+    document_file = OpenDocumentText()
+    document_file.text.addElement(P(text="Synthetic ODT text"))
+    document_file.save(path)
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "Synthetic ODT text" in extracted.text
+    assert extracted.warnings == ()
+
+
+def test_extract_text_reads_ods_spreadsheets(tmp_path: Path) -> None:
+    """Verify ODS text extraction.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    from odf.opendocument import OpenDocumentSpreadsheet
+    from odf.table import Table, TableCell, TableRow
+    from odf.text import P
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Spreadsheet.ods"
+    document_file = OpenDocumentSpreadsheet()
+    table = Table(name="Sheet1")
+    row = TableRow()
+    cell = TableCell()
+    cell.addElement(P(text="Synthetic ODS text"))
+    row.addElement(cell)
+    table.addElement(row)
+    document_file.spreadsheet.addElement(table)
+    document_file.save(path)
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "Synthetic ODS text" in extracted.text
+    assert extracted.warnings == ()
+
+
+def test_extract_text_reads_legacy_office_through_libreoffice(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify legacy Office extraction uses LibreOffice output.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Legacy.doc"
+    path.write_bytes(b"legacy")
+    document = scan_documents(person)[0]
+
+    def fake_run(command, **_kwargs):
+        output_dir = Path(command[command.index("--outdir") + 1])
+        (output_dir / "20260102 Legacy.txt").write_text(
+            "legacy office text",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: "/usr/bin/soffice")
+    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == "legacy office text"
+    assert extracted.warnings == ()
+
+
+@pytest.mark.parametrize("extension", [".docx", ".xlsx", ".odt"])
+def test_extract_text_warns_for_corrupt_office_documents(
+    tmp_path: Path,
+    extension: str,
+) -> None:
+    """Verify corrupt office-like files produce warnings.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    extension : str
+        File extension under test.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / f"20260102 Broken{extension}"
+    path.write_bytes(b"not a valid office document")
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert extracted.text == ""
+    assert extracted.warnings
 
 
 def test_extract_text_warns_for_dicom_support(tmp_path: Path) -> None:

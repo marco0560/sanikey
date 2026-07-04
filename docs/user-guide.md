@@ -107,6 +107,19 @@ uv run sanikey scan-documents --config config/accounts.toml --output local-data/
 tab-separated estesa con paziente, tipo, categoria, data ISO, titolo, SHA256 e
 path assoluto. Il formato `csv` usa gli stessi campi con intestazione.
 
+Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
+
+- `.txt` e `.md`: contenuto testuale diretto;
+- `.pdf`: testo digitale con PyMuPDF e OCR con OCRmyPDF quando necessario;
+- `.docx`, `.xlsx`, `.odt`, `.ods`: testo e celle tramite librerie Python;
+- `.doc`, `.xls`: conversione tramite LibreOffice o `soffice`, se disponibile;
+- `.zip`, `.7z`, `.rar`: inventario dei file contenuti nell'archivio.
+
+Gli archivi non vengono espansi automaticamente nei documenti interni: il testo
+estratto contiene solo la lista dei file inclusi, utile per ricerca e verifica
+manuale. Se un archivio è cifrato, corrotto o non leggibile, il documento resta
+catalogato e il problema viene registrato come warning.
+
 I file ISO e ZIP DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. L'espansione in directory DICOM è attualmente manuale; la scelta tra
 espansione automatica, opzionale durante l'ingestion o manuale è una decisione

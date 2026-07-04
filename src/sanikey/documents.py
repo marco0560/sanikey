@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,6 +20,12 @@ if TYPE_CHECKING:
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
 DICOM_EXTENSIONS = {".iso": "dicom_iso", ".zip": "dicom_zip"}
 TEXT_EXTENSIONS = {".txt", ".md"}
+ARCHIVE_EXTENSIONS = {".7z", ".rar", ".zip"}
+DOCX_EXTENSIONS = {".docx"}
+LEGACY_OFFICE_EXTENSIONS = {".doc", ".xls"}
+ODF_EXTENSIONS = {".ods", ".odt"}
+OFFICE_EXTENSIONS = DOCX_EXTENSIONS | LEGACY_OFFICE_EXTENSIONS | ODF_EXTENSIONS
+XLSX_EXTENSIONS = {".xlsx"}
 MIN_PDF_TEXT_CHARACTERS = 40
 
 
@@ -153,6 +160,16 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
         )
     if suffix == ".pdf":
         return _extract_pdf_text(document)
+    if suffix in ARCHIVE_EXTENSIONS:
+        return _extract_archive_text(document)
+    if suffix in DOCX_EXTENSIONS:
+        return _extract_docx_text(document)
+    if suffix in XLSX_EXTENSIONS:
+        return _extract_xlsx_text(document)
+    if suffix in ODF_EXTENSIONS:
+        return _extract_odf_text(document)
+    if suffix in LEGACY_OFFICE_EXTENSIONS:
+        return _extract_legacy_office_text(document)
     if document.kind.startswith("dicom_"):
         return ExtractedText(
             document_id=document.document_id,
@@ -290,6 +307,10 @@ def _document_kind(path: Path) -> str:
         return "pdf"
     if suffix in TEXT_EXTENSIONS:
         return "text"
+    if suffix in ARCHIVE_EXTENSIONS:
+        return "archive"
+    if suffix in OFFICE_EXTENSIONS | XLSX_EXTENSIONS:
+        return "office"
     return "binary"
 
 
@@ -396,6 +417,331 @@ def _has_sufficient_pdf_text(text: str) -> bool:
     return sum(1 for character in text if not character.isspace()) >= (
         MIN_PDF_TEXT_CHARACTERS
     )
+
+
+def _extract_archive_text(document: DocumentRecord) -> ExtractedText:
+    """Extract an archive member inventory.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Archive document.
+
+    Returns
+    -------
+    ExtractedText
+        Textual archive inventory or warning.
+    """
+
+    suffix = document.path.suffix.lower()
+    if suffix == ".zip":
+        return _extract_zip_inventory(document)
+    if suffix == ".7z":
+        return _extract_7z_inventory(document)
+    if suffix == ".rar":
+        return _extract_rar_inventory(document)
+    return ExtractedText(
+        document_id=document.document_id,
+        text="",
+        warnings=(f"unsupported archive format {suffix}",),
+    )
+
+
+def _extract_zip_inventory(document: DocumentRecord) -> ExtractedText:
+    """Extract ZIP member names.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        ZIP document.
+
+    Returns
+    -------
+    ExtractedText
+        Textual inventory or warning.
+    """
+
+    try:
+        with zipfile.ZipFile(document.path) as archive:
+            names = archive.namelist()
+    except (OSError, zipfile.BadZipFile) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"ZIP inventory extraction failed: {exc}",),
+        )
+    return ExtractedText(
+        document_id=document.document_id,
+        text=_archive_inventory_text("zip", names),
+    )
+
+
+def _extract_7z_inventory(document: DocumentRecord) -> ExtractedText:
+    """Extract 7z member names.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        7z document.
+
+    Returns
+    -------
+    ExtractedText
+        Textual inventory or warning.
+    """
+
+    try:
+        import py7zr
+
+        with py7zr.SevenZipFile(document.path) as archive:
+            names = archive.getnames()
+    except (OSError, py7zr.Bad7zFile, py7zr.PasswordRequired) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"7z inventory extraction failed: {exc}",),
+        )
+    return ExtractedText(
+        document_id=document.document_id,
+        text=_archive_inventory_text("7z", names),
+    )
+
+
+def _extract_rar_inventory(document: DocumentRecord) -> ExtractedText:
+    """Extract RAR member names.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        RAR document.
+
+    Returns
+    -------
+    ExtractedText
+        Textual inventory or warning.
+    """
+
+    try:
+        import rarfile
+
+        with rarfile.RarFile(document.path) as archive:
+            names = archive.namelist()
+    except (OSError, rarfile.Error) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"RAR inventory extraction failed: {exc}",),
+        )
+    return ExtractedText(
+        document_id=document.document_id,
+        text=_archive_inventory_text("rar", names),
+    )
+
+
+def _archive_inventory_text(kind: str, names: list[str]) -> str:
+    """Render archive member names as text.
+
+    Parameters
+    ----------
+    kind : str
+        Archive kind.
+    names : list[str]
+        Member names.
+
+    Returns
+    -------
+    str
+        Textual inventory.
+    """
+
+    if not names:
+        return f"{kind} archive is empty"
+    return "\n".join((f"{kind} archive contents:", *sorted(names)))
+
+
+def _extract_docx_text(document: DocumentRecord) -> ExtractedText:
+    """Extract text from a DOCX document.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        DOCX document.
+
+    Returns
+    -------
+    ExtractedText
+        Extracted text or warning.
+    """
+
+    try:
+        import docx
+        from docx.opc.exceptions import PackageNotFoundError
+
+        parsed = docx.Document(str(document.path))
+        parts = [paragraph.text for paragraph in parsed.paragraphs if paragraph.text]
+        for table in parsed.tables:
+            for row in table.rows:
+                parts.extend(cell.text for cell in row.cells if cell.text)
+    except (OSError, PackageNotFoundError, ValueError, zipfile.BadZipFile) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"DOCX text extraction failed: {exc}",),
+        )
+    return ExtractedText(document_id=document.document_id, text="\n".join(parts))
+
+
+def _extract_xlsx_text(document: DocumentRecord) -> ExtractedText:
+    """Extract text from an XLSX workbook.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        XLSX document.
+
+    Returns
+    -------
+    ExtractedText
+        Extracted cell text or warning.
+    """
+
+    try:
+        import openpyxl
+        from openpyxl.utils.exceptions import InvalidFileException
+
+        workbook = openpyxl.load_workbook(
+            document.path,
+            read_only=True,
+            data_only=True,
+        )
+        parts = []
+        for worksheet in workbook.worksheets:
+            parts.append(f"[{worksheet.title}]")
+            for row in worksheet.iter_rows(values_only=True):
+                values = [str(value) for value in row if value is not None]
+                if values:
+                    parts.append("\t".join(values))
+        workbook.close()
+    except (InvalidFileException, OSError, ValueError, zipfile.BadZipFile) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"XLSX text extraction failed: {exc}",),
+        )
+    return ExtractedText(document_id=document.document_id, text="\n".join(parts))
+
+
+def _extract_odf_text(document: DocumentRecord) -> ExtractedText:
+    """Extract text from ODF documents.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        ODT or ODS document.
+
+    Returns
+    -------
+    ExtractedText
+        Extracted text or warning.
+    """
+
+    try:
+        from odf import table as odf_table
+        from odf.opendocument import load
+        from odf.teletype import extractText
+
+        parsed = load(str(document.path))
+        if document.path.suffix.lower() == ".ods":
+            parts = []
+            for sheet in parsed.spreadsheet.getElementsByType(odf_table.Table):
+                sheet_name = sheet.getAttribute("name")
+                if sheet_name:
+                    parts.append(f"[{sheet_name}]")
+                for row in sheet.getElementsByType(odf_table.TableRow):
+                    values = [
+                        extractText(cell)
+                        for cell in row.getElementsByType(odf_table.TableCell)
+                    ]
+                    values = [value for value in values if value]
+                    if values:
+                        parts.append("\t".join(values))
+            text = "\n".join(parts)
+        else:
+            text = extractText(parsed.text)
+    except (AttributeError, OSError, ValueError, zipfile.BadZipFile) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"ODF text extraction failed: {exc}",),
+        )
+    return ExtractedText(document_id=document.document_id, text=text)
+
+
+def _extract_legacy_office_text(document: DocumentRecord) -> ExtractedText:
+    """Extract text from legacy Office documents through LibreOffice.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Legacy ``.doc`` or ``.xls`` document.
+
+    Returns
+    -------
+    ExtractedText
+        Extracted text or warning.
+    """
+
+    executable = shutil.which("libreoffice") or shutil.which("soffice")
+    if executable is None:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=("LibreOffice not installed; legacy Office extraction skipped",),
+        )
+    suffix = document.path.suffix.lower()
+    output_filter = "csv" if suffix == ".xls" else "txt:Text"
+    with tempfile.TemporaryDirectory(prefix="sanikey-office-") as directory:
+        output_dir = Path(directory)
+        try:
+            completed = subprocess.run(
+                [
+                    executable,
+                    "--headless",
+                    "--convert-to",
+                    output_filter,
+                    "--outdir",
+                    str(output_dir),
+                    str(document.path),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired:
+            return ExtractedText(
+                document_id=document.document_id,
+                text="",
+                warnings=("LibreOffice extraction timed out",),
+            )
+        if completed.returncode != 0:
+            detail = completed.stderr.strip() or completed.stdout.strip()
+            return ExtractedText(
+                document_id=document.document_id,
+                text="",
+                warnings=(f"LibreOffice extraction failed: {detail}",),
+            )
+        outputs = sorted(path for path in output_dir.iterdir() if path.is_file())
+        if not outputs:
+            return ExtractedText(
+                document_id=document.document_id,
+                text="",
+                warnings=("LibreOffice did not produce extracted text",),
+            )
+        text = "\n".join(
+            path.read_text(encoding="utf-8", errors="replace") for path in outputs
+        )
+    return ExtractedText(document_id=document.document_id, text=text)
 
 
 def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText | None:
