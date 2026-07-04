@@ -121,7 +121,10 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             kind TEXT NOT NULL,
             sha256 TEXT NOT NULL,
             document_date TEXT,
-            series TEXT
+            series TEXT,
+            origin TEXT NOT NULL,
+            container_id TEXT,
+            internal_path TEXT
         );
 
         CREATE VIRTUAL TABLE document_fts USING fts5(
@@ -216,8 +219,8 @@ def _insert_documents(
             """
             INSERT INTO documents (
                 id, patient_id, path, title, category, kind, sha256,
-                document_date, series
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                document_date, series, origin, container_id, internal_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 document.document_id,
@@ -229,6 +232,9 @@ def _insert_documents(
                 document.sha256,
                 document.date,
                 document.series,
+                document.origin,
+                document.container_id,
+                document.internal_path,
             ),
         )
         connection.execute(

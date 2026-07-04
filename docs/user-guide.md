@@ -128,15 +128,16 @@ Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 - `.doc`, `.xls`: conversione tramite LibreOffice o `soffice`, se disponibile;
 - `.zip`, `.7z`, `.rar`: inventario dei file contenuti nell'archivio.
 
-Gli archivi non vengono espansi automaticamente nei documenti interni: il testo
-estratto contiene solo la lista dei file inclusi, utile per ricerca e verifica
-manuale. Se un archivio è cifrato, corrotto o non leggibile, il documento resta
-catalogato e il problema viene registrato come warning.
+Durante `build-patient`, gli archivi e le immagini ISO supportate vengono anche
+estratti in una staging area generata sotto `local_build/staging/containers`.
+Il contenitore originale resta il documento autorevole; i membri estratti sono
+documenti derivati con provenance verso il contenitore, path interno e SHA256
+proprio. Se un archivio è cifrato, corrotto o non leggibile, il contenitore
+resta catalogato e il problema viene registrato come warning.
 
 I file ISO e ZIP DICOM consegnati dagli ospedali sono conservati come documenti
-sorgente. L'espansione in directory DICOM è attualmente manuale; la scelta tra
-espansione automatica, opzionale durante l'ingestion o manuale è una decisione
-rimandata.
+sorgente. Quando vengono estratti in staging, i file DICOM interni sono
+catalogati come DICOM e non passano dall'OCR o dall'estrazione testo ordinaria.
 
 Per i PDF, SaniKey sceglie automaticamente il provider:
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
+import zipfile
 from typing import TYPE_CHECKING
 
 from sanikey.build import build_all, build_patient
@@ -276,3 +278,59 @@ def test_build_patient_does_not_duplicate_static_scan_warnings(
     assert result.warnings == 1
     assert len(result.warning_messages) == 1
     assert "unsupported text extraction for .jpg" in result.warning_messages[0]
+
+
+def test_build_patient_stages_container_members_with_provenance(
+    tmp_path: Path,
+) -> None:
+    """Verify container members are staged and recorded as derived documents.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    bundle = person.source_documents / "20260102 Bundle.zip"
+    dicom_bytes = b"\0" * 128 + b"DICM" + b"synthetic"
+    with zipfile.ZipFile(bundle, "w") as archive:
+        archive.writestr("reports/20260103 Inner.txt", "inner text")
+        archive.writestr("dicom/image.dcm", dicom_bytes)
+
+    result = build_patient(person, mode="full")
+
+    staging_manifest = person.local_build / "manifests" / "container_staging.json"
+    staging_payload = json.loads(staging_manifest.read_text(encoding="utf-8"))
+    with sqlite3.connect(result.database) as connection:
+        rows = connection.execute(
+            """
+            SELECT kind, origin, container_id, internal_path
+            FROM documents
+            ORDER BY internal_path IS NULL, internal_path
+            """
+        ).fetchall()
+        dicom_count = connection.execute(
+            "SELECT count(*) FROM dicom_studies"
+        ).fetchone()[0]
+
+    assert result.documents == 3
+    assert len(staging_payload["members"]) == 2
+    assert "staging/containers" in result.checksums.read_text(encoding="utf-8")
+    assert any(row[0] == "text" and row[1] == "container" for row in rows)
+    assert any(row[0] == "dicom_file" and row[1] == "container" for row in rows)
+    assert all(row[2] is not None for row in rows if row[1] == "container")
+    assert {row[3] for row in rows if row[1] == "container"} == {
+        "dicom/image.dcm",
+        "reports/20260103 Inner.txt",
+    }
+    assert dicom_count == 2
+    assert not any(
+        "manual DICOM expansion directory not found" in warning
+        for warning in result.warning_messages
+    )

@@ -136,6 +136,9 @@ def _document_payload(
         "category": document.category,
         "kind": document.kind,
         "path": str(document.path),
+        "origin": document.origin,
+        "container_id": document.container_id,
+        "internal_path": document.internal_path,
         "tags": list(_document_tags(document, metadata)),
     }
 
@@ -167,6 +170,8 @@ def _document_search_payload(
         "title": document.title,
         "text": text,
         "tags": list(tags),
+        "origin": document.origin,
+        "container_id": document.container_id,
     }
 
 

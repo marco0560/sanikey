@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from .config import PersonConfig
 
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
-DICOM_EXTENSIONS = {".iso": "dicom_iso", ".zip": "dicom_zip"}
+DICOM_EXTENSIONS = {".dcm": "dicom_file", ".iso": "dicom_iso", ".zip": "dicom_zip"}
 TEXT_EXTENSIONS = {".txt", ".md"}
 ARCHIVE_EXTENSIONS = {".7z", ".rar", ".zip"}
 DOCX_EXTENSIONS = {".docx"}
@@ -47,6 +47,25 @@ class ExtractedText:
     document_id: str
     text: str
     warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DocumentRecordOrigin:
+    """Provenance fields for a document record.
+
+    Parameters
+    ----------
+    origin : str
+        Document origin, either ``source`` or ``container``.
+    container_id : str | None, optional
+        Parent container document id.
+    internal_path : str | None, optional
+        Member path inside the parent container.
+    """
+
+    origin: str = "source"
+    container_id: str | None = None
+    internal_path: str | None = None
 
 
 def scan_documents(person: PersonConfig) -> tuple[DocumentRecord, ...]:
@@ -85,7 +104,8 @@ def scan_document_inventory(person: PersonConfig) -> tuple[DocumentRecord, ...]:
         return ()
     files = sorted(path for path in root.rglob("*") if path.is_file())
     return tuple(
-        _record_for_path(path, root=root, patient_id=person.id) for path in files
+        document_record_for_path(path, root=root, patient_id=person.id)
+        for path in files
     )
 
 
@@ -184,7 +204,13 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
     )
 
 
-def _record_for_path(path: Path, *, root: Path, patient_id: str) -> DocumentRecord:
+def document_record_for_path(
+    path: Path,
+    *,
+    root: Path,
+    patient_id: str,
+    provenance: DocumentRecordOrigin | None = None,
+) -> DocumentRecord:
     """Build a document record for one file.
 
     Parameters
@@ -195,6 +221,8 @@ def _record_for_path(path: Path, *, root: Path, patient_id: str) -> DocumentReco
         Source document root.
     patient_id : str
         Owning patient id.
+    provenance : DocumentRecordOrigin | None, optional
+        Optional provenance fields.
 
     Returns
     -------
@@ -203,12 +231,24 @@ def _record_for_path(path: Path, *, root: Path, patient_id: str) -> DocumentReco
     """
 
     digest = _sha256(path)
+    record_origin = provenance or DocumentRecordOrigin()
     relative = path.relative_to(root)
     category = relative.parts[0] if len(relative.parts) > 1 else "uncategorized"
     date, title = _title_from_name(path.stem)
     kind = _document_kind(path)
+    document_id = digest
+    if record_origin.origin != "source":
+        identity = "\0".join(
+            (
+                record_origin.origin,
+                record_origin.container_id or "",
+                record_origin.internal_path or "",
+                digest,
+            )
+        )
+        document_id = hashlib.sha256(identity.encode("utf-8")).hexdigest()
     return DocumentRecord(
-        document_id=digest,
+        document_id=document_id,
         patient_id=patient_id,
         path=path,
         title=title,
@@ -216,6 +256,9 @@ def _record_for_path(path: Path, *, root: Path, patient_id: str) -> DocumentReco
         kind=kind,
         sha256=digest,
         date=date,
+        origin=record_origin.origin,
+        container_id=record_origin.container_id,
+        internal_path=record_origin.internal_path,
     )
 
 

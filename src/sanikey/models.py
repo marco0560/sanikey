@@ -54,6 +54,12 @@ class DocumentRecord:
         Optional document series name.
     tags : tuple[str, ...]
         Curated or derived tags.
+    origin : str
+        Document origin, either ``source`` or ``container``.
+    container_id : str | None, optional
+        Parent container document id for extracted members.
+    internal_path : str | None, optional
+        Member path inside the parent container.
     """
 
     document_id: str
@@ -66,6 +72,9 @@ class DocumentRecord:
     date: str | None = None
     series: str | None = None
     tags: tuple[str, ...] = ()
+    origin: str = "source"
+    container_id: str | None = None
+    internal_path: str | None = None
 
 
 @dataclass(frozen=True)

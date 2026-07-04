@@ -65,7 +65,7 @@ def catalog_dicom_studies(
     studies = [
         _study_from_document(person, document)
         for document in documents
-        if document.kind in {"dicom_iso", "dicom_zip"}
+        if document.kind in {"dicom_file", "dicom_iso", "dicom_zip"}
     ]
     return tuple(sorted(studies, key=lambda study: str(study.support_path)))
 
@@ -89,7 +89,7 @@ def _study_from_document(person: PersonConfig, document: DocumentRecord) -> Dico
     extracted = _manual_extracted_path(person, document)
     viewers = _viewer_paths(extracted) if extracted is not None else ()
     warnings: tuple[str, ...] = ()
-    if extracted is None:
+    if extracted is None and document.kind in {"dicom_iso", "dicom_zip"}:
         warnings = ("manual DICOM expansion directory not found",)
     return DicomStudy(
         study_id=document.document_id,
@@ -121,9 +121,13 @@ def _manual_extracted_path(
         Existing extraction directory, if any.
     """
 
-    candidate = person.local_build / "dicom" / document.path.stem
-    if candidate.is_dir():
-        return candidate
+    candidates = (
+        person.local_build / "dicom" / document.path.stem,
+        person.local_build / "staging" / "containers" / document.document_id,
+    )
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
     return None
 
 

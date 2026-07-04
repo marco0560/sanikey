@@ -80,11 +80,7 @@ def inspect_patient_documents(
             for study in dicom_studies
             for warning in study.warnings
         ),
-        *(
-            f"{document.path}: {warning}"
-            for document in documents
-            for warning in _static_document_warnings(document)
-        ),
+        *(static_document_warning_messages(documents)),
     )
     preflight_warning_messages = (
         _preflight_warning_messages(documents) if preflight else ()
@@ -96,6 +92,29 @@ def inspect_patient_documents(
         dicom_studies=dicom_studies,
         warning_messages=warning_messages,
         preflight_warning_messages=preflight_warning_messages,
+    )
+
+
+def static_document_warning_messages(
+    documents: tuple[DocumentRecord, ...],
+) -> tuple[str, ...]:
+    """Format static document warnings with source paths.
+
+    Parameters
+    ----------
+    documents : tuple[DocumentRecord, ...]
+        Documents to inspect.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Static warning messages.
+    """
+
+    return tuple(
+        f"{document.path}: {warning}"
+        for document in documents
+        for warning in _static_document_warnings(document)
     )
 
 

@@ -2477,10 +2477,14 @@ Il sistema deve:
 * conservare l'archivio originale;
 * calcolare SHA256 sull'archivio originale;
 * estrarre un inventario testuale dei file contenuti;
+* estrarre i membri in una staging area generata durante la build;
+* calcolare SHA256 dei membri estratti;
+* registrare provenance verso il contenitore originale e il path interno;
 * segnalare con warning archivi cifrati, corrotti o non leggibili.
 
-L'implementazione iniziale non espande automaticamente gli archivi nei documenti
-interni. L'inventario serve per ricerca, audit manuale e diagnosi preliminare.
+Il contenitore originale resta la sorgente autorevole. I membri estratti sono
+artefatti generati e possono entrare nella pipeline documentale ordinaria come
+documenti derivati.
 
 #### 6.11.2 Documenti Office e OpenDocument
 
@@ -2491,6 +2495,14 @@ Per documenti legacy `.doc` e `.xls`, l'estrazione richiede LibreOffice o
 
 Se l'estrazione non è possibile, il documento deve restare catalogato e il
 problema deve essere registrato come warning.
+
+#### 6.11.3 DICOM nei contenitori
+
+I file DICOM rilevati dentro archivi o immagini disco estratte in staging devono
+essere catalogati come documenti DICOM derivati.
+
+Non devono essere inviati alla pipeline OCR o all'estrazione testo ordinaria.
+La provenance deve collegare ogni file DICOM interno al contenitore originale.
 
 ---
 
@@ -9689,8 +9701,8 @@ XLS
 
 sono considerati formati supportati.
 
-Per `ZIP`, `7Z` e `RAR` il supporto iniziale consiste nell'inventario dei file
-contenuti, non nell'espansione automatica e ingestione ricorsiva dei contenuti.
+Per `ZIP`, `7Z`, `RAR` e `DICOM ISO`, il supporto include l'inventario del
+contenitore e la staging dei membri estratti come artefatti generati.
 Per `DOC` e `XLS` il supporto dipende dalla presenza di LibreOffice o `soffice`
 nel sistema locale di build.
 

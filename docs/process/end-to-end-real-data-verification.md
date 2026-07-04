@@ -280,6 +280,17 @@ L'output deve essere un riepilogo multi-riga leggibile, non una riga JSON
 minificata. Annotare il percorso `report=...`: contiene il dettaglio completo
 dei warning e deve essere consultato se `warnings` e' maggiore di zero.
 
+Se sono presenti archivi o immagini ISO, verificare anche il manifest di
+staging:
+
+```bash
+python -m json.tool local-data/generated/marco/manifests/container_staging.json | less
+```
+
+Controllare che ogni membro estratto abbia `container_id`, `internal_path`,
+`sha256` e `path`. I file DICOM interni devono risultare catalogati come DICOM
+derivati, non trattati come documenti OCR o testo ordinario.
+
 Eseguire una build incrementale ripetuta:
 
 ```bash
