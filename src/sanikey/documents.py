@@ -357,7 +357,11 @@ def _extract_pdf_text_with_pymupdf(document: DocumentRecord) -> ExtractedText | 
         import fitz
     except ImportError:
         return None
+    display_errors = bool(fitz.TOOLS.mupdf_display_errors())
+    display_warnings = bool(fitz.TOOLS.mupdf_display_warnings())
     try:
+        fitz.TOOLS.mupdf_display_errors(False)
+        fitz.TOOLS.mupdf_display_warnings(False)
         with fitz.open(document.path) as pdf:
             text = "\n".join(page.get_text() for page in pdf)
     except (fitz.FileDataError, RuntimeError, ValueError) as exc:
@@ -369,6 +373,9 @@ def _extract_pdf_text_with_pymupdf(document: DocumentRecord) -> ExtractedText | 
                 f"if available: {exc}",
             ),
         )
+    finally:
+        fitz.TOOLS.mupdf_display_errors(display_errors)
+        fitz.TOOLS.mupdf_display_warnings(display_warnings)
     return ExtractedText(document_id=document.document_id, text=text)
 
 

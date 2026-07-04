@@ -724,6 +724,65 @@ usb_uuid = "1A2B-3C4D"
     assert "warning_messages=see report" in result.stdout
 
 
+def test_build_patient_subcommand_prints_pymupdf_warning_path(
+    tmp_path: Path,
+) -> None:
+    """Verify build output includes file paths for PyMuPDF warnings.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir(parents=True)
+    pdf_path = source / "20260102 Malformed Report.pdf"
+    pdf_path.write_bytes(b"%PDF-1.7\nnot a valid page tree\n")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "build-patient",
+            "patient-a",
+            "--config",
+            str(config_path),
+            "--mode",
+            "full",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    combined_output = result.stdout + result.stderr
+    assert result.returncode == 0
+    assert "MuPDF error" not in combined_output
+    assert f"WARNING: {pdf_path}: PyMuPDF could not extract PDF text" in result.stdout
+
+
 def test_build_patient_subcommand_hides_unexpected_tracebacks(tmp_path: Path) -> None:
     """Verify runtime failures are reported without stack dumps.
 

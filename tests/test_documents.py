@@ -304,6 +304,7 @@ def test_extract_text_reads_image_only_pdf_with_ocrmypdf(tmp_path: Path) -> None
 def test_extract_text_falls_back_to_ocr_when_pymupdf_raises(
     tmp_path: Path,
     monkeypatch,
+    capsys,
 ) -> None:
     """Verify malformed PDFs keep PyMuPDF warning and continue with OCR.
 
@@ -313,6 +314,8 @@ def test_extract_text_falls_back_to_ocr_when_pymupdf_raises(
         Temporary directory provided by pytest.
     monkeypatch : pytest.MonkeyPatch
         Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
 
     Returns
     -------
@@ -335,17 +338,21 @@ def test_extract_text_falls_back_to_ocr_when_pymupdf_raises(
     monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
 
     extracted = extract_text(document)
+    captured = capsys.readouterr()
 
     assert extracted.text == "ocr text after pymupdf failure"
     assert len(extracted.warnings) == 1
     assert extracted.warnings[0].startswith(
         "PyMuPDF could not extract PDF text; falling back to OCRmyPDF if available:"
     )
+    assert "MuPDF error" not in captured.out
+    assert "MuPDF error" not in captured.err
 
 
 def test_extract_text_warns_when_pymupdf_raises_without_ocr(
     tmp_path: Path,
     monkeypatch,
+    capsys,
 ) -> None:
     """Verify malformed PDFs are reported when OCR is unavailable.
 
@@ -355,6 +362,8 @@ def test_extract_text_warns_when_pymupdf_raises_without_ocr(
         Temporary directory provided by pytest.
     monkeypatch : pytest.MonkeyPatch
         Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
 
     Returns
     -------
@@ -371,12 +380,15 @@ def test_extract_text_warns_when_pymupdf_raises_without_ocr(
     monkeypatch.setattr(documents_module.shutil, "which", lambda _: None)
 
     extracted = extract_text(document)
+    captured = capsys.readouterr()
 
     assert extracted.text == ""
     assert len(extracted.warnings) == 1
     assert extracted.warnings[0].startswith(
         "PyMuPDF could not extract PDF text; falling back to OCRmyPDF if available:"
     )
+    assert "MuPDF error" not in captured.out
+    assert "MuPDF error" not in captured.err
 
 
 def test_extract_text_keeps_sufficient_pymupdf_text(

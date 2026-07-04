@@ -967,10 +967,29 @@ def _print_build_result(result: PatientBuildResult) -> None:
     print(f"checksums={result.checksums}")
     print(f"report={result.report}")
     for warning in result.warning_messages:
-        if warning.startswith("duplicate document content skipped."):
+        if _should_print_build_warning(warning):
             print(f"WARNING: {warning}")
     if result.warnings:
         print("warning_messages=see report")
+
+
+def _should_print_build_warning(warning: str) -> bool:
+    """Return whether a build warning should be visible on stdout.
+
+    Parameters
+    ----------
+    warning : str
+        Warning message.
+
+    Returns
+    -------
+    bool
+        ``True`` for warnings that need immediate operator attention.
+    """
+
+    return warning.startswith("duplicate document content skipped.") or (
+        "PyMuPDF could not extract PDF text" in warning
+    )
 
 
 def _add_config_arguments(parser: argparse.ArgumentParser) -> None:
