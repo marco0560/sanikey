@@ -239,8 +239,19 @@ Eseguire una scansione preliminare dei documenti:
 uv run sanikey scan-documents --config config/accounts.toml
 ```
 
-Il comando stampa solo il riepilogo per paziente e gli eventuali warning. Per
-leggere a schermo l'inventario dei documenti ingeriti:
+Il comando stampa solo il riepilogo per paziente e gli eventuali warning
+rilevabili senza build completa. Eseguire anche il preflight leggero prima di
+una build lunga:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml --preflight
+```
+
+Il preflight controlla archivi e documenti Office moderni/OpenDocument senza
+eseguire OCR PDF e senza convertire documenti legacy Office. Se compaiono
+warning inattesi, fermarsi e risolverli o annotarli prima di proseguire.
+
+Per leggere a schermo l'inventario dei documenti ingeriti:
 
 ```bash
 uv run sanikey scan-documents --config config/accounts.toml --verbose

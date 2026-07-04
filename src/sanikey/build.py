@@ -9,16 +9,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
 from .database import build_database
-from .dicom import catalog_dicom_studies
-from .documents import (
-    duplicate_document_warnings,
-    extract_text,
-    find_duplicate_documents,
-    scan_document_inventory,
-    scan_documents,
-)
+from .documents import extract_text
 from .exports import generate_exports
 from .frontend import build_frontend
+from .inspection import extraction_warning_messages, inspect_patient_documents
 from .metadata import load_curated_metadata
 
 if TYPE_CHECKING:
@@ -95,27 +89,16 @@ def build_patient(
         raise ValueError(msg)
     build_root = person.local_build
     build_root.mkdir(parents=True, exist_ok=True)
-    inventory = scan_document_inventory(person)
-    duplicates = find_duplicate_documents(inventory)
-    documents = scan_documents(person)
+    inspection = inspect_patient_documents(person)
+    documents = inspection.documents
     metadata = load_curated_metadata(person.metadata_directory)
-    dicom_studies = catalog_dicom_studies(person, documents)
     extracted = tuple(extract_text(document) for document in documents)
     warning_messages = (
-        *duplicate_document_warnings(duplicates),
-        *(
-            f"{document.path}: {warning}"
-            for document, extracted_item in zip(documents, extracted, strict=True)
-            for warning in extracted_item.warnings
-        ),
-        *(
-            f"{study.support_path}: {warning}"
-            for study in dicom_studies
-            for warning in study.warnings
-        ),
+        *inspection.warning_messages,
+        *extraction_warning_messages(documents, extracted),
     )
     warnings = len(warning_messages)
-    db_result = build_database(person, documents, metadata, dicom_studies)
+    db_result = build_database(person, documents, metadata, inspection.dicom_studies)
     manifest_path = _write_manifest(
         person,
         build_root=build_root,
@@ -127,7 +110,7 @@ def build_patient(
         person,
         build_root=build_root,
         documents=len(documents),
-        duplicates=len(duplicates),
+        duplicates=len(inspection.duplicates),
         warning_messages=warning_messages,
     )
     generate_exports(person, documents, metadata)
@@ -137,7 +120,7 @@ def build_patient(
         patient_id=person.id,
         build_root=build_root,
         documents=len(documents),
-        duplicates=len(duplicates),
+        duplicates=len(inspection.duplicates),
         warnings=warnings,
         warning_messages=warning_messages,
         database=db_result.path,

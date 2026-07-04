@@ -90,6 +90,19 @@ Per verificare il numero di file rilevati senza stampare l'intero inventario:
 uv run sanikey scan-documents --config config/accounts.toml
 ```
 
+Il comando segnala anche warning rilevabili senza build completa, come
+duplicati, file con estensione non supportata e supporti DICOM senza directory
+di espansione manuale.
+
+Per eseguire anche controlli preliminari leggeri su archivi e documenti Office:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml --preflight
+```
+
+`--preflight` non esegue OCR PDF e non converte documenti legacy Office, ma può
+individuare prima della build archivi corrotti o documenti Office non leggibili.
+
 Per ispezionare a schermo la lista dei documenti ingeriti:
 
 ```bash

@@ -13,15 +13,13 @@ from .config import default_accounts_path, load_accounts
 from .database import build_database
 from .dicom import catalog_dicom_studies
 from .documents import (
-    duplicate_document_warnings,
     extract_text,
-    find_duplicate_documents,
-    scan_document_inventory,
     scan_documents,
 )
 from .errors import SaniKeyError
 from .exports import generate_exports
 from .frontend import build_frontend
+from .inspection import inspect_patient_documents
 from .metadata import load_curated_metadata
 from .privacy import validate_privacy
 from .proposals import generate_manual_proposals, review_proposal
@@ -101,6 +99,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("text", "csv"),
         default=None,
         help="Output file format, valid only with --output",
+    )
+    scan_parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Run lightweight pre-build checks for archives and office documents",
     )
     scan_parser.set_defaults(func=run_scan_documents)
 
@@ -315,18 +318,21 @@ def run_scan_documents(args: argparse.Namespace) -> int:
         return 1
     output_rows: list[tuple[PersonConfig, DocumentRecord]] = []
     for person in _selected_people(config, args.patient):
-        inventory = scan_document_inventory(person)
-        documents = scan_documents(person)
-        duplicates = find_duplicate_documents(inventory)
-        print(
-            f"patient={person.id} files={len(inventory)} "
-            f"documents={len(documents)} duplicates={len(duplicates)}"
+        inspection = inspect_patient_documents(person, preflight=args.preflight)
+        warning_messages = (
+            *inspection.warning_messages,
+            *inspection.preflight_warning_messages,
         )
-        for warning in duplicate_document_warnings(duplicates):
+        print(
+            f"patient={person.id} files={len(inspection.inventory)} "
+            f"documents={len(inspection.documents)} "
+            f"duplicates={len(inspection.duplicates)} warnings={len(warning_messages)}"
+        )
+        for warning in warning_messages:
             print(f"WARNING: {warning}")
         if args.verbose:
-            print(_format_scan_verbose(person, documents))
-        output_rows.extend((person, document) for document in documents)
+            print(_format_scan_verbose(person, inspection.documents))
+        output_rows.extend((person, document) for document in inspection.documents)
     if args.output is not None:
         try:
             _write_scan_output(

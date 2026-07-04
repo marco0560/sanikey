@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import warnings
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -609,26 +610,35 @@ def _extract_xlsx_text(document: DocumentRecord) -> ExtractedText:
         import openpyxl
         from openpyxl.utils.exceptions import InvalidFileException
 
-        workbook = openpyxl.load_workbook(
-            document.path,
-            read_only=True,
-            data_only=True,
-        )
-        parts = []
-        for worksheet in workbook.worksheets:
-            parts.append(f"[{worksheet.title}]")
-            for row in worksheet.iter_rows(values_only=True):
-                values = [str(value) for value in row if value is not None]
-                if values:
-                    parts.append("\t".join(values))
-        workbook.close()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            workbook = openpyxl.load_workbook(
+                document.path,
+                read_only=True,
+                data_only=True,
+            )
+            parts = []
+            for worksheet in workbook.worksheets:
+                parts.append(f"[{worksheet.title}]")
+                for row in worksheet.iter_rows(values_only=True):
+                    values = [str(value) for value in row if value is not None]
+                    if values:
+                        parts.append("\t".join(values))
+            workbook.close()
     except (InvalidFileException, OSError, ValueError, zipfile.BadZipFile) as exc:
         return ExtractedText(
             document_id=document.document_id,
             text="",
             warnings=(f"XLSX text extraction failed: {exc}",),
         )
-    return ExtractedText(document_id=document.document_id, text="\n".join(parts))
+    warning_messages = tuple(
+        dict.fromkeys(f"XLSX compatibility warning: {item.message}" for item in caught)
+    )
+    return ExtractedText(
+        document_id=document.document_id,
+        text="\n".join(parts),
+        warnings=warning_messages,
+    )
 
 
 def _extract_odf_text(document: DocumentRecord) -> ExtractedText:

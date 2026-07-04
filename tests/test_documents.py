@@ -306,6 +306,120 @@ def test_extract_text_reads_xlsx_workbooks(tmp_path: Path) -> None:
     assert extracted.warnings == ()
 
 
+def test_extract_text_captures_xlsx_library_warnings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify XLSX library warnings are returned as extraction warnings.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    import warnings
+
+    import openpyxl
+
+    class FakeWorksheet:
+        """Minimal worksheet for XLSX extraction tests.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
+        title = "Sheet"
+
+        def iter_rows(self, *, values_only: bool):
+            """Return synthetic row values.
+
+            Parameters
+            ----------
+            values_only : bool
+                Whether cell values are requested.
+
+            Returns
+            -------
+            tuple[tuple[str]]
+                Synthetic rows.
+            """
+
+            assert values_only is True
+            return (("Synthetic cell",),)
+
+    class FakeWorkbook:
+        """Minimal workbook for XLSX extraction tests.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
+        worksheets = (FakeWorksheet(),)
+
+        def close(self) -> None:
+            """Close the fake workbook.
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            None
+            """
+
+    def fake_load_workbook(*_args, **_kwargs):
+        """Return a workbook while emitting an XLSX parser warning.
+
+        Parameters
+        ----------
+        *_args : object
+            Positional arguments ignored by the fake.
+        **_kwargs : object
+            Keyword arguments ignored by the fake.
+
+        Returns
+        -------
+        FakeWorkbook
+            Synthetic workbook.
+        """
+
+        warnings.warn("Data Validation extension is not supported", stacklevel=2)
+        return FakeWorkbook()
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Workbook.xlsx"
+    path.write_bytes(b"xlsx")
+    document = scan_documents(person)[0]
+    monkeypatch.setattr(openpyxl, "load_workbook", fake_load_workbook)
+
+    extracted = extract_text(document)
+
+    assert "Synthetic cell" in extracted.text
+    assert extracted.warnings == (
+        "XLSX compatibility warning: Data Validation extension is not supported",
+    )
+
+
 def test_extract_text_reads_odt_documents(tmp_path: Path) -> None:
     """Verify ODT text extraction.
 

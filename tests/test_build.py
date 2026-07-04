@@ -250,3 +250,29 @@ def test_build_patient_skips_duplicate_content_with_warning(tmp_path: Path) -> N
     assert report["documents"] == 1
     assert report["duplicates"] == 1
     assert report["warning_messages"] == list(result.warning_messages)
+
+
+def test_build_patient_does_not_duplicate_static_scan_warnings(
+    tmp_path: Path,
+) -> None:
+    """Verify static scan warnings are not duplicated by extraction.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Photo.jpg").write_bytes(b"photo")
+
+    result = build_patient(person, mode="full")
+
+    assert result.warnings == 1
+    assert len(result.warning_messages) == 1
+    assert "unsupported text extraction for .jpg" in result.warning_messages[0]

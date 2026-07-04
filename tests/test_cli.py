@@ -508,6 +508,170 @@ usb_uuid = "1A2B-3C4D"
     assert warning_lines[2].endswith("20260103 B.txt")
 
 
+def test_scan_documents_reports_static_problem_warnings(tmp_path: Path) -> None:
+    """Verify scan-documents reports fast pre-build diagnostics.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "20260102 Photo.jpg").write_bytes(b"photo")
+    (source / "20260103 Study.zip").write_bytes(b"zip")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "documents=2 duplicates=0 warnings=2" in result.stdout
+    assert "unsupported text extraction for .jpg" in result.stdout
+    assert "manual DICOM expansion directory not found" in result.stdout
+
+
+def test_scan_documents_preflight_reports_corrupt_office_file(
+    tmp_path: Path,
+) -> None:
+    """Verify scan-documents preflight reports lightweight extraction warnings.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "20260102 Broken.docx").write_bytes(b"not a docx")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+            "--preflight",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "documents=1 duplicates=0 warnings=1" in result.stdout
+    assert "DOCX text extraction failed" in result.stdout
+
+
+def test_scan_documents_preflight_skips_legacy_office_conversion(
+    tmp_path: Path,
+) -> None:
+    """Verify scan preflight does not convert legacy Office files.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "20260102 Legacy.doc").write_bytes(b"legacy")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+            "--preflight",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "documents=1 duplicates=0 warnings=0" in result.stdout
+    assert "LibreOffice" not in result.stdout
+
+
 def test_process_dicom_subcommand_runs(tmp_path: Path) -> None:
     """Verify process-dicom catalogs original DICOM supports.
 
