@@ -972,6 +972,11 @@ def _print_build_result(result: PatientBuildResult) -> None:
         f"documents={result.documents} duplicates={result.duplicates} "
         f"warnings={result.warnings}"
     )
+    print(
+        f"derived_documents={result.derived_documents} "
+        f"dicom_instances={result.dicom_instances} "
+        f"total_records={result.total_records}"
+    )
     print(f"build_root={result.build_root}")
     print(f"database={result.database}")
     print(f"manifest={result.manifest}")

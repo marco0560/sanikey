@@ -180,7 +180,7 @@ def _preflight_document_warnings(document: DocumentRecord) -> tuple[str, ...]:
         return ()
     if suffix in {".doc", ".xls"}:
         return ()
-    if document.kind not in {"archive", "office"}:
+    if document.kind not in {"archive", "image", "office"}:
         return ()
     extracted = extract_text(document)
     return extracted.warnings

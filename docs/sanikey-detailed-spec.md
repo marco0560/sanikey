@@ -2448,10 +2448,28 @@ Questa distinzione serve esclusivamente a determinare il metodo di estrazione de
 
 ---
 
+### 6.10.1 Immagini sorgente
+
+I file immagine `.jpg`, `.jpeg` e `.png` presenti nei documenti sorgente sono
+documenti di tipo `image`.
+
+Durante l'ingestione Linux il testo viene estratto tramite il comando di sistema
+`tesseract`. Quando i language pack `ita` ed `eng` sono disponibili, la pipeline
+usa `ita+eng`; in caso contrario usa la lingua predefinita di Tesseract.
+
+Se Tesseract non e' disponibile o fallisce, l'immagine resta catalogata e il
+problema viene registrato come warning di OCR immagine saltato.
+
+---
+
 ### 6.11 Supporti DICOM
 
 Un documento `dicom_iso` o `dicom_zip` rappresenta un supporto consegnato da
 una struttura sanitaria e contenente uno studio diagnostico.
+
+I file DICOM interni sono catalogati come istanze diagnostiche e non sono
+inviati alla pipeline OCR o all'estrazione testo ordinaria. Questa condizione
+non costituisce warning: e' il comportamento atteso per i DICOM catalog-only.
 
 Esempio:
 
@@ -2494,6 +2512,10 @@ I membri tecnici non clinici, per esempio runtime Java, DLL, help HTML o asset
 dei viewer inclusi nei supporti, devono restare nel manifest di staging ma non
 devono essere trattati come documenti clinici da indicizzare o da inviare
 all'estrazione testo ordinaria.
+
+I path tecnici dei viewer, inclusi segmenti come `Help`, `Manual`,
+`Viewer-Windows`, `jre` e `assets`, sono manifest-only. PDF esterni a tali path
+continuano a essere trattati come documenti derivati ordinari.
 
 #### 6.11.2 Documenti Office e OpenDocument
 

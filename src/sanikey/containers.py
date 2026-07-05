@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .models import DocumentRecord
 
 CONTAINER_SUFFIXES = {".7z", ".iso", ".rar", ".zip"}
+TECHNICAL_PATH_SEGMENTS = {"assets", "help", "jre", "manual", "viewer-windows"}
 
 
 @dataclass(frozen=True)
@@ -220,7 +221,32 @@ def _should_ingest_staged_document(document: DocumentRecord) -> bool:
         ``True`` for clinically relevant document-like members.
     """
 
+    if _is_technical_container_path(document.internal_path):
+        return False
     return document.kind in {"dicom_file", "office", "pdf", "text"}
+
+
+def _is_technical_container_path(internal_path: str | None) -> bool:
+    """Return whether a staged member belongs to known viewer/support paths.
+
+    Parameters
+    ----------
+    internal_path : str | None
+        Member path inside the container.
+
+    Returns
+    -------
+    bool
+        ``True`` when any path segment is a known technical support directory.
+    """
+
+    if internal_path is None:
+        return False
+    segments = (segment.lower() for segment in PurePosixPath(internal_path).parts)
+    return any(
+        segment in TECHNICAL_PATH_SEGMENTS or segment.startswith("manuale")
+        for segment in segments
+    )
 
 
 def _extract_container(container: DocumentRecord, target: Path) -> None:

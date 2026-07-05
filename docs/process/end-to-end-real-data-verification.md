@@ -254,9 +254,11 @@ una build lunga:
 uv run sanikey scan-documents --config config/accounts.toml --preflight
 ```
 
-Il preflight controlla archivi e documenti Office moderni/OpenDocument senza
-eseguire OCR PDF e senza convertire documenti legacy Office. Se compaiono
-warning inattesi, fermarsi e risolverli o annotarli prima di proseguire.
+Il preflight controlla archivi, immagini e documenti Office moderni/OpenDocument
+senza eseguire OCR PDF e senza convertire documenti legacy Office. Per le
+immagini verifica anche la disponibilita' del provider OCR `tesseract`. Se
+compaiono warning inattesi, fermarsi e risolverli o annotarli prima di
+proseguire.
 
 Per leggere a schermo l'inventario dei documenti ingeriti:
 
@@ -286,6 +288,9 @@ uv run sanikey build-patient marco --config config/accounts.toml --mode full
 L'output deve essere un riepilogo multi-riga leggibile, non una riga JSON
 minificata. Annotare il percorso `report=...`: contiene il dettaglio completo
 dei warning e deve essere consultato se `warnings` e' maggiore di zero.
+`documents=` conta solo i documenti sorgente deduplicati; usare
+`derived_documents=`, `dicom_instances=` e `total_records=` per valutare quanto
+deriva da contenitori e supporti diagnostici.
 
 Se sono presenti archivi o immagini ISO, verificare anche il manifest di
 staging:
@@ -296,7 +301,9 @@ python -m json.tool local-data/generated/marco/manifests/container_staging.json 
 
 Controllare che ogni membro estratto abbia `container_id`, `internal_path`,
 `sha256` e `path`. I file DICOM interni devono risultare catalogati come DICOM
-derivati, non trattati come documenti OCR o testo ordinario.
+derivati, non trattati come documenti OCR o testo ordinario. I path tecnici dei
+viewer, ad esempio `Help`, `Manual`, `Viewer-Windows`, `jre` e `assets`, devono
+restare nel manifest ma non comparire come documenti derivati nel database.
 
 Eseguire una build incrementale ripetuta:
 

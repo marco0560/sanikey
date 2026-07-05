@@ -687,8 +687,8 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "documents=2 duplicates=0 warnings=2" in result.stdout
-    assert "unsupported text extraction for .jpg" in result.stdout
+    assert "documents=2 duplicates=0 warnings=1" in result.stdout
+    assert "unsupported text extraction for .jpg" not in result.stdout
     assert "manual DICOM expansion directory not found" in result.stdout
 
 
@@ -955,6 +955,7 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "patient=patient-a status=ok" in result.stdout
     assert "documents=1 duplicates=0 warnings=0" in result.stdout
+    assert "derived_documents=0 dicom_instances=0 total_records=1" in result.stdout
     assert '"patient_id": "patient-a"' not in result.stdout
     assert (tmp_path / "generated" / "manifests" / "manifest.json").is_file()
 

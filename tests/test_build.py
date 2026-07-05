@@ -14,6 +14,8 @@ from sanikey.config import AccountsConfig, PersonConfig
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import pytest
+
 
 def _person(tmp_path: Path) -> PersonConfig:
     """Build a synthetic patient config.
@@ -62,12 +64,20 @@ def test_build_patient_writes_manifest_report_checksums(tmp_path: Path) -> None:
     result = build_patient(person, mode="full")
 
     assert result.documents == 1
+    assert result.derived_documents == 0
+    assert result.dicom_instances == 0
+    assert result.total_records == 1
     assert result.database.is_file()
     assert result.manifest.is_file()
     assert result.report.is_file()
     assert result.checksums.is_file()
     manifest = json.loads(result.manifest.read_text(encoding="utf-8"))
+    report = json.loads(result.report.read_text(encoding="utf-8"))
     assert manifest["patient_id"] == "patient-a"
+    assert report["documents"] == 1
+    assert report["derived_documents"] == 0
+    assert report["dicom_instances"] == 0
+    assert report["total_records"] == 1
     assert "database/medical_archive.db" in result.checksums.read_text(encoding="utf-8")
 
 
@@ -254,15 +264,18 @@ def test_build_patient_skips_duplicate_content_with_warning(tmp_path: Path) -> N
     assert report["warning_messages"] == list(result.warning_messages)
 
 
-def test_build_patient_does_not_duplicate_static_scan_warnings(
+def test_build_patient_reports_image_ocr_provider_warnings(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify static scan warnings are not duplicated by extraction.
+    """Verify image OCR provider warnings are reported once.
 
     Parameters
     ----------
     tmp_path : pathlib.Path
         Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
 
     Returns
     -------
@@ -272,12 +285,13 @@ def test_build_patient_does_not_duplicate_static_scan_warnings(
     person = _person(tmp_path)
     person.source_documents.mkdir(parents=True)
     (person.source_documents / "20260102 Photo.jpg").write_bytes(b"photo")
+    monkeypatch.setattr("sanikey.documents.shutil.which", lambda _: None)
 
     result = build_patient(person, mode="full")
 
     assert result.warnings == 1
     assert len(result.warning_messages) == 1
-    assert "unsupported text extraction for .jpg" in result.warning_messages[0]
+    assert "Tesseract not installed; image OCR skipped" in result.warning_messages[0]
 
 
 def test_build_patient_stages_container_members_with_provenance(
@@ -319,7 +333,11 @@ def test_build_patient_stages_container_members_with_provenance(
             "SELECT count(*) FROM dicom_studies"
         ).fetchone()[0]
 
-    assert result.documents == 3
+    assert result.documents == 1
+    assert result.derived_documents == 2
+    assert result.dicom_instances == 1
+    assert result.total_records == 3
+    assert result.warnings == 0
     assert len(staging_payload["members"]) == 2
     assert "staging/containers" in result.checksums.read_text(encoding="utf-8")
     assert any(row[0] == "text" and row[1] == "container" for row in rows)

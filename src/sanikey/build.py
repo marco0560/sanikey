@@ -28,6 +28,28 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class BuildCounts:
+    """Build document counters.
+
+    Parameters
+    ----------
+    documents : int
+        Source document count.
+    derived_documents : int
+        Derived document count.
+    dicom_instances : int
+        DICOM instance count.
+    total_records : int
+        Total source and derived document records.
+    """
+
+    documents: int
+    derived_documents: int
+    dicom_instances: int
+    total_records: int
+
+
+@dataclass(frozen=True)
 class PatientBuildResult:
     """Build result for one patient.
 
@@ -38,7 +60,13 @@ class PatientBuildResult:
     build_root : pathlib.Path
         Patient build root.
     documents : int
-        Scanned document count.
+        Source document count.
+    derived_documents : int
+        Derived document count.
+    dicom_instances : int
+        DICOM instance count.
+    total_records : int
+        Total source and derived document records.
     duplicates : int
         Duplicate digest count.
     warnings : int
@@ -58,6 +86,9 @@ class PatientBuildResult:
     patient_id: str
     build_root: Path
     documents: int
+    derived_documents: int
+    dicom_instances: int
+    total_records: int
     duplicates: int
     warnings: int
     warning_messages: tuple[str, ...]
@@ -100,7 +131,10 @@ def build_patient(
     documents = (*inspection.documents, *staging.documents)
     dicom_studies = catalog_dicom_studies(person, documents)
     metadata = load_curated_metadata(person.metadata_directory)
-    extracted = tuple(extract_text(document) for document in documents)
+    extraction_documents = tuple(
+        document for document in documents if not document.kind.startswith("dicom_")
+    )
+    extracted = tuple(extract_text(document) for document in extraction_documents)
     inspection_warnings = tuple(
         warning
         for warning in inspection.warning_messages
@@ -116,21 +150,29 @@ def build_patient(
         *static_document_warning_messages(staging.documents),
         *dicom_warnings,
         *staging.warning_messages,
-        *extraction_warning_messages(documents, extracted),
+        *extraction_warning_messages(extraction_documents, extracted),
     )
     warnings = len(warning_messages)
+    counts = BuildCounts(
+        documents=len(inspection.documents),
+        derived_documents=len(staging.documents),
+        dicom_instances=sum(
+            1 for document in documents if document.kind == "dicom_file"
+        ),
+        total_records=len(documents),
+    )
     db_result = build_database(person, documents, metadata, dicom_studies)
     manifest_path = _write_manifest(
         person,
         build_root=build_root,
         mode=mode,
-        documents=len(documents),
+        documents=counts.documents,
         warnings=warnings,
     )
     report_path = _write_report(
         person,
         build_root=build_root,
-        documents=len(documents),
+        counts=counts,
         duplicates=len(inspection.duplicates),
         warning_messages=warning_messages,
     )
@@ -140,7 +182,10 @@ def build_patient(
     return PatientBuildResult(
         patient_id=person.id,
         build_root=build_root,
-        documents=len(documents),
+        documents=counts.documents,
+        derived_documents=counts.derived_documents,
+        dicom_instances=counts.dicom_instances,
+        total_records=counts.total_records,
         duplicates=len(inspection.duplicates),
         warnings=warnings,
         warning_messages=warning_messages,
@@ -256,7 +301,7 @@ def _write_report(
     person: PersonConfig,
     *,
     build_root: Path,
-    documents: int,
+    counts: BuildCounts,
     duplicates: int,
     warning_messages: tuple[str, ...],
 ) -> Path:
@@ -268,8 +313,8 @@ def _write_report(
         Patient configuration.
     build_root : pathlib.Path
         Build root.
-    documents : int
-        Document count.
+    counts : BuildCounts
+        Build document counters.
     duplicates : int
         Duplicate count.
     warning_messages : tuple[str, ...]
@@ -285,7 +330,10 @@ def _write_report(
     target.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "patient_id": person.id,
-        "documents": documents,
+        "documents": counts.documents,
+        "derived_documents": counts.derived_documents,
+        "dicom_instances": counts.dicom_instances,
+        "total_records": counts.total_records,
         "duplicates": duplicates,
         "warnings": len(warning_messages),
         "warning_messages": list(warning_messages),

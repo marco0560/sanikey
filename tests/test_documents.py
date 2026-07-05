@@ -138,6 +138,30 @@ def test_scan_documents_detects_dicom_magic_without_extension(
     assert documents[0].kind == "dicom_file"
 
 
+def test_scan_documents_classifies_images(tmp_path: Path) -> None:
+    """Verify clinical image files are first-class image documents.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    (document_dir / "20260102 Photo.jpg").write_bytes(b"image")
+    (document_dir / "20260103 Scan.PNG").write_bytes(b"image")
+
+    documents = scan_document_inventory(person)
+
+    assert [document.kind for document in documents] == ["image", "image"]
+
+
 def test_duplicate_detection_skips_duplicate_content_with_warning(
     tmp_path: Path,
 ) -> None:
@@ -201,6 +225,182 @@ def test_extract_text_reads_text_files(tmp_path: Path) -> None:
     extracted = extract_text(document)
 
     assert extracted.text == "hello"
+    assert extracted.warnings == ()
+
+
+def test_extract_text_reads_images_with_tesseract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify image OCR uses Tesseract with preferred Italian and English.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    commands: list[list[str]] = []
+
+    def fake_run(command, **_kwargs):
+        """Return synthetic Tesseract command results.
+
+        Parameters
+        ----------
+        command : list[str]
+            Command under test.
+        **_kwargs : object
+            Keyword arguments ignored by the fake.
+
+        Returns
+        -------
+        subprocess.CompletedProcess[str]
+            Synthetic command result.
+        """
+
+        commands.append(list(command))
+        if command[1:] == ["--list-langs"]:
+            return subprocess.CompletedProcess(command, 0, "eng\nita\n", "")
+        assert command[-2:] == ["-l", "ita+eng"]
+        return subprocess.CompletedProcess(command, 0, "ocr text\n", "")
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Photo.jpg"
+    path.write_bytes(b"image")
+    document = scan_documents(person)[0]
+    monkeypatch.setattr(
+        documents_module.shutil, "which", lambda _: "/usr/bin/tesseract"
+    )
+    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == "ocr text"
+    assert extracted.warnings == ()
+    assert commands[0] == ["/usr/bin/tesseract", "--list-langs"]
+
+
+def test_extract_text_falls_back_to_default_tesseract_language(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify image OCR omits language arguments when packs are unavailable.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    commands: list[list[str]] = []
+
+    def fake_run(command, **_kwargs):
+        """Return synthetic Tesseract command results.
+
+        Parameters
+        ----------
+        command : list[str]
+            Command under test.
+        **_kwargs : object
+            Keyword arguments ignored by the fake.
+
+        Returns
+        -------
+        subprocess.CompletedProcess[str]
+            Synthetic command result.
+        """
+
+        commands.append(list(command))
+        if command[1:] == ["--list-langs"]:
+            return subprocess.CompletedProcess(command, 0, "eng\n", "")
+        return subprocess.CompletedProcess(command, 0, "default text\n", "")
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Photo.png"
+    path.write_bytes(b"image")
+    document = scan_documents(person)[0]
+    monkeypatch.setattr(
+        documents_module.shutil, "which", lambda _: "/usr/bin/tesseract"
+    )
+    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == "default text"
+    assert "-l" not in commands[1]
+
+
+def test_extract_text_warns_when_tesseract_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify missing Tesseract produces an actionable image OCR warning.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Photo.jpeg"
+    path.write_bytes(b"image")
+    document = scan_documents(person)[0]
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: None)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == ""
+    assert extracted.warnings == ("Tesseract not installed; image OCR skipped",)
+
+
+def test_extract_text_dicom_is_catalog_only_without_warning(tmp_path: Path) -> None:
+    """Verify DICOM documents do not produce extraction warnings.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "image.dcm"
+    path.write_bytes((b"\0" * 128) + b"DICM")
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert extracted.text == ""
     assert extracted.warnings == ()
 
 
@@ -441,7 +641,8 @@ def test_extract_text_captures_xlsx_library_warnings(
 
     assert "Synthetic cell" in extracted.text
     assert extracted.warnings == (
-        "XLSX compatibility warning: Data Validation extension is not supported",
+        "XLSX text extracted; workbook compatibility feature not preserved: "
+        "Data Validation extension is not supported",
     )
 
 
@@ -588,8 +789,8 @@ def test_extract_text_warns_for_corrupt_office_documents(
     assert extracted.warnings
 
 
-def test_extract_text_warns_for_dicom_support(tmp_path: Path) -> None:
-    """Verify DICOM support files are catalog-only in v1.
+def test_extract_text_skips_dicom_support_without_warning(tmp_path: Path) -> None:
+    """Verify DICOM support files are catalog-only without warnings.
 
     Parameters
     ----------
@@ -611,7 +812,7 @@ def test_extract_text_warns_for_dicom_support(tmp_path: Path) -> None:
     extracted = extract_text(replace(document, path=path))
 
     assert extracted.text == ""
-    assert extracted.warnings
+    assert extracted.warnings == ()
 
 
 def test_extract_text_uses_ocrmypdf_when_pymupdf_is_unavailable(

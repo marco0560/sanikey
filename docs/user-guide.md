@@ -134,6 +134,7 @@ Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 
 - `.txt` e `.md`: contenuto testuale diretto;
 - `.pdf`: testo digitale con PyMuPDF e OCR con OCRmyPDF quando necessario;
+- `.jpg`, `.jpeg`, `.png`: OCR immagine tramite `tesseract`;
 - `.docx`, `.xlsx`, `.odt`, `.ods`: testo e celle tramite librerie Python;
 - `.doc`, `.xls`: conversione tramite LibreOffice o `soffice`, se disponibile;
 - `.zip`, `.7z`, `.rar`: inventario dei file contenuti nell'archivio.
@@ -149,8 +150,8 @@ I file ISO e ZIP DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. Quando vengono estratti in staging, i file DICOM interni sono
 catalogati come DICOM e non passano dall'OCR o dall'estrazione testo ordinaria.
 I file tecnici dei viewer inclusi nei supporti, per esempio runtime Java, DLL,
-HTML di help o asset applicativi, restano tracciati nel manifest di staging ma
-non entrano nella pipeline documentale ordinaria.
+manuali, HTML di help o asset applicativi, restano tracciati nel manifest di
+staging ma non entrano nella pipeline documentale ordinaria.
 
 Per i PDF, SaniKey sceglie automaticamente il provider:
 
@@ -162,6 +163,11 @@ Per i PDF, SaniKey sceglie automaticamente il provider:
 disponibile, il PDF resta catalogato ma l'estrazione testo viene saltata con un
 warning esplicito sui provider mancanti o insufficienti.
 
+Per le immagini, SaniKey usa il comando di sistema `tesseract`. Quando sono
+disponibili i language pack `ita` ed `eng`, usa `ita+eng`; altrimenti ricade
+sulla lingua predefinita di Tesseract. Se `tesseract` non e' installato,
+l'immagine resta catalogata e il report contiene un warning di OCR saltato.
+
 ## Costruire un Archivio
 
 Costruisci un singolo paziente:
@@ -171,8 +177,11 @@ uv run sanikey build-patient patient-a --config config/accounts.toml --mode full
 ```
 
 Il comando stampa un riepilogo leggibile con conteggi, percorsi degli artefatti
-principali e path del report. I warning lunghi o ripetitivi non vengono
-serializzati in stdout: sono conservati nel report JSON indicato dalla riga
+principali e path del report. `documents=` conta i documenti sorgente
+deduplicati; `derived_documents=`, `dicom_instances=` e `total_records=`
+distinguono contenuti estratti dai contenitori e istanze DICOM. I warning
+lunghi o ripetitivi non vengono serializzati in stdout: sono conservati nel
+report JSON indicato dalla riga
 `report=...`. I warning sui documenti duplicati restano visibili anche in
 stdout perché richiedono una decisione manuale.
 

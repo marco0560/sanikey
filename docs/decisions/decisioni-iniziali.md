@@ -159,6 +159,11 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-142 | Le evoluzioni future non devono compromettere la consultazione offline. | 21 |  |
 | DA-143 | Le evoluzioni future non devono compromettere la longevità degli archivi. | 21 |  |
 | DA-144 | La semplicità operativa rimane un criterio prioritario nella valutazione delle nuove funzionalità. | 21 |  |
+| DA-145 | I DICOM sono catalogati e non inviati alla pipeline OCR/testo ordinaria. | 8 |  |
+| DA-146 | Le immagini sorgente sono documenti OCR tramite Tesseract durante l'ingestione Linux. | 8 |  |
+| DA-147 | I path tecnici dei viewer nei contenitori restano manifest-only. | 8 |  |
+| DA-148 | Il riepilogo build distingue documenti sorgente, derivati, istanze DICOM e record totali. | 15 |  |
+| DA-149 | L'OCR immagini preferisce `ita+eng` quando disponibile e ricade sul default Tesseract. | 20 |  |
 
 ---
 
@@ -233,6 +238,9 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-038 | Le inferenze AI non sono autorevoli fino all'approvazione. |  |
 | DA-039 | Ogni fase della pipeline deve poter essere rieseguita senza effetti collaterali. |  |
 | DA-040 | Ogni informazione derivata deve conservare la propria provenienza. |  |
+| DA-145 | I DICOM sono catalogati e non inviati alla pipeline OCR/testo ordinaria. |  |
+| DA-146 | Le immagini sorgente sono documenti OCR tramite Tesseract durante l'ingestione Linux. |  |
+| DA-147 | I path tecnici dei viewer nei contenitori restano manifest-only. |  |
 
 ### Database SQLite
 
@@ -324,6 +332,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-094 | Le cache di build sono completamente rigenerabili. |  |
 | DA-095 | I metadati curati vengono sempre validati prima dell'elaborazione. |  |
 | DA-096 | La build genera un report e un manifest verificabili. |  |
+| DA-148 | Il riepilogo build distingue documenti sorgente, derivati, istanze DICOM e record totali. |  |
 
 ### Artefatti Generati
 
@@ -391,6 +400,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-136 | exFAT è il filesystem raccomandato per la distribuzione USB. |  |
 | DA-137 | Le librerie specifiche possono essere sostituite senza modificare l'architettura. |  |
 | DA-138 | La longevità dei dati prevale sulle scelte tecnologiche di implementazione. |  |
+| DA-149 | L'OCR immagini preferisce `ita+eng` quando disponibile e ricade sul default Tesseract. |  |
 
 ### Questioni Aperte e Possibili Evoluzioni
 

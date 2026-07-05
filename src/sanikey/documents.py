@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
 DICOM_EXTENSIONS = {".dcm": "dicom_file", ".iso": "dicom_iso", ".zip": "dicom_zip"}
 TEXT_EXTENSIONS = {".txt", ".md"}
+IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 ARCHIVE_EXTENSIONS = {".7z", ".rar", ".zip"}
 DOCX_EXTENSIONS = {".docx"}
 LEGACY_OFFICE_EXTENSIONS = {".doc", ".xls"}
@@ -191,11 +192,12 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
         return _extract_odf_text(document)
     if suffix in LEGACY_OFFICE_EXTENSIONS:
         return _extract_legacy_office_text(document)
+    if suffix in IMAGE_EXTENSIONS:
+        return _extract_image_text(document)
     if document.kind.startswith("dicom_"):
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=("DICOM supports are cataloged but not OCR-extracted",),
         )
     return ExtractedText(
         document_id=document.document_id,
@@ -353,6 +355,8 @@ def _document_kind(path: Path) -> str:
         return "pdf"
     if suffix in TEXT_EXTENSIONS:
         return "text"
+    if suffix in IMAGE_EXTENSIONS:
+        return "image"
     if suffix in ARCHIVE_EXTENSIONS:
         return "archive"
     if suffix in OFFICE_EXTENSIONS | XLSX_EXTENSIONS:
@@ -380,6 +384,91 @@ def _has_dicom_magic(path: Path) -> bool:
             return handle.read(4) == b"DICM"
     except OSError:
         return False
+
+
+def _extract_image_text(document: DocumentRecord) -> ExtractedText:
+    """Extract text from an image using the system Tesseract CLI.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Image document.
+
+    Returns
+    -------
+    ExtractedText
+        Extracted OCR text or warning.
+    """
+
+    executable = shutil.which("tesseract")
+    if executable is None:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=("Tesseract not installed; image OCR skipped",),
+        )
+    command = [
+        executable,
+        str(document.path),
+        "stdout",
+        *_tesseract_language_arguments(executable),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"Tesseract failed; image OCR skipped: {exc}",),
+        )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown error"
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"Tesseract failed; image OCR skipped: {detail}",),
+        )
+    return ExtractedText(document_id=document.document_id, text=result.stdout.strip())
+
+
+def _tesseract_language_arguments(executable: str) -> tuple[str, ...]:
+    """Return preferred Tesseract language arguments when available.
+
+    Parameters
+    ----------
+    executable : str
+        Tesseract executable path.
+
+    Returns
+    -------
+    tuple[str, ...]
+        ``("-l", "ita+eng")`` when both languages are available, otherwise empty.
+    """
+
+    try:
+        result = subprocess.run(
+            [executable, "--list-langs"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ()
+    available = {
+        line.strip()
+        for line in (*result.stdout.splitlines(), *result.stderr.splitlines())
+        if line.strip() and not line.startswith("List of available languages")
+    }
+    if {"ita", "eng"}.issubset(available):
+        return ("-l", "ita+eng")
+    return ()
 
 
 def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:
@@ -699,7 +788,11 @@ def _extract_xlsx_text(document: DocumentRecord) -> ExtractedText:
             warnings=(f"XLSX text extraction failed: {exc}",),
         )
     warning_messages = tuple(
-        dict.fromkeys(f"XLSX compatibility warning: {item.message}" for item in caught)
+        dict.fromkeys(
+            "XLSX text extracted; workbook compatibility feature not preserved: "
+            f"{item.message}"
+            for item in caught
+        )
     )
     return ExtractedText(
         document_id=document.document_id,

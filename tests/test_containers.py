@@ -188,6 +188,42 @@ def test_stage_container_documents_filters_technical_members(
     ]
 
 
+def test_stage_container_documents_skips_technical_path_pdfs(
+    tmp_path: Path,
+) -> None:
+    """Verify PDFs in viewer support paths stay manifest-only.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Viewer.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("reports/20260103 Referto.pdf", b"%PDF")
+        archive.writestr("Help/manual.pdf", b"%PDF")
+
+    result = stage_container_documents(
+        person,
+        (_document(path, person.source_documents),),
+    )
+
+    assert [document.internal_path for document in result.documents] == [
+        "reports/20260103 Referto.pdf"
+    ]
+    assert {member.internal_path for member in result.members} == {
+        "Help/manual.pdf",
+        "reports/20260103 Referto.pdf",
+    }
+
+
 def test_stage_container_documents_warns_for_unsafe_zip_member(
     tmp_path: Path,
 ) -> None:
