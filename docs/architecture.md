@@ -119,7 +119,7 @@ La prima implementazione lascia intenzionalmente fuori ambito diverse
 funzionalità:
 
 - provider AI reali
-- espansione automatica o opzionale di ISO/ZIP DICOM
+- espansione automatica o opzionale di ISO e archivi DICOM riconosciuti dal contenuto
 - embedding semantici
 - cifratura USB
 - integrazione FHIR/HL7

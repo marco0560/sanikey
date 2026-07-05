@@ -107,7 +107,7 @@ def test_scan_documents_classifies_archive_and_office_kinds(
     assert kinds == {
         "20260102 Archive.7z": "archive",
         "20260103 Legacy.rar": "archive",
-        "20260104 Support.zip": "dicom_zip",
+        "20260104 Support.zip": "archive",
         "20260105 Report.docx": "office",
         "20260106 Workbook.xlsx": "office",
     }

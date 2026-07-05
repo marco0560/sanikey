@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from .config import PersonConfig
 
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
-DICOM_EXTENSIONS = {".dcm": "dicom_file", ".iso": "dicom_iso", ".zip": "dicom_zip"}
+DICOM_EXTENSIONS = {".dcm": "dicom_file", ".iso": "dicom_iso"}
 TEXT_EXTENSIONS = {".txt", ".md"}
 IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 ARCHIVE_EXTENSIONS = {".7z", ".rar", ".zip"}

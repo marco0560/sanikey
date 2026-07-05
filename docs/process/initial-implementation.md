@@ -17,7 +17,7 @@ Gli elementi seguenti sono fuori ambito per questo branch di implementazione
 iniziale e restano rimandati per scelta progettuale:
 
 * provider AI locali o remoti reali;
-* espansione automatica o opzionale di ISO/ZIP DICOM;
+* espansione automatica o opzionale di ISO e archivi DICOM riconosciuti dal contenuto;
 * embedding semantici oltre a interfacce disabilitate stabili;
 * cifratura USB;
 * integrazione FHIR o HL7;

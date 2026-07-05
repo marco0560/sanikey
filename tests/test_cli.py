@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 from sanikey import __version__
@@ -654,7 +655,8 @@ def test_scan_documents_reports_static_problem_warnings(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
     (source / "20260102 Photo.jpg").write_bytes(b"photo")
-    (source / "20260103 Study.zip").write_bytes(b"zip")
+    with zipfile.ZipFile(source / "20260103 Study.zip", "w") as archive:
+        archive.writestr("DICOMDIR", "synthetic")
     config_path = tmp_path / "accounts.toml"
     config_path.write_text(
         f"""

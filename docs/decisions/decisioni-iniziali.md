@@ -164,6 +164,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-147 | I path tecnici dei viewer nei contenitori restano manifest-only. | 8 |  |
 | DA-148 | Il riepilogo build distingue documenti sorgente, derivati, istanze DICOM e record totali. | 15 |  |
 | DA-149 | L'OCR immagini preferisce `ita+eng` quando disponibile e ricade sul default Tesseract. | 20 |  |
+| DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. | 8 |  |
 
 ---
 
@@ -241,6 +242,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-145 | I DICOM sono catalogati e non inviati alla pipeline OCR/testo ordinaria. |  |
 | DA-146 | Le immagini sorgente sono documenti OCR tramite Tesseract durante l'ingestione Linux. |  |
 | DA-147 | I path tecnici dei viewer nei contenitori restano manifest-only. |  |
+| DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. |  |
 
 ### Database SQLite
 

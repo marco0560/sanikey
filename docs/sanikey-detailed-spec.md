@@ -2464,8 +2464,10 @@ problema viene registrato come warning di OCR immagine saltato.
 
 ### 6.11 Supporti DICOM
 
-Un documento `dicom_iso` o `dicom_zip` rappresenta un supporto consegnato da
-una struttura sanitaria e contenente uno studio diagnostico.
+Un documento `dicom_iso` rappresenta un supporto consegnato da una struttura
+sanitaria e contenente uno studio diagnostico. Gli archivi `.zip`, `.7z` e
+`.rar` rappresentano inizialmente archivi generici e sono promossi a supporti
+DICOM solo quando il contenuto indica uno studio diagnostico.
 
 I file DICOM interni sono catalogati come istanze diagnostiche e non sono
 inviati alla pipeline OCR o all'estrazione testo ordinaria. Questa condizione
@@ -2476,6 +2478,8 @@ Esempio:
 ```text
 20250318_RMN_Anca.iso
 20250318_RMN_Anca.zip
+20250318_RMN_Anca.7z
+20250318_RMN_Anca.rar
 ```
 
 Il sistema deve:
@@ -2493,6 +2497,11 @@ dell'operatore non fa parte delle decisioni iniziali.
 #### 6.11.1 Archivi
 
 Gli archivi `.zip`, `.7z` e `.rar` possono comparire tra i documenti sorgente.
+
+L'estensione dell'archivio non e' sufficiente per classificarlo come DICOM.
+Il sistema deve riconoscere un archivio DICOM da segnali di contenuto, come
+`DICOMDIR`, file `.dcm`, path con segmento `DICOM` o magic bytes DICOM quando
+leggibili senza estrazione completa.
 
 Il sistema deve:
 
@@ -3767,7 +3776,7 @@ Tipologie supportate:
 
 ```text
 dicom_iso
-dicom_zip
+dicom_archive
 dicom_directory
 ```
 
@@ -3775,8 +3784,9 @@ dicom_directory
 
 ### 8.14 Supporti DICOM originali
 
-I supporti DICOM originali possono essere immagini ISO o archivi ZIP consegnati
-da strutture sanitarie.
+I supporti DICOM originali possono essere immagini ISO o archivi consegnati da
+strutture sanitarie. Gli archivi sono classificati come DICOM solo in base al
+contenuto, non al suffisso.
 
 Il flusso operativo di espansione potrà essere definito in seguito scegliendo tra:
 

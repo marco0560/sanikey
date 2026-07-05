@@ -45,7 +45,7 @@ class DocumentRecord:
     category : str
         Category derived from source directory structure.
     kind : str
-        Document kind such as ``pdf``, ``image``, ``dicom_iso``, or ``dicom_zip``.
+        Document kind such as ``pdf``, ``image``, ``archive``, or ``dicom_iso``.
     sha256 : str
         SHA256 digest of the original file.
     date : str | None, optional

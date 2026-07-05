@@ -228,7 +228,7 @@ Decisioni coinvolte: DA-021, DA-121, DA-123.
 I documenti vengono letti, ma non è verificato esplicitamente che:
 
 - hash e `mtime` restino invariati dopo build;
-- ISO e ZIP DICOM siano conservati integralmente;
+- ISO e archivi DICOM riconosciuti dal contenuto siano conservati integralmente;
 - la manutenzione ordinaria non modifichi documenti originali: coperto per build.
 
 ### Artefatti Non Esportabili
