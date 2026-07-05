@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import zipfile
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -201,6 +202,10 @@ def _zip_contains_dicom(path: Path) -> bool:
                 if info.is_dir():
                     continue
                 with archive.open(info) as handle:
+                    if name.lower().endswith(".zip") and _nested_zip_contains_dicom(
+                        handle.read()
+                    ):
+                        return True
                     if _stream_has_dicom_magic(handle):
                         return True
     except (OSError, zipfile.BadZipFile):
@@ -276,16 +281,40 @@ def _looks_like_dicom_member_name(name: str) -> bool:
     Returns
     -------
     bool
-        ``True`` for DICOMDIR, ``.dcm`` files, or DICOM path segments.
+        ``True`` for DICOMDIR, DICOM files, disk-image supports, or DICOM path
+        segments.
     """
 
     path = PurePosixPath(name)
     parts = tuple(part.lower() for part in path.parts)
     return (
         path.name.lower() == "dicomdir"
-        or path.suffix.lower() == ".dcm"
+        or path.suffix.lower() in {".dcm", ".img", ".iso"}
         or "dicom" in parts
     )
+
+
+def _nested_zip_contains_dicom(data: bytes) -> bool:
+    """Return whether a nested ZIP payload contains DICOM content.
+
+    Parameters
+    ----------
+    data : bytes
+        Nested ZIP bytes.
+
+    Returns
+    -------
+    bool
+        ``True`` when nested member names indicate DICOM content.
+    """
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            return any(
+                _looks_like_dicom_member_name(name) for name in archive.namelist()
+            )
+    except (OSError, zipfile.BadZipFile):
+        return False
 
 
 def _stream_has_dicom_magic(handle: Any) -> bool:

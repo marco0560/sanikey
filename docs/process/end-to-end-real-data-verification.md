@@ -302,9 +302,10 @@ python -m json.tool local-data/generated/marco/manifests/container_staging.json 
 Controllare che ogni membro estratto abbia `container_id`, `internal_path`,
 `sha256` e `path`. Gli archivi `.zip`, `.7z` e `.rar` devono risultare supporti
 DICOM solo quando il contenuto lo giustifica, per esempio per presenza di
-`DICOMDIR`, file `.dcm`, path DICOM o magic bytes DICOM. I file DICOM interni
-devono risultare catalogati come DICOM derivati, non trattati come documenti OCR
-o testo ordinario. I path tecnici dei viewer, ad esempio `Help`, `Manual`,
+`DICOMDIR`, file `.dcm`, immagini disco `.iso`/`.img`, ZIP annidati con slice
+DICOM, path DICOM o magic bytes DICOM. I file DICOM interni devono risultare
+catalogati come DICOM derivati, non trattati come documenti OCR o testo
+ordinario. I path tecnici dei viewer, ad esempio `Help`, `Manual`,
 `Viewer-Windows`, `jre` e `assets`, devono restare nel manifest ma non comparire
 come documenti derivati nel database.
 

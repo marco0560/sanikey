@@ -2500,8 +2500,9 @@ Gli archivi `.zip`, `.7z` e `.rar` possono comparire tra i documenti sorgente.
 
 L'estensione dell'archivio non e' sufficiente per classificarlo come DICOM.
 Il sistema deve riconoscere un archivio DICOM da segnali di contenuto, come
-`DICOMDIR`, file `.dcm`, path con segmento `DICOM` o magic bytes DICOM quando
-leggibili senza estrazione completa.
+`DICOMDIR`, file `.dcm`, immagini disco `.iso`/`.img`, ZIP annidati con file
+DICOM, path con segmento `DICOM` o magic bytes DICOM quando leggibili senza
+estrazione completa.
 
 Il sistema deve:
 

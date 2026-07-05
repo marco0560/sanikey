@@ -145,8 +145,8 @@ def test_catalog_dicom_studies_detects_dicom_zip_by_magic(tmp_path: Path) -> Non
     assert studies[0].support_kind == "dicom_zip"
 
 
-def test_catalog_dicom_studies_detects_dicom_7z_by_name(tmp_path: Path) -> None:
-    """Verify 7z archives with DICOM names are cataloged as DICOM support.
+def test_catalog_dicom_studies_detects_dicom_7z_disk_image(tmp_path: Path) -> None:
+    """Verify 7z archives with ISO members are cataloged as DICOM support.
 
     Parameters
     ----------
@@ -162,16 +162,46 @@ def test_catalog_dicom_studies_detects_dicom_7z_by_name(tmp_path: Path) -> None:
 
     person = _person(tmp_path)
     person.source_documents.mkdir(parents=True)
-    source_file = tmp_path / "DICOMDIR"
+    source_file = tmp_path / "Study.iso"
     source_file.write_text("synthetic", encoding="utf-8")
     path = person.source_documents / "20260102 Study.7z"
     with py7zr.SevenZipFile(path, "w") as archive:
-        archive.write(source_file, arcname="DICOMDIR")
+        archive.write(source_file, arcname="Study.iso")
 
     studies = catalog_dicom_studies(person, scan_documents(person))
 
     assert len(studies) == 1
     assert studies[0].support_kind == "dicom_7z"
+
+
+def test_catalog_dicom_studies_detects_nested_dicom_zip(tmp_path: Path) -> None:
+    """Verify ZIP archives with nested DICOM ZIP members are cataloged.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    import io
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    nested_bytes = io.BytesIO()
+    with zipfile.ZipFile(nested_bytes, "w") as nested:
+        nested.writestr("Study/Slice0001.dcm", "synthetic")
+    path = person.source_documents / "20260102 Nested Study.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("payload/study.zip", nested_bytes.getvalue())
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert len(studies) == 1
+    assert studies[0].support_kind == "dicom_zip"
 
 
 def test_catalog_dicom_studies_detects_dicom_rar_by_name(

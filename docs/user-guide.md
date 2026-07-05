@@ -149,9 +149,10 @@ resta catalogato e il problema viene registrato come warning.
 I file ISO DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. Gli archivi `.zip`, `.7z` e `.rar` sono trattati inizialmente come
 archivi generici e promossi a supporti DICOM solo se contengono `DICOMDIR`, file
-`.dcm`, path DICOM riconoscibili o file con magic bytes DICOM. Quando vengono
-estratti in staging, i file DICOM interni sono catalogati come DICOM e non
-passano dall'OCR o dall'estrazione testo ordinaria.
+`.dcm`, path DICOM riconoscibili, immagini disco `.iso`/`.img`, ZIP annidati
+con contenuto DICOM o file con magic bytes DICOM. Quando vengono estratti in
+staging, i file DICOM interni sono catalogati come DICOM e non passano dall'OCR
+o dall'estrazione testo ordinaria.
 I file tecnici dei viewer inclusi nei supporti, per esempio runtime Java, DLL,
 manuali, HTML di help o asset applicativi, restano tracciati nel manifest di
 staging ma non entrano nella pipeline documentale ordinaria.
