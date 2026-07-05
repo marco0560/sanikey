@@ -213,6 +213,11 @@ def _extract_container(container: DocumentRecord, target: Path) -> None:
     Returns
     -------
     None
+
+    Raises
+    ------
+    ValueError
+        If the container suffix is unsupported or extraction fails.
     """
 
     suffix = container.path.suffix.lower()
@@ -245,6 +250,11 @@ def _extract_zip(source: Path, target: Path) -> None:
     Returns
     -------
     None
+
+    Raises
+    ------
+    ValueError
+        If the archive cannot be read or requires a password.
     """
 
     with zipfile.ZipFile(source) as archive:
@@ -270,6 +280,11 @@ def _extract_7z(source: Path, target: Path) -> None:
     Returns
     -------
     None
+
+    Raises
+    ------
+    ValueError
+        If the archive cannot be read or extracted.
     """
 
     import py7zr
@@ -296,6 +311,11 @@ def _extract_rar(source: Path, target: Path) -> None:
     Returns
     -------
     None
+
+    Raises
+    ------
+    ValueError
+        If the archive cannot be read or extracted.
     """
 
     import rarfile
@@ -322,6 +342,11 @@ def _extract_with_7z(source: Path, target: Path) -> None:
     Returns
     -------
     None
+
+    Raises
+    ------
+    ValueError
+        If ``7z`` is unavailable or the command fails.
     """
 
     executable = shutil.which("7z")
@@ -354,6 +379,11 @@ def _safe_member_path(target: Path, member_name: str) -> Path:
     -------
     pathlib.Path
         Safe member path.
+
+    Raises
+    ------
+    ValueError
+        If the member path is absolute or escapes the target directory.
     """
 
     normalized = PurePosixPath(member_name.replace("\\", "/"))

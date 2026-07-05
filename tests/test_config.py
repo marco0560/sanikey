@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sanikey.config import load_accounts, parse_accounts_data
+from sanikey.config import default_accounts_path, load_accounts, parse_accounts_data
 from sanikey.errors import ConfigError, PrivacyError
 from sanikey.privacy import validate_privacy
 
@@ -63,6 +63,66 @@ def test_load_accounts_accepts_valid_synthetic_config(tmp_path: Path) -> None:
     assert config.config_version == 1
     assert config.people[0].id == "patient-a"
     assert config.enabled_people()[0].display_name == "Patient A"
+
+
+def test_default_accounts_path_uses_current_working_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify default accounts path uses the current directory by default.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    monkeypatch.chdir(tmp_path)
+
+    assert default_accounts_path() == tmp_path / "config" / "accounts.toml"
+
+
+def test_load_accounts_rejects_missing_file(tmp_path: Path) -> None:
+    """Verify missing accounts files fail with ConfigError.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    with pytest.raises(ConfigError, match="accounts configuration not found"):
+        load_accounts(tmp_path / "missing.toml")
+
+
+def test_load_accounts_rejects_invalid_toml(tmp_path: Path) -> None:
+    """Verify malformed TOML files fail with ConfigError.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text("[global\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="invalid TOML"):
+        load_accounts(config_path)
 
 
 def test_load_accounts_resolves_relative_config_path(
@@ -131,6 +191,80 @@ def test_parse_accounts_rejects_missing_real_paths() -> None:
             },
             path=Path("accounts.toml"),
         )
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ({"global": "bad", "person": []}, r"\[global\] must be a table"),
+        ({"global": {}, "person": []}, r"\[global\].config_version is required"),
+        (
+            {"global": {"config_version": "1"}, "person": []},
+            r"\[global\].config_version must be an integer",
+        ),
+        (
+            {"global": {"config_version": 1}, "person": []},
+            r"at least one \[\[person\]\] entry is required",
+        ),
+        (
+            {"global": {"config_version": 1}, "person": "bad"},
+            r"at least one \[\[person\]\] entry is required",
+        ),
+    ],
+)
+def test_parse_accounts_rejects_invalid_top_level_shapes(
+    data: dict[str, object],
+    message: str,
+) -> None:
+    """Verify invalid top-level configuration shapes are rejected.
+
+    Parameters
+    ----------
+    data : dict[str, object]
+        Parsed configuration data.
+    message : str
+        Expected diagnostic regex.
+
+    Returns
+    -------
+    None
+    """
+
+    with pytest.raises(ConfigError, match=message):
+        parse_accounts_data(data, path=Path("accounts.toml"))
+
+
+def test_parse_accounts_accepts_repository_version_alias(tmp_path: Path) -> None:
+    """Verify repository_version remains a supported version alias.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    config = parse_accounts_data(
+        {
+            "global": {"repository_version": 2},
+            "person": [
+                {
+                    "id": "patient-a",
+                    "display_name": "Patient A",
+                    "source_documents": str(tmp_path / "source"),
+                    "metadata_directory": str(tmp_path / "metadata"),
+                    "local_build": str(tmp_path / "generated"),
+                    "usb_uuid": "1A2B-3C4D",
+                }
+            ],
+        },
+        path=tmp_path / "accounts.toml",
+    )
+
+    assert config.config_version == 2
 
 
 def test_parse_accounts_resolves_relative_paths_from_config_root(
@@ -205,6 +339,119 @@ def test_parse_accounts_rejects_invalid_patient_id(tmp_path: Path) -> None:
                 ],
             },
             path=Path("accounts.toml"),
+        )
+
+
+def test_parse_accounts_rejects_non_table_person_entry() -> None:
+    """Verify each person entry must be a table.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    with pytest.raises(ConfigError, match=r"\[\[person\]\] entry 0 must be a table"):
+        parse_accounts_data(
+            {"global": {"config_version": 1}, "person": ["bad"]},
+            path=Path("accounts.toml"),
+        )
+
+
+def test_parse_accounts_rejects_non_boolean_enabled(tmp_path: Path) -> None:
+    """Verify enabled must be boolean when provided.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    with pytest.raises(ConfigError, match="field enabled must be boolean"):
+        parse_accounts_data(
+            {
+                "global": {"config_version": 1},
+                "person": [
+                    {
+                        "id": "patient-a",
+                        "display_name": "Patient A",
+                        "source_documents": str(tmp_path / "source"),
+                        "metadata_directory": str(tmp_path / "metadata"),
+                        "local_build": str(tmp_path / "generated"),
+                        "usb_uuid": "1A2B-3C4D",
+                        "enabled": "yes",
+                    }
+                ],
+            },
+            path=tmp_path / "accounts.toml",
+        )
+
+
+def test_parse_accounts_rejects_empty_string_fields(tmp_path: Path) -> None:
+    """Verify required string fields must be non-empty.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    with pytest.raises(ConfigError, match="field display_name must be a non-empty"):
+        parse_accounts_data(
+            {
+                "global": {"config_version": 1},
+                "person": [
+                    {
+                        "id": "patient-a",
+                        "display_name": " ",
+                        "source_documents": str(tmp_path / "source"),
+                        "metadata_directory": str(tmp_path / "metadata"),
+                        "local_build": str(tmp_path / "generated"),
+                        "usb_uuid": "1A2B-3C4D",
+                    }
+                ],
+            },
+            path=tmp_path / "accounts.toml",
+        )
+
+
+def test_parse_accounts_rejects_duplicate_patient_ids(tmp_path: Path) -> None:
+    """Verify duplicate patient ids are rejected.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = {
+        "id": "patient-a",
+        "display_name": "Patient A",
+        "source_documents": str(tmp_path / "source"),
+        "metadata_directory": str(tmp_path / "metadata"),
+        "local_build": str(tmp_path / "generated"),
+        "usb_uuid": "1A2B-3C4D",
+    }
+
+    with pytest.raises(ConfigError, match="duplicate patient id: patient-a"):
+        parse_accounts_data(
+            {"global": {"config_version": 1}, "person": [person, person]},
+            path=tmp_path / "accounts.toml",
         )
 
 

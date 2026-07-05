@@ -165,7 +165,8 @@ def review_proposal(
             target.write_text(_render_proposals(tuple(proposals)), encoding="utf-8")
             return updated
     _fail(f"proposal not found: {proposal_id}")
-    raise AssertionError
+    message = "unreachable"
+    raise AssertionError(message)  # pragma: no cover
 
 
 def _proposal_from_table(item: Any, path: Path, index: int) -> Proposal:
