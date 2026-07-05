@@ -683,6 +683,10 @@ La consultazione deve funzionare su:
 
 utilizzando browser comuni e non necessariamente aggiornati all'ultima versione disponibile.
 
+La pipeline di ingestione e build è supportata su Linux nello slice corrente.
+La compatibilità di ingestione su Windows è una fase successiva e non fa parte
+del contratto operativo iniziale.
+
 ---
 
 #### Degrado controllato
@@ -2485,6 +2489,11 @@ Il sistema deve:
 Il contenitore originale resta la sorgente autorevole. I membri estratti sono
 artefatti generati e possono entrare nella pipeline documentale ordinaria come
 documenti derivati.
+
+I membri tecnici non clinici, per esempio runtime Java, DLL, help HTML o asset
+dei viewer inclusi nei supporti, devono restare nel manifest di staging ma non
+devono essere trattati come documenti clinici da indicizzare o da inviare
+all'estrazione testo ordinaria.
 
 #### 6.11.2 Documenti Office e OpenDocument
 
@@ -5114,23 +5123,23 @@ Gli episodi terapeutici descrivono:
 * inizio;
 * fine;
 * dosaggio;
-* motivazione.
+* ruolo clinico o indicazione;
+* schema di assunzione.
 
 Esempio:
 
 ```toml
-[[episode]]
-
-drug_id = "metformin"
-
+[[therapy]]
+medication_id = "metformin"
 start_date = "2024-01-01"
-
-end_date = ""
-
 dosage = "1000 mg"
-
-schedule = "2 volte al giorno"
+role = "antidiabetico"
+schedule = ["mattino", "sera"]
 ```
+
+L'identificativo dell'episodio è opzionale. Se fornito manualmente deve essere
+univoco; se omesso viene generato dalla pipeline. Il ruolo clinico non è un
+identificativo: più terapie possono condividere lo stesso ruolo.
 
 ---
 
@@ -5402,6 +5411,10 @@ Controlli minimi:
 * riferimenti esistenti;
 * date valide;
 * identificatori univoci.
+
+I controlli sui metadati curati devono avvenire in `validate-config` e, per i
+pazienti selezionati, anche prima di `scan-documents`, in modo da intercettare
+errori bloccanti prima di una build lunga.
 
 ---
 

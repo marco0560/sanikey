@@ -112,7 +112,6 @@ def stage_container_documents(
         warnings.extend(container_result.warning_messages)
         staged_documents.extend(container_result.documents)
         members.extend(container_result.members)
-        queued.extend(_container_documents(container_result.documents))
     manifest = _write_container_manifest(person, tuple(members), tuple(warnings))
     return ContainerStagingResult(
         documents=tuple(staged_documents),
@@ -178,7 +177,7 @@ def _stage_one_container(
             warning_messages=(f"{container.path}: container staging failed: {exc}",),
             manifest=person.local_build / "manifests" / "container_staging.json",
         )
-    documents = tuple(
+    extracted_documents = tuple(
         document_record_for_path(
             path,
             root=target,
@@ -191,13 +190,37 @@ def _stage_one_container(
         )
         for path in sorted(item for item in target.rglob("*") if item.is_file())
     )
-    members = tuple(_member_record(container, document) for document in documents)
+    documents = tuple(
+        document
+        for document in extracted_documents
+        if _should_ingest_staged_document(document)
+    )
+    members = tuple(
+        _member_record(container, document) for document in extracted_documents
+    )
     return ContainerStagingResult(
         documents=documents,
         members=members,
         warning_messages=(),
         manifest=person.local_build / "manifests" / "container_staging.json",
     )
+
+
+def _should_ingest_staged_document(document: DocumentRecord) -> bool:
+    """Return whether a staged member should enter the document pipeline.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Staged member document candidate.
+
+    Returns
+    -------
+    bool
+        ``True`` for clinically relevant document-like members.
+    """
+
+    return document.kind in {"dicom_file", "office", "pdf", "text"}
 
 
 def _extract_container(container: DocumentRecord, target: Path) -> None:

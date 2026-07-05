@@ -345,6 +345,8 @@ def _document_kind(path: Path) -> str:
     """
 
     suffix = path.suffix.lower()
+    if _has_dicom_magic(path):
+        return "dicom_file"
     if suffix in DICOM_EXTENSIONS:
         return DICOM_EXTENSIONS[suffix]
     if suffix == ".pdf":
@@ -356,6 +358,28 @@ def _document_kind(path: Path) -> str:
     if suffix in OFFICE_EXTENSIONS | XLSX_EXTENSIONS:
         return "office"
     return "binary"
+
+
+def _has_dicom_magic(path: Path) -> bool:
+    """Return whether a file contains the standard DICOM magic marker.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        File to inspect.
+
+    Returns
+    -------
+    bool
+        ``True`` when bytes 128-131 are ``DICM``.
+    """
+
+    try:
+        with path.open("rb") as handle:
+            handle.seek(128)
+            return handle.read(4) == b"DICM"
+    except OSError:
+        return False
 
 
 def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:

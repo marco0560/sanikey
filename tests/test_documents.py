@@ -113,6 +113,31 @@ def test_scan_documents_classifies_archive_and_office_kinds(
     }
 
 
+def test_scan_documents_detects_dicom_magic_without_extension(
+    tmp_path: Path,
+) -> None:
+    """Verify extensionless DICOM files are classified by magic bytes.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    (document_dir / "IM000001").write_bytes((b"\0" * 128) + b"DICM" + b"synthetic")
+
+    documents = scan_document_inventory(person)
+
+    assert documents[0].kind == "dicom_file"
+
+
 def test_duplicate_detection_skips_duplicate_content_with_warning(
     tmp_path: Path,
 ) -> None:

@@ -256,6 +256,8 @@ def run_validate_config(args: argparse.Namespace) -> int:
     try:
         config = load_accounts(args.config)
         validate_privacy(config, repo_root=args.repo_root)
+        for person in config.enabled_people():
+            load_curated_metadata(person.metadata_directory)
     except SaniKeyError as exc:
         print(f"ERROR: {exc}")
         return 1
@@ -313,11 +315,14 @@ def run_scan_documents(args: argparse.Namespace) -> int:
         return 1
     try:
         config = load_accounts(args.config)
+        selected_people = _selected_people(config, args.patient)
+        for person in selected_people:
+            load_curated_metadata(person.metadata_directory)
     except SaniKeyError as exc:
         print(f"ERROR: {exc}")
         return 1
     output_rows: list[tuple[PersonConfig, DocumentRecord]] = []
-    for person in _selected_people(config, args.patient):
+    for person in selected_people:
         inspection = inspect_patient_documents(person, preflight=args.preflight)
         warning_messages = (
             *inspection.warning_messages,

@@ -17,7 +17,7 @@ from .models import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
 
 
@@ -45,7 +45,7 @@ def load_curated_metadata(metadata_dir: Path) -> CuratedMetadata:
     if not metadata_dir.is_dir():
         _fail(f"metadata path is not a directory: {metadata_dir}")
 
-    return CuratedMetadata(
+    metadata = CuratedMetadata(
         problems=_load_items(
             metadata_dir / "problems.toml",
             "problem",
@@ -79,6 +79,8 @@ def load_curated_metadata(metadata_dir: Path) -> CuratedMetadata:
         document_tags=_load_document_tags(metadata_dir / "document_tags.toml"),
         clinical_summary=_load_summary(metadata_dir / "clinical_summary.toml"),
     )
+    _validate_curated_metadata(metadata, metadata_dir)
+    return metadata
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -217,14 +219,37 @@ def _therapy_from_table(item: dict[str, Any], path: Path, index: int) -> Therapy
     """
 
     return TherapyEpisode(
-        id=_required_string(item, "id", path, index),
+        id=_optional_string(item, "id") or _generated_therapy_id(item, path, index),
         medication_id=_required_string(item, "medication_id", path, index),
         start_date=_optional_string(item, "start_date"),
         end_date=_optional_string(item, "end_date"),
         dosage=_optional_string(item, "dosage"),
+        role=_optional_string(item, "role"),
         schedule=_string_tuple(item.get("schedule", ()), path, "schedule", index),
         instructions=_optional_string(item, "instructions"),
     )
+
+
+def _generated_therapy_id(item: dict[str, Any], path: Path, index: int) -> str:
+    """Return a stable generated therapy id.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw therapy table.
+    path : pathlib.Path
+        Source file path.
+    index : int
+        Therapy table index.
+
+    Returns
+    -------
+    str
+        Generated therapy id.
+    """
+
+    medication_id = _required_string(item, "medication_id", path, index)
+    return f"therapy-{medication_id}-{index + 1}"
 
 
 def _procedure_from_table(item: dict[str, Any], path: Path, index: int) -> Procedure:
@@ -358,6 +383,99 @@ def _load_summary(path: Path) -> str | None:
     if not isinstance(summary, str):
         _fail(f"{path}: summary must be a string")
     return cast("str", summary)
+
+
+def _validate_curated_metadata(metadata: CuratedMetadata, metadata_dir: Path) -> None:
+    """Validate cross-file curated metadata invariants.
+
+    Parameters
+    ----------
+    metadata : CuratedMetadata
+        Loaded metadata.
+    metadata_dir : pathlib.Path
+        Metadata directory for diagnostics.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ConfigError
+        If ids are duplicated or references are invalid.
+    """
+
+    _validate_unique_ids(
+        "problem",
+        (item.id for item in metadata.problems),
+        metadata_dir / "problems.toml",
+    )
+    medication_ids = _validate_unique_ids(
+        "medication",
+        (item.id for item in metadata.medications),
+        metadata_dir / "medications.toml",
+    )
+    _validate_unique_ids(
+        "therapy",
+        (item.id for item in metadata.therapies),
+        metadata_dir / "therapies.toml",
+    )
+    _validate_unique_ids(
+        "procedure",
+        (item.id for item in metadata.procedures),
+        metadata_dir / "procedures.toml",
+    )
+    _validate_unique_ids(
+        "observation",
+        (item.id for item in metadata.observations),
+        metadata_dir / "observations.toml",
+    )
+    _validate_unique_ids(
+        "event",
+        (item.id for item in metadata.timeline_events),
+        metadata_dir / "timeline_events.toml",
+    )
+    for therapy in metadata.therapies:
+        if therapy.medication_id not in medication_ids:
+            _fail(
+                f"{metadata_dir / 'therapies.toml'}: therapy {therapy.id} "
+                f"references unknown medication_id {therapy.medication_id}",
+            )
+
+
+def _validate_unique_ids(
+    label: str,
+    ids: Iterable[str],
+    path: Path,
+) -> set[str]:
+    """Validate uniqueness for one metadata id collection.
+
+    Parameters
+    ----------
+    label : str
+        Item label for diagnostics.
+    ids : Iterable[str]
+        Iterable of ids.
+    path : pathlib.Path
+        Metadata file path.
+
+    Returns
+    -------
+    set[str]
+        Unique ids.
+
+    Raises
+    ------
+    ConfigError
+        If a duplicate id exists.
+    """
+
+    seen: set[str] = set()
+    for item_id in ids:
+        if item_id in seen:
+            _fail(f"{path}: duplicate {label} id: {item_id}")
+        seen.add(item_id)
+    return seen
 
 
 def _require_table(item: Any, path: Path, index: int) -> dict[str, Any]:

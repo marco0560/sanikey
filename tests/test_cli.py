@@ -123,6 +123,64 @@ usb_uuid = "1A2B-3C4D"
     assert "status=ok" in result.stdout
 
 
+def test_validate_config_rejects_invalid_metadata(tmp_path: Path) -> None:
+    """Verify validate-config checks curated metadata invariants.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    (metadata / "therapies.toml").write_text(
+        """
+[[therapy]]
+medication_id = "missing"
+""",
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{metadata}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "validate-config",
+            "--config",
+            str(config_path),
+            "--repo-root",
+            str(Path.cwd()),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "unknown medication_id missing" in result.stdout
+
+
 def test_list_patients_subcommand_runs(tmp_path: Path) -> None:
     """Verify list-patients renders configured patient ids.
 
@@ -217,6 +275,78 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "documents=1" in result.stdout
     assert "Report" not in result.stdout
+
+
+def test_scan_documents_rejects_invalid_metadata(tmp_path: Path) -> None:
+    """Verify scan-documents fails before scanning invalid patient metadata.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "20260102 Report.txt").write_text("synthetic", encoding="utf-8")
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    (metadata / "medications.toml").write_text(
+        """
+[[medication]]
+id = "drug-a"
+name = "Drug A"
+""",
+        encoding="utf-8",
+    )
+    (metadata / "therapies.toml").write_text(
+        """
+[[therapy]]
+id = "duplicate"
+medication_id = "drug-a"
+
+[[therapy]]
+id = "duplicate"
+medication_id = "drug-a"
+""",
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{metadata}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "duplicate therapy id: duplicate" in result.stdout
 
 
 def test_scan_documents_verbose_renders_readable_inventory(tmp_path: Path) -> None:

@@ -140,6 +140,8 @@ class TherapyEpisode:
         ISO end date.
     dosage : str | None, optional
         Human-readable dosage.
+    role : str | None, optional
+        Therapeutic role or clinical indication, for example ``antipertensivo``.
     schedule : tuple[str, ...]
         Human-readable intake times or time bands.
     instructions : str | None, optional
@@ -151,6 +153,7 @@ class TherapyEpisode:
     start_date: str | None = None
     end_date: str | None = None
     dosage: str | None = None
+    role: str | None = None
     schedule: tuple[str, ...] = ()
     instructions: str | None = None
 

@@ -107,6 +107,7 @@ links = ["procedure-a"]
     assert metadata.medications[0].form == "compresse"
     assert metadata.medications[0].strength_per_unit == "100 mg"
     assert metadata.therapies[0].medication_id == "drug-a"
+    assert metadata.therapies[0].role is None
     assert metadata.therapies[0].schedule == ("risveglio", "cena")
     assert metadata.therapies[0].instructions == "dopo il pasto"
     assert metadata.procedures[0].status == "completed"
@@ -179,4 +180,115 @@ def test_load_curated_metadata_rejects_invalid_toml(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigError, match="invalid TOML"):
+        load_curated_metadata(tmp_path)
+
+
+def test_load_curated_metadata_generates_therapy_ids(tmp_path: Path) -> None:
+    """Verify therapy ids are optional and generated stably.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    (tmp_path / "medications.toml").write_text(
+        """
+[[medication]]
+id = "atenololo"
+name = "Atenololo"
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "therapies.toml").write_text(
+        """
+[[therapy]]
+medication_id = "atenololo"
+role = "antipertensivo"
+
+[[therapy]]
+medication_id = "atenololo"
+role = "cardioprotezione"
+""",
+        encoding="utf-8",
+    )
+
+    metadata = load_curated_metadata(tmp_path)
+
+    assert [therapy.id for therapy in metadata.therapies] == [
+        "therapy-atenololo-1",
+        "therapy-atenololo-2",
+    ]
+    assert [therapy.role for therapy in metadata.therapies] == [
+        "antipertensivo",
+        "cardioprotezione",
+    ]
+
+
+def test_load_curated_metadata_rejects_duplicate_ids(tmp_path: Path) -> None:
+    """Verify curated metadata ids must be unique when provided.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    (tmp_path / "medications.toml").write_text(
+        """
+[[medication]]
+id = "drug-a"
+name = "Drug A"
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "therapies.toml").write_text(
+        """
+[[therapy]]
+id = "duplicate"
+medication_id = "drug-a"
+
+[[therapy]]
+id = "duplicate"
+medication_id = "drug-a"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="duplicate therapy id: duplicate"):
+        load_curated_metadata(tmp_path)
+
+
+def test_load_curated_metadata_rejects_unknown_medication_reference(
+    tmp_path: Path,
+) -> None:
+    """Verify therapy medication references are checked during metadata load.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    (tmp_path / "therapies.toml").write_text(
+        """
+[[therapy]]
+medication_id = "missing"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="unknown medication_id missing"):
         load_curated_metadata(tmp_path)

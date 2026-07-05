@@ -118,7 +118,7 @@ instructions = "dopo il pasto"
         ).fetchone()
         therapy = connection.execute(
             """
-            SELECT schedule, instructions
+            SELECT role, schedule, instructions
             FROM therapies WHERE id = 'therapy-a'
             """
         ).fetchone()
@@ -131,7 +131,7 @@ instructions = "dopo il pasto"
     assert document_count == 2
     assert problem_count == 1
     assert medication == ("Ingredient A", "compresse", "100 mg")
-    assert therapy == ("risveglio,cena", "dopo il pasto")
+    assert therapy == (None, "risveglio,cena", "dopo il pasto")
     assert dicom_count == 1
     assert fts_count == 1
 

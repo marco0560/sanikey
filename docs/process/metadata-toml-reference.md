@@ -144,13 +144,21 @@ Campi:
 
 | Campo | Tipo | Obbligatorio | Uso |
 | --- | --- | --- | --- |
-| `id` | stringa | si | Identificativo stabile della terapia |
+| `id` | stringa | no | Identificativo stabile della terapia; se omesso viene generato |
 | `medication_id` | stringa | si | Farmaco collegato in `medications.toml` |
 | `start_date` | stringa ISO | no | Data inizio nota |
 | `end_date` | stringa ISO | no | Data fine nota |
 | `dosage` | stringa | no | Dose assunta, ad esempio `1 compressa` |
+| `role` | stringa | no | Ruolo clinico o indicazione, ad esempio `antipertensivo` |
 | `schedule` | lista di stringhe | no | Orari o fasce di assunzione |
 | `instructions` | stringa | no | Indicazioni libere |
+
+`medication_id` deve riferirsi a un `id` presente in `medications.toml`.
+Gli `id` espliciti, quando presenti, devono essere univoci. Omettere `id` e'
+accettabile: SaniKey genera un identificativo stabile basato su `medication_id`
+e posizione della terapia nel file. Il campo `role` serve a descrivere il
+target clinico della terapia e non deve essere usato come identificativo unico:
+piu' terapie possono avere lo stesso ruolo, per esempio piu' antipertensivi.
 
 Se la data di inizio e' sconosciuta, omettere `start_date`. Se la terapia e'
 in corso o permanente, omettere `end_date`. Non usare date fittizie.
@@ -159,17 +167,17 @@ Esempio:
 
 ```toml
 [[therapy]]
-id = "atenololo-mattino"
 medication_id = "atenololo"
 dosage = "1 compressa"
+role = "antipertensivo"
 schedule = ["mattino"]
 instructions = "dopo colazione"
 
 [[therapy]]
-id = "cardioaspirina-sera"
 medication_id = "cardioaspirina"
 start_date = "2021-04-01"
 dosage = "1 compressa"
+role = "antiaggregante"
 schedule = ["cena"]
 instructions = "dopo il pasto"
 ```

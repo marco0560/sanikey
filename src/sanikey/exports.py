@@ -292,6 +292,7 @@ def _metadata_search_payloads(metadata: CuratedMetadata) -> tuple[dict[str, Any]
                 therapy.start_date,
                 therapy.end_date,
                 therapy.dosage,
+                therapy.role,
                 " ".join(therapy.schedule) or None,
                 therapy.instructions,
             ),

@@ -201,17 +201,17 @@ Esempio opzionale `therapies.toml`:
 
 ```toml
 [[therapy]]
-id = "therapy-a"
 medication_id = "atenololo"
 dosage = "1 compressa"
+role = "antipertensivo"
 schedule = ["mattino"]
 instructions = "dopo colazione"
 
 [[therapy]]
-id = "therapy-b"
 medication_id = "cardioaspirina"
 start_date = "2021-04-01"
 dosage = "1 compressa"
+role = "antiaggregante"
 schedule = ["cena"]
 instructions = "dopo il pasto"
 ```
@@ -224,6 +224,9 @@ pasti`, `dopo il pasto` o `prima di coricarsi`.
 Se la data di inizio è sconosciuta, omettere `start_date`. Se la terapia è
 ancora in corso o permanente, omettere `end_date`. Non usare date fittizie per
 forzare l'ordinamento: è meglio lasciare esplicitamente sconosciuto il dato.
+`id` è opzionale: se omesso viene generato da SaniKey. Se lo si indica
+manualmente deve essere univoco. `role` descrive il ruolo clinico della terapia,
+per esempio `antipertensivo`; più terapie possono avere lo stesso ruolo.
 
 ## Esecuzione pipeline
 
@@ -232,6 +235,10 @@ Validare la configurazione:
 ```bash
 uv run sanikey validate-config --config config/accounts.toml
 ```
+
+Questo passo deve anche validare i metadati curati: correggere subito TOML
+malformati, id duplicati o terapie che citano un `medication_id` non presente in
+`medications.toml`.
 
 Eseguire una scansione preliminare dei documenti:
 

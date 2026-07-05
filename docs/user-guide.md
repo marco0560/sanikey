@@ -15,6 +15,10 @@ Gli esempi pubblicabili sotto `docs/config-example`, `docs/patients-example` e
 
 ## Prerequisiti
 
+L'ingestione dati e' stabilizzata e supportata su Linux. La consultazione degli
+artefatti statici generati resta indipendente dalla piattaforma, ma la pipeline
+di ingestione su Windows non e' ancora parte del contratto operativo.
+
 Installa le dipendenze del progetto e gli strumenti del repository da un
 checkout locale:
 
@@ -71,6 +75,10 @@ Valida la configurazione e gli invarianti di privacy:
 uv run sanikey validate-config --config config/accounts.toml
 ```
 
+`validate-config` carica anche i metadati curati dei pazienti abilitati e
+segnala prima della build errori come TOML non valido, id duplicati o terapie
+che fanno riferimento a farmaci non presenti in `medications.toml`.
+
 Elenca i pazienti abilitati:
 
 ```bash
@@ -92,7 +100,9 @@ uv run sanikey scan-documents --config config/accounts.toml
 
 Il comando segnala anche warning rilevabili senza build completa, come
 duplicati, file con estensione non supportata e supporti DICOM senza directory
-di espansione manuale.
+di espansione manuale. Prima della scansione viene ripetuto il controllo dei
+metadati curati dei pazienti selezionati, cosi' un errore in `therapies.toml`
+blocca subito il comando invece di emergere dopo una build lunga.
 
 Per eseguire anche controlli preliminari leggeri su archivi e documenti Office:
 
@@ -138,6 +148,9 @@ resta catalogato e il problema viene registrato come warning.
 I file ISO e ZIP DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. Quando vengono estratti in staging, i file DICOM interni sono
 catalogati come DICOM e non passano dall'OCR o dall'estrazione testo ordinaria.
+I file tecnici dei viewer inclusi nei supporti, per esempio runtime Java, DLL,
+HTML di help o asset applicativi, restano tracciati nel manifest di staging ma
+non entrano nella pipeline documentale ordinaria.
 
 Per i PDF, SaniKey sceglie automaticamente il provider:
 

@@ -154,6 +154,40 @@ def test_stage_container_documents_skips_zip_directories(tmp_path: Path) -> None
     ]
 
 
+def test_stage_container_documents_filters_technical_members(
+    tmp_path: Path,
+) -> None:
+    """Verify extracted technical files stay out of document ingestion.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Viewer.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("report.txt", "synthetic report")
+        archive.writestr("Viewer-Windows/jre/bin/java.dll", b"binary")
+
+    result = stage_container_documents(
+        person,
+        (_document(path, person.source_documents),),
+    )
+
+    assert [document.internal_path for document in result.documents] == ["report.txt"]
+    assert [member.internal_path for member in result.members] == [
+        "Viewer-Windows/jre/bin/java.dll",
+        "report.txt",
+    ]
+
+
 def test_stage_container_documents_warns_for_unsafe_zip_member(
     tmp_path: Path,
 ) -> None:

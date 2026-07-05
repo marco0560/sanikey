@@ -155,6 +155,7 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             start_date TEXT,
             end_date TEXT,
             dosage TEXT,
+            role TEXT,
             schedule TEXT NOT NULL,
             instructions TEXT,
             FOREIGN KEY (medication_id) REFERENCES medications(id)
@@ -282,9 +283,10 @@ def _insert_metadata(connection: sqlite3.Connection, metadata: CuratedMetadata) 
     connection.executemany(
         """
         INSERT INTO therapies(
-            id, medication_id, start_date, end_date, dosage, schedule, instructions
+            id, medication_id, start_date, end_date, dosage, role, schedule,
+            instructions
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             (
@@ -293,6 +295,7 @@ def _insert_metadata(connection: sqlite3.Connection, metadata: CuratedMetadata) 
                 item.start_date,
                 item.end_date,
                 item.dosage,
+                item.role,
                 ",".join(item.schedule),
                 item.instructions,
             )
