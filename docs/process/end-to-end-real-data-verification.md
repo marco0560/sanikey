@@ -247,8 +247,10 @@ uv run sanikey scan-documents --config config/accounts.toml
 ```
 
 Il comando stampa solo il riepilogo per paziente e gli eventuali warning
-rilevabili senza build completa. Eseguire anche il preflight leggero prima di
-una build lunga:
+rilevabili senza build completa. Su terminale interattivo puo' stampare punti di
+avanzamento su `stderr`; aggiungere `--no-progress` se si vuole un log
+strettamente privo di progress. Eseguire anche il preflight leggero prima di una
+build lunga:
 
 ```bash
 uv run sanikey scan-documents --config config/accounts.toml --preflight
@@ -291,6 +293,8 @@ dei warning e deve essere consultato se `warnings` e' maggiore di zero.
 `documents=` conta solo i documenti sorgente deduplicati; usare
 `derived_documents=`, `dicom_instances=` e `total_records=` per valutare quanto
 deriva da contenitori e supporti diagnostici.
+I punti di avanzamento, quando presenti, devono essere su `stderr`, non dentro
+il riepilogo su `stdout`.
 
 Se sono presenti archivi o immagini ISO, verificare anche il manifest di
 staging:

@@ -268,6 +268,7 @@ usb_uuid = "1A2B-3C4D"
             "scan-documents",
             "--config",
             str(config_path),
+            "--no-progress",
         ],
         capture_output=True,
         text=True,
@@ -276,6 +277,7 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "documents=1" in result.stdout
     assert "Report" not in result.stdout
+    assert result.stderr == ""
 
 
 def test_scan_documents_rejects_invalid_metadata(tmp_path: Path) -> None:
@@ -949,6 +951,7 @@ usb_uuid = "1A2B-3C4D"
             str(config_path),
             "--mode",
             "full",
+            "--no-progress",
         ],
         capture_output=True,
         text=True,
@@ -959,6 +962,7 @@ usb_uuid = "1A2B-3C4D"
     assert "documents=1 duplicates=0 warnings=0" in result.stdout
     assert "derived_documents=0 dicom_instances=0 total_records=1" in result.stdout
     assert '"patient_id": "patient-a"' not in result.stdout
+    assert result.stderr == ""
     assert (tmp_path / "generated" / "manifests" / "manifest.json").is_file()
 
 

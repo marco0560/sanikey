@@ -22,6 +22,7 @@ from .frontend import build_frontend
 from .inspection import inspect_patient_documents
 from .metadata import load_curated_metadata
 from .privacy import validate_privacy
+from .progress import ProgressDots
 from .proposals import generate_manual_proposals, review_proposal
 from .usb import export_usb, validate_usb
 
@@ -105,6 +106,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run lightweight pre-build checks for archives and office documents",
     )
+    _add_progress_argument(scan_parser)
     scan_parser.set_defaults(func=run_scan_documents)
 
     extract_parser = subparsers.add_parser(
@@ -140,6 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_patient_parser.add_argument(
         "--mode", choices=("full", "incremental", "validation"), default="incremental"
     )
+    _add_progress_argument(build_patient_parser)
     build_patient_parser.set_defaults(func=run_build_patient)
 
     build_all_parser = subparsers.add_parser(
@@ -150,6 +153,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_all_parser.add_argument(
         "--mode", choices=("full", "incremental", "validation"), default="incremental"
     )
+    _add_progress_argument(build_all_parser)
     build_all_parser.set_defaults(func=run_build_all)
 
     update_parser = subparsers.add_parser(
@@ -322,8 +326,13 @@ def run_scan_documents(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}")
         return 1
     output_rows: list[tuple[PersonConfig, DocumentRecord]] = []
+    progress = _progress_from_args(args)
     for person in selected_people:
-        inspection = inspect_patient_documents(person, preflight=args.preflight)
+        inspection = inspect_patient_documents(
+            person,
+            preflight=args.preflight,
+            progress=progress,
+        )
         warning_messages = (
             *inspection.warning_messages,
             *inspection.preflight_warning_messages,
@@ -719,7 +728,13 @@ def run_build_patient(args: argparse.Namespace) -> int:
         if not selected:
             print(f"ERROR: patient not found or disabled: {args.patient}")
             return 1
-        _print_build_result(build_patient(selected[0], mode=args.mode))
+        _print_build_result(
+            build_patient(
+                selected[0],
+                mode=args.mode,
+                progress=_progress_from_args(args),
+            )
+        )
     except (SaniKeyError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 1
@@ -742,12 +757,33 @@ def run_build_all(args: argparse.Namespace) -> int:
 
     try:
         config = load_accounts(args.config)
-        for result in build_all(config, mode=args.mode):
+        for result in build_all(
+            config,
+            mode=args.mode,
+            progress=_progress_from_args(args),
+        ):
             _print_build_result(result)
     except (SaniKeyError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 1
     return 0
+
+
+def _progress_from_args(args: argparse.Namespace) -> ProgressDots:
+    """Build a progress reporter from parsed CLI arguments.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    ProgressDots
+        Progress reporter configured for the current terminal.
+    """
+
+    return ProgressDots(enabled=not getattr(args, "no_progress", False))
 
 
 def run_update_archive(args: argparse.Namespace) -> int:
@@ -1032,6 +1068,26 @@ def _add_config_arguments(parser: argparse.ArgumentParser) -> None:
         type=Path,
         default=Path.cwd(),
         help="Repository root used for privacy checks",
+    )
+
+
+def _add_progress_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the standard progress-output option.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Parser to extend.
+
+    Returns
+    -------
+    None
+    """
+
+    parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable interactive progress dots on stderr",
     )
 
 

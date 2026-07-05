@@ -165,6 +165,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-148 | Il riepilogo build distingue documenti sorgente, derivati, istanze DICOM e record totali. | 15 |  |
 | DA-149 | L'OCR immagini preferisce `ita+eng` quando disponibile e ricade sul default Tesseract. | 20 |  |
 | DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. | 8 |  |
+| DA-151 | Il progresso dei comandi lunghi e' diagnostica interattiva su `stderr`. | 15 |  |
 
 ---
 
@@ -335,6 +336,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-095 | I metadati curati vengono sempre validati prima dell'elaborazione. |  |
 | DA-096 | La build genera un report e un manifest verificabili. |  |
 | DA-148 | Il riepilogo build distingue documenti sorgente, derivati, istanze DICOM e record totali. |  |
+| DA-151 | Il progresso dei comandi lunghi e' diagnostica interattiva su `stderr`. |  |
 
 ### Artefatti Generati
 

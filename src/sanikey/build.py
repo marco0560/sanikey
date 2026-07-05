@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .config import AccountsConfig, PersonConfig
+    from .progress import ProgressReporter
 
 
 @dataclass(frozen=True)
@@ -99,7 +100,10 @@ class PatientBuildResult:
 
 
 def build_patient(
-    person: PersonConfig, *, mode: str = "incremental"
+    person: PersonConfig,
+    *,
+    mode: str = "incremental",
+    progress: ProgressReporter | None = None,
 ) -> PatientBuildResult:
     """Build generated artefacts for one patient.
 
@@ -109,6 +113,8 @@ def build_patient(
         Patient configuration.
     mode : str, optional
         Build mode: ``full``, ``incremental``, or ``validation``.
+    progress : ProgressReporter | None, optional
+        Progress reporter for long build steps.
 
     Returns
     -------
@@ -126,15 +132,28 @@ def build_patient(
         raise ValueError(msg)
     build_root = person.local_build
     build_root.mkdir(parents=True, exist_ok=True)
-    inspection = inspect_patient_documents(person)
+    inspection = inspect_patient_documents(person, progress=progress)
+    if progress is not None:
+        progress.begin(f"stage-containers {person.id}")
     staging = stage_container_documents(person, inspection.documents)
+    if progress is not None:
+        progress.done(f"done derived={len(staging.documents)}")
     documents = (*inspection.documents, *staging.documents)
     dicom_studies = catalog_dicom_studies(person, documents)
     metadata = load_curated_metadata(person.metadata_directory)
     extraction_documents = tuple(
         document for document in documents if not document.kind.startswith("dicom_")
     )
-    extracted = tuple(extract_text(document) for document in extraction_documents)
+    if progress is not None:
+        progress.begin(f"extract-text {person.id}", total=len(extraction_documents))
+    extracted_items = []
+    for index, document in enumerate(extraction_documents, start=1):
+        extracted_items.append(extract_text(document))
+        if progress is not None:
+            progress.advance(index, total=len(extraction_documents))
+    if progress is not None:
+        progress.done(f"done documents={len(extraction_documents)}")
+    extracted = tuple(extracted_items)
     inspection_warnings = tuple(
         warning
         for warning in inspection.warning_messages
@@ -200,6 +219,7 @@ def build_all(
     config: AccountsConfig,
     *,
     mode: str = "incremental",
+    progress: ProgressReporter | None = None,
 ) -> tuple[PatientBuildResult, ...]:
     """Build all enabled patients.
 
@@ -209,6 +229,8 @@ def build_all(
         Loaded accounts configuration.
     mode : str, optional
         Build mode.
+    progress : ProgressReporter | None, optional
+        Progress reporter for long build steps.
 
     Returns
     -------
@@ -216,7 +238,10 @@ def build_all(
         Build results in patient order.
     """
 
-    return tuple(build_patient(person, mode=mode) for person in config.enabled_people())
+    return tuple(
+        build_patient(person, mode=mode, progress=progress)
+        for person in config.enabled_people()
+    )
 
 
 def _write_manifest(

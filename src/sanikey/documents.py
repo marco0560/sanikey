@@ -17,6 +17,7 @@ from .models import DocumentRecord
 
 if TYPE_CHECKING:
     from .config import PersonConfig
+    from .progress import ProgressReporter
 
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
 DICOM_EXTENSIONS = {".dcm": "dicom_file", ".iso": "dicom_iso"}
@@ -86,13 +87,22 @@ def scan_documents(person: PersonConfig) -> tuple[DocumentRecord, ...]:
     return _deduplicate_documents(scan_document_inventory(person))
 
 
-def scan_document_inventory(person: PersonConfig) -> tuple[DocumentRecord, ...]:
+def scan_document_inventory(
+    person: PersonConfig,
+    *,
+    progress: ProgressReporter | None = None,
+    progress_label: str | None = None,
+) -> tuple[DocumentRecord, ...]:
     """Scan every file in a patient's source document directory.
 
     Parameters
     ----------
     person : PersonConfig
         Patient configuration.
+    progress : ProgressReporter | None, optional
+        Progress reporter for scanned files.
+    progress_label : str | None, optional
+        Label for the progress line.
 
     Returns
     -------
@@ -104,10 +114,16 @@ def scan_document_inventory(person: PersonConfig) -> tuple[DocumentRecord, ...]:
     if not root.exists():
         return ()
     files = sorted(path for path in root.rglob("*") if path.is_file())
-    return tuple(
-        document_record_for_path(path, root=root, patient_id=person.id)
-        for path in files
-    )
+    if progress is not None and progress_label is not None:
+        progress.begin(progress_label, total=len(files))
+    records = []
+    for index, path in enumerate(files, start=1):
+        records.append(document_record_for_path(path, root=root, patient_id=person.id))
+        if progress is not None:
+            progress.advance(index, total=len(files))
+    if progress is not None and progress_label is not None:
+        progress.done(f"done files={len(files)}")
+    return tuple(records)
 
 
 def find_duplicate_documents(

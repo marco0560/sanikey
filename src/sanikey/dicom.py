@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
     from .config import PersonConfig
     from .models import DocumentRecord
+    from .progress import ProgressReporter
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,9 @@ class DicomStudy:
 def catalog_dicom_studies(
     person: PersonConfig,
     documents: tuple[DocumentRecord, ...],
+    *,
+    progress: ProgressReporter | None = None,
+    progress_label: str | None = None,
 ) -> tuple[DicomStudy, ...]:
     """Catalog DICOM supports for one patient.
 
@@ -58,6 +62,10 @@ def catalog_dicom_studies(
         Patient configuration.
     documents : tuple[DocumentRecord, ...]
         Scanned document records.
+    progress : ProgressReporter | None, optional
+        Progress reporter for DICOM support checks.
+    progress_label : str | None, optional
+        Label for the progress line.
 
     Returns
     -------
@@ -65,11 +73,16 @@ def catalog_dicom_studies(
         Cataloged DICOM studies sorted by support path.
     """
 
-    studies = [
-        _study_from_document(person, document)
-        for document in documents
-        if _is_dicom_support(document)
-    ]
+    if progress is not None and progress_label is not None:
+        progress.begin(progress_label, total=len(documents))
+    studies = []
+    for index, document in enumerate(documents, start=1):
+        if _is_dicom_support(document):
+            studies.append(_study_from_document(person, document))
+        if progress is not None:
+            progress.advance(index, total=len(documents))
+    if progress is not None and progress_label is not None:
+        progress.done(f"done studies={len(studies)}")
     return tuple(sorted(studies, key=lambda study: str(study.support_path)))
 
 

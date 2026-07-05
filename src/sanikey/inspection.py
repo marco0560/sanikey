@@ -18,6 +18,7 @@ from .documents import (
 if TYPE_CHECKING:
     from .config import PersonConfig
     from .models import DocumentRecord
+    from .progress import ProgressReporter
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ def inspect_patient_documents(
     person: PersonConfig,
     *,
     preflight: bool = False,
+    progress: ProgressReporter | None = None,
 ) -> PatientDocumentInspection:
     """Inspect a patient's documents before a full build.
 
@@ -62,6 +64,8 @@ def inspect_patient_documents(
     preflight : bool, optional
         Whether to run lightweight extraction checks for non-PDF containers and
         office documents.
+    progress : ProgressReporter | None, optional
+        Progress reporter for long inspection steps.
 
     Returns
     -------
@@ -69,10 +73,19 @@ def inspect_patient_documents(
         Inspection result.
     """
 
-    inventory = scan_document_inventory(person)
+    inventory = scan_document_inventory(
+        person,
+        progress=progress,
+        progress_label=f"scan-documents {person.id}",
+    )
     duplicates = find_duplicate_documents(inventory)
     documents = scan_documents(person)
-    dicom_studies = catalog_dicom_studies(person, documents)
+    dicom_studies = catalog_dicom_studies(
+        person,
+        documents,
+        progress=progress,
+        progress_label=f"catalog-dicom {person.id}",
+    )
     warning_messages = (
         *duplicate_document_warnings(duplicates),
         *(

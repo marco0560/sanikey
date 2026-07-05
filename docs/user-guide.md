@@ -103,6 +103,12 @@ duplicati, file con estensione non supportata e supporti DICOM senza directory
 di espansione manuale. Prima della scansione viene ripetuto il controllo dei
 metadati curati dei pazienti selezionati, cosi' un errore in `therapies.toml`
 blocca subito il comando invece di emergere dopo una build lunga.
+Su terminali interattivi, i passi lunghi stampano punti di avanzamento su
+`stderr`, senza modificare l'output riepilogativo su `stdout`. Per disattivarli:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml --no-progress
+```
 
 Per eseguire anche controlli preliminari leggeri su archivi e documenti Office:
 
@@ -188,6 +194,8 @@ lunghi o ripetitivi non vengono serializzati in stdout: sono conservati nel
 report JSON indicato dalla riga
 `report=...`. I warning sui documenti duplicati restano visibili anche in
 stdout perché richiedono una decisione manuale.
+Anche `build-patient` usa punti di avanzamento su `stderr` quando il terminale e'
+interattivo; usare `--no-progress` per disattivarli.
 
 Costruisci tutti i pazienti abilitati:
 
