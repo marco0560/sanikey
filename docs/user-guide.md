@@ -270,6 +270,11 @@ per il paziente, inclusi:
 - file statici del frontend
 - manifest, checksum e report di build
 
+Il frontend e' pensato per la consultazione diretta dalla chiavetta USB. I dati
+necessari alla prima schermata sono esportati anche in `web/data.js`, caricato
+come script locale, così Chrome e gli altri browser non devono usare `fetch()`
+su URL `file://`.
+
 ## Revisionare le Proposte
 
 La prima implementazione include proposte deterministiche da revisionare

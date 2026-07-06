@@ -91,6 +91,7 @@ links = ["therapy-a"]
     search = json.loads(result.search.read_text(encoding="utf-8"))
     timeline = json.loads(result.timeline.read_text(encoding="utf-8"))
     summary = json.loads(result.summary.read_text(encoding="utf-8"))
+    data_script = result.data_script.read_text(encoding="utf-8")
     assert documents[0]["tags"] == ["report"]
     assert search[0]["text"] == "Report laboratory report"
     assert timeline[0]["id"] == "therapy-interval"
@@ -99,6 +100,9 @@ links = ["therapy-a"]
     assert timeline[0]["links"] == ["therapy-a"]
     assert timeline[1]["start_date"] == "2026-01-02"
     assert summary["document_count"] == 1
+    assert data_script.startswith("window.SANIKEY_DATA = ")
+    assert '"documents":' in data_script
+    assert '"summary":' in data_script
 
 
 def test_generate_exports_excludes_unapproved_proposals(tmp_path: Path) -> None:

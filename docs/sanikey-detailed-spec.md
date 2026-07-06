@@ -7984,6 +7984,11 @@ data/
 └── search.json
 ```
 
+La build genera inoltre `web/data.js`, che incapsula i dataset essenziali in una
+variabile JavaScript locale. Il frontend usa `data.js` per la prima
+consultazione offline da `file://`; i JSON restano presenti come artefatti
+ispezionabili e riprocessabili.
+
 ---
 
 ### 16.7 Motivazione
@@ -7994,6 +7999,10 @@ L'utilizzo di JSON statici:
 * migliora la compatibilità;
 * semplifica il frontend;
 * riduce la complessità operativa.
+
+Per la consultazione diretta da file manager, il frontend non deve dipendere da
+`fetch()` sui JSON locali, perché alcuni browser bloccano queste richieste su
+URL `file://`.
 
 ---
 

@@ -31,6 +31,8 @@ class ExportResult:
         Timeline JSON path.
     summary : pathlib.Path
         Summary JSON path.
+    data_script : pathlib.Path
+        Frontend data JavaScript path for ``file://`` loading.
     """
 
     data_dir: Path
@@ -38,6 +40,7 @@ class ExportResult:
     search: Path
     timeline: Path
     summary: Path
+    data_script: Path
 
 
 def generate_exports(
@@ -64,33 +67,48 @@ def generate_exports(
 
     data_dir = person.local_build / "web" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
+    documents_payload = [
+        _document_payload(document, metadata) for document in documents
+    ]
+    search_payload = [
+        *(_document_search_payload(document, metadata) for document in documents),
+        *_metadata_search_payloads(metadata),
+    ]
+    timeline_events = _timeline_events(documents, metadata)
+    timeline_payload = [asdict(event) for event in timeline_events]
+    summary_payload = {
+        "patient_id": person.id,
+        "display_name": person.display_name,
+        "document_count": len(documents),
+        "problem_count": len(metadata.problems),
+        "therapy_count": len(metadata.therapies),
+        "procedure_count": len(metadata.procedures),
+        "observation_count": len(metadata.observations),
+        "clinical_summary": metadata.clinical_summary,
+    }
     documents_path = _write_json(
         data_dir / "documents.json",
-        [_document_payload(document, metadata) for document in documents],
+        documents_payload,
     )
     search_path = _write_json(
         data_dir / "search.json",
-        [
-            *(_document_search_payload(document, metadata) for document in documents),
-            *_metadata_search_payloads(metadata),
-        ],
+        search_payload,
     )
-    timeline_events = _timeline_events(documents, metadata)
     timeline_path = _write_json(
         data_dir / "timeline.json",
-        [asdict(event) for event in timeline_events],
+        timeline_payload,
     )
     summary_path = _write_json(
         data_dir / "summary.json",
+        summary_payload,
+    )
+    data_script_path = _write_data_script(
+        person.local_build / "web" / "data.js",
         {
-            "patient_id": person.id,
-            "display_name": person.display_name,
-            "document_count": len(documents),
-            "problem_count": len(metadata.problems),
-            "therapy_count": len(metadata.therapies),
-            "procedure_count": len(metadata.procedures),
-            "observation_count": len(metadata.observations),
-            "clinical_summary": metadata.clinical_summary,
+            "documents": documents_payload,
+            "search": search_payload,
+            "timeline": timeline_payload,
+            "summary": summary_payload,
         },
     )
     _write_json(
@@ -107,7 +125,33 @@ def generate_exports(
         search=search_path,
         timeline=timeline_path,
         summary=summary_path,
+        data_script=data_script_path,
     )
+
+
+def _write_data_script(target: Path, payload: dict[str, Any]) -> Path:
+    """Write frontend data as JavaScript for direct ``file://`` loading.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        JavaScript output path.
+    payload : dict[str, Any]
+        Frontend data payload.
+
+    Returns
+    -------
+    pathlib.Path
+        Written JavaScript path.
+    """
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    target.write_text(
+        f"window.SANIKEY_DATA = {encoded};\n",
+        encoding="utf-8",
+    )
+    return target
 
 
 def _document_payload(

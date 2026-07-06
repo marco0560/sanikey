@@ -375,12 +375,13 @@ uv run sanikey build-patient irene --config config/accounts.toml
 uv run sanikey build-patient irene --config config/accounts.toml
 ```
 
-Nella prima build incrementale dopo una build full, o dopo la rimozione della
-cache, `extracted_documents=` può essere maggiore di zero e `cached_documents=`
-può essere zero. Nella seconda build incrementale senza modifiche ai sorgenti,
-`cached_documents=` deve aumentare e `extracted_documents=` deve scendere a zero
-per i documenti non DICOM già estratti con la stessa identità (`document_id`,
-path, kind, SHA256 e provenance). Il file di cache si trova in:
+Dopo una build full completata, la cache di estrazione testo esiste già. La
+prima e la seconda build incrementale senza modifiche ai sorgenti devono quindi
+mostrare `extracted_documents=0` e `cached_documents=` maggiore di zero per i
+documenti non DICOM già estratti con la stessa identità (`document_id`, path,
+kind, SHA256 e provenance). Se la cache viene rimossa manualmente, la prima
+build incrementale successiva può riestrarre i documenti e ricrearla. Il file di
+cache si trova in:
 
 ```bash
 test -f local-data/generated/marco/cache/extracted_text.json
@@ -398,17 +399,93 @@ uv run sanikey build-patient irene --config config/accounts.toml --mode full
 In questo caso `cached_documents=` deve essere `0` e `extracted_documents=` deve
 riflettere i documenti non DICOM sottoposti a estrazione testo.
 
-Generare l'export USB verso un target locale di verifica:
+Generare l'export USB verso un target locale di verifica e rigenerare anche
+l'immagine canonica prima di validarla, in modo da non controllare un residuo di
+run precedenti:
 
 ```bash
+rm -rf exports/usb-image local-data/usb-target
+uv run sanikey export-usb --config config/accounts.toml exports/usb-image
 uv run sanikey export-usb --config config/accounts.toml local-data/usb-target
+uv run sanikey validate-usb exports/usb-image
 uv run sanikey validate-usb local-data/usb-target
 ```
 
-Il secondo comando deve stampare:
+I comandi `validate-usb` devono stampare:
 
 ```text
 status=ok
+```
+
+Interrogare anche il target USB locale simulato, non solo `local-data/generated`:
+
+```bash
+test -f local-data/usb-target/SANIKEY-MANIFEST.json
+test -f local-data/usb-target/patients/marco/medical_archive.db
+test -f local-data/usb-target/patients/marco/web/data.js
+test -f local-data/usb-target/patients/irene/medical_archive.db
+test -f local-data/usb-target/patients/irene/web/data.js
+sqlite3 local-data/usb-target/patients/marco/medical_archive.db 'SELECT count(*) FROM documents;'
+sqlite3 local-data/usb-target/patients/irene/medical_archive.db 'SELECT count(*) FROM documents;'
+```
+
+### Verifica su Chiavetta Fisica
+
+Inserire la chiavetta USB, montarla con gli strumenti del sistema operativo e
+identificare il mountpoint. Su Linux:
+
+```bash
+lsblk -f
+findmnt
+```
+
+Impostare una variabile con il mountpoint reale. Esempio:
+
+```bash
+USB_MOUNT=/run/media/$USER/SANIKEY
+test -d "$USB_MOUNT"
+test -w "$USB_MOUNT"
+findmnt "$USB_MOUNT"
+```
+
+L'export verso una chiavetta fisica sostituisce il contenuto SaniKey nel target:
+usare solo un mountpoint verificato e dedicato.
+
+```bash
+uv run sanikey export-usb --config config/accounts.toml "$USB_MOUNT"
+sync
+uv run sanikey validate-usb "$USB_MOUNT"
+```
+
+Il comando `validate-usb` deve stampare:
+
+```text
+status=ok
+```
+
+Verificare gli artefatti direttamente sulla chiavetta, non solo nella directory
+locale:
+
+```bash
+test -f "$USB_MOUNT/SANIKEY-MANIFEST.json"
+test -f "$USB_MOUNT/START-HERE-Marco-Coppola.html"
+test -f "$USB_MOUNT/START-HERE-Irene-Corazzesi.html"
+test -f "$USB_MOUNT/patients/marco/medical_archive.db"
+test -f "$USB_MOUNT/patients/marco/web/data.js"
+test -f "$USB_MOUNT/patients/irene/medical_archive.db"
+test -f "$USB_MOUNT/patients/irene/web/data.js"
+sqlite3 "$USB_MOUNT/patients/marco/medical_archive.db" 'SELECT count(*) FROM documents;'
+sqlite3 "$USB_MOUNT/patients/irene/medical_archive.db" 'SELECT count(*) FROM documents;'
+xdg-open "$USB_MOUNT/START-HERE-Marco-Coppola.html"
+xdg-open "$USB_MOUNT/START-HERE-Irene-Corazzesi.html"
+```
+
+Nel browser, controllare che la ricerca funzioni e che non compaia `Failed to
+fetch` aprendo le pagine direttamente dalla chiavetta. Smontare la chiavetta
+solo dopo `sync` e dopo la chiusura delle verifiche:
+
+```bash
+sync
 ```
 
 ## Controlli sugli artefatti
@@ -421,12 +498,14 @@ test -f local-data/generated/marco/web/index.html
 test -f local-data/generated/marco/web/data/documents.json
 test -f local-data/generated/marco/web/data/search.json
 test -f local-data/generated/marco/web/data/timeline.json
+test -f local-data/generated/marco/web/data.js
 test -f local-data/generated/marco/checksums.sha256
 test -f local-data/generated/irene/database/medical_archive.db
 test -f local-data/generated/irene/web/index.html
 test -f local-data/generated/irene/web/data/documents.json
 test -f local-data/generated/irene/web/data/search.json
 test -f local-data/generated/irene/web/data/timeline.json
+test -f local-data/generated/irene/web/data.js
 test -f local-data/generated/irene/checksums.sha256
 test -f exports/usb-image/SANIKEY-MANIFEST.json
 test -f local-data/usb-target/SANIKEY-MANIFEST.json
@@ -488,13 +567,15 @@ sqlite3 local-data/generated/marco/database/medical_archive.db '.tables'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM documents;'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM document_text;'
 sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
-sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY support_kind, support_path LIMIT 20;"
+sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT support_kind, count(*) AS studies, sum(instance_count) AS instances FROM dicom_studies GROUP BY support_kind ORDER BY support_kind;"
+sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY CASE WHEN support_kind IN ('dicom_study','dicomdir_study') THEN 0 ELSE 1 END, instance_count DESC, support_path LIMIT 20;"
 sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT id, count(*) FROM dicom_studies GROUP BY id HAVING count(*) > 1;"
 sqlite3 local-data/generated/irene/database/medical_archive.db '.tables'
 sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM documents;'
 sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM document_text;'
 sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
-sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY support_kind, support_path LIMIT 20;"
+sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT support_kind, count(*) AS studies, sum(instance_count) AS instances FROM dicom_studies GROUP BY support_kind ORDER BY support_kind;"
+sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY CASE WHEN support_kind IN ('dicom_study','dicomdir_study') THEN 0 ELSE 1 END, instance_count DESC, support_path LIMIT 20;"
 sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT id, count(*) FROM dicom_studies GROUP BY id HAVING count(*) > 1;"
 ```
 
@@ -526,6 +607,8 @@ Controllare:
 - il riepilogo mostra il numero documenti atteso;
 - la timeline è visibile;
 - la ricerca client-side filtra i documenti;
+- non compare il messaggio `Failed to fetch` aprendo la pagina direttamente dal
+  file manager o con URL `file://`;
 - i link ai documenti originali puntano a file presenti nel target;
 - la pagina resta consultabile scollegando la rete.
 

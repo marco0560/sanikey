@@ -88,6 +88,7 @@ def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
     assert (result.root / "START-HERE-Patient-A.html").is_file()
     assert (result.root / "patients" / "patient-a" / "medical_archive.db").is_file()
     assert (result.root / "patients" / "patient-a" / "web" / "index.html").is_file()
+    assert (result.root / "patients" / "patient-a" / "web" / "data.js").is_file()
     assert (usb_image_root(config) / "START-HERE-Patient-A.html").is_file()
     assert usb_image_root(config) != result.root
     assert validate_usb(result.root)
@@ -244,9 +245,11 @@ def test_export_usb_removes_obsolete_target_files(tmp_path: Path) -> None:
     stale = target / "stale.txt"
     stale.parent.mkdir()
     stale.write_text("remove me", encoding="utf-8")
+    target_inode = target.stat().st_ino
 
     result = export_usb(config, target)
 
+    assert target.stat().st_ino == target_inode
     assert not stale.exists()
     assert validate_usb(result.root)
 

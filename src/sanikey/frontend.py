@@ -95,6 +95,7 @@ def _index_html(person: PersonConfig) -> str:
     <section id="timeline" aria-label="Timeline"></section>
     <section id="documents" aria-label="Documenti"></section>
   </main>
+  <script src="data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
@@ -114,13 +115,7 @@ def _app_js() -> str:
         JavaScript source.
     """
 
-    return r"""async function loadJson(path) {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error(`Cannot load ${path}`);
-  return response.json();
-}
-
-function text(value) {
+    return r"""function text(value) {
   return value === null || value === undefined ? "" : String(value);
 }
 
@@ -166,12 +161,14 @@ function renderDocuments(documents, query = "") {
   ).join("");
 }
 
-async function main() {
-  const [summary, timeline, documents] = await Promise.all([
-    loadJson("data/summary.json"),
-    loadJson("data/timeline.json"),
-    loadJson("data/documents.json"),
-  ]);
+function main() {
+  const data = window.SANIKEY_DATA;
+  if (!data) {
+    throw new Error("Dati archivio non disponibili. Rigenerare l'export USB.");
+  }
+  const summary = data.summary || {};
+  const timeline = data.timeline || [];
+  const documents = data.documents || [];
   renderSummary(summary);
   renderTimeline(timeline);
   renderDocuments(documents);
@@ -180,9 +177,11 @@ async function main() {
   });
 }
 
-main().catch((error) => {
+try {
+  main();
+} catch (error) {
   document.body.insertAdjacentHTML("beforeend", `<pre class="error">${error.message}</pre>`);
-});
+}
 """
 
 

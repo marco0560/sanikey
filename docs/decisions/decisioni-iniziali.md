@@ -171,6 +171,8 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-154 | `scan-documents` crea lo staging dei container per verifica manuale, salvo opt-out esplicito. | 15 |  |
 | DA-155 | Le istanze DICOM leggibili vengono raggruppate per StudyInstanceUID o DICOMDIR e coalescono record duplicati dello stesso studio. | 8 |  |
 | DA-156 | La build incrementale riusa il testo estratto per documenti invariati e rigenera il database dall'inventario corrente. | 8 |  |
+| DA-157 | Il frontend offline carica i dati essenziali come JavaScript locale per funzionare anche da `file://`. | 12 |  |
+| DA-158 | L'export USB verso target esistenti sostituisce il contenuto del target senza rimuovere il mountpoint. | 17 |  |
 
 ---
 
@@ -252,6 +254,8 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-152 | I supporti DICOM annidati nei contenitori vengono espansi ricorsivamente in staging. |  |
 | DA-155 | Le istanze DICOM leggibili vengono raggruppate per StudyInstanceUID o DICOMDIR e coalescono record duplicati dello stesso studio. |  |
 | DA-156 | La build incrementale riusa il testo estratto per documenti invariati e rigenera il database dall'inventario corrente. |  |
+| DA-157 | Il frontend offline carica i dati essenziali come JavaScript locale per funzionare anche da `file://`. |  |
+| DA-158 | L'export USB verso target esistenti sostituisce il contenuto del target senza rimuovere il mountpoint. |  |
 
 ### Database SQLite
 

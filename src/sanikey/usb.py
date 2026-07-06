@@ -199,14 +199,14 @@ def _reset_directory(target: Path) -> None:
 
 
 def _replace_tree(source: Path, target: Path) -> None:
-    """Replace a target directory with a copied tree.
+    """Replace target contents with a copied tree.
 
     Parameters
     ----------
     source : pathlib.Path
         Source directory to copy.
     target : pathlib.Path
-        Target directory to replace.
+        Target directory whose contents are replaced.
 
     Returns
     -------
@@ -214,12 +214,39 @@ def _replace_tree(source: Path, target: Path) -> None:
     """
 
     if target.exists():
-        if target.is_dir():
-            shutil.rmtree(target)
-        else:
+        if not target.is_dir():
             target.unlink()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, target)
+            shutil.copytree(source, target)
+            return
+        _clear_directory_contents(target)
+    else:
+        target.mkdir(parents=True)
+    for item in source.iterdir():
+        destination = target / item.name
+        if item.is_dir():
+            shutil.copytree(item, destination)
+        else:
+            shutil.copy2(item, destination)
+
+
+def _clear_directory_contents(target: Path) -> None:
+    """Remove every item inside a directory without removing the directory.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        Directory to empty.
+
+    Returns
+    -------
+    None
+    """
+
+    for item in target.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
 
 
 def _write_manifest(people: tuple[PersonConfig, ...], target: Path) -> Path:

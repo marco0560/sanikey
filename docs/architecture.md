@@ -58,8 +58,10 @@ struttura USB.
   StudyInstanceUID e coalesce i record duplicati dello stesso studio prima
   della persistenza.
 - `database.py`: scrive l'archivio SQLite.
-- `exports.py`: scrive export JSON statici per ricerca, timeline e sommari.
-- `frontend.py`: renderizza l'entrypoint web statico.
+- `exports.py`: scrive export JSON statici e il bundle dati JavaScript per
+  ricerca, timeline e sommari.
+- `frontend.py`: renderizza l'entrypoint web statico consultabile anche tramite
+  `file://`.
 - `build.py`: coordina la pipeline locale di build paziente e la cache
   incrementale dell'estrazione testo.
 - `usb.py`: esporta e valida la struttura USB.

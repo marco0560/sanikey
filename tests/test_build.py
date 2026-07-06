@@ -42,6 +42,86 @@ def _person(tmp_path: Path) -> PersonConfig:
     )
 
 
+class ProgressRecorder:
+    """Record progress labels for pipeline-order tests.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    def __init__(self) -> None:
+        """Initialize the recorder.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
+        self.labels: list[str] = []
+
+    def begin(
+        self,
+        label: str,
+        *,
+        total: int | None = None,
+        interval: int | None = None,
+    ) -> None:
+        """Record one progress line start.
+
+        Parameters
+        ----------
+        label : str
+            Progress label.
+        total : int | None, optional
+            Expected item count.
+        interval : int | None, optional
+            Dot interval override.
+
+        Returns
+        -------
+        None
+        """
+
+        self.labels.append(label)
+
+    def advance(self, completed: int, *, total: int | None = None) -> None:
+        """Ignore progress advancement.
+
+        Parameters
+        ----------
+        completed : int
+            Completed item count.
+        total : int | None, optional
+            Expected item count.
+
+        Returns
+        -------
+        None
+        """
+
+    def done(self, summary: str = "done") -> None:
+        """Ignore progress completion.
+
+        Parameters
+        ----------
+        summary : str, optional
+            Completion summary.
+
+        Returns
+        -------
+        None
+        """
+
+
 def test_build_patient_writes_manifest_report_checksums(tmp_path: Path) -> None:
     """Verify a patient build produces verifiable artefacts.
 
@@ -443,3 +523,35 @@ def test_build_patient_stages_container_members_with_provenance(
         "manual DICOM expansion directory not found" in warning
         for warning in result.warning_messages
     )
+
+
+def test_build_patient_catalogs_dicom_after_container_staging(
+    tmp_path: Path,
+) -> None:
+    """Verify build progress catalogs DICOM after derived staging exists.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    bundle = person.source_documents / "20260102 Bundle.zip"
+    with zipfile.ZipFile(bundle, "w") as archive:
+        archive.writestr("dicom/image.dcm", b"\0" * 128 + b"DICM")
+    progress = ProgressRecorder()
+
+    build_patient(person, mode="full", progress=progress)
+
+    assert progress.labels == [
+        "scan-documents patient-a",
+        "stage-containers patient-a",
+        "catalog-dicom patient-a",
+        "extract-text patient-a",
+    ]

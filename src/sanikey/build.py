@@ -8,9 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
-from .containers import stage_container_documents
 from .database import build_database
-from .dicom import catalog_dicom_studies
 from .documents import ExtractedText, extract_text
 from .exports import generate_exports
 from .frontend import build_frontend
@@ -164,15 +162,17 @@ def build_patient(
         raise ValueError(msg)
     build_root = person.local_build
     build_root.mkdir(parents=True, exist_ok=True)
-    inspection = inspect_patient_documents(person, progress=progress)
-    staging = stage_container_documents(
+    inspection = inspect_patient_documents(
         person,
-        inspection.documents,
+        stage_containers=True,
         progress=progress,
-        progress_label=f"stage-containers {person.id}",
     )
+    staging = inspection.container_staging
+    if staging is None:
+        msg = "container staging result missing after staged inspection"
+        raise ValueError(msg)
     documents = (*inspection.documents, *staging.documents)
-    dicom_studies = catalog_dicom_studies(person, documents)
+    dicom_studies = inspection.dicom_studies
     metadata = load_curated_metadata(person.metadata_directory)
     extraction_documents = tuple(
         document for document in documents if not document.kind.startswith("dicom_")
@@ -189,16 +189,9 @@ def build_patient(
         for warning in inspection.warning_messages
         if "manual DICOM expansion directory not found" not in warning
     )
-    dicom_warnings = tuple(
-        f"{study.support_path}: {warning}"
-        for study in dicom_studies
-        for warning in study.warnings
-    )
     warning_messages = (
         *inspection_warnings,
         *static_document_warning_messages(staging.documents),
-        *dicom_warnings,
-        *staging.warning_messages,
         *extraction_warning_messages(extraction_documents, extracted),
     )
     warnings = len(warning_messages)
