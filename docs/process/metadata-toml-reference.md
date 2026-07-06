@@ -20,7 +20,7 @@ Campi:
 
 | Campo | Tipo | Obbligatorio | Uso |
 | --- | --- | --- | --- |
-| `summary` | stringa | no | Testo libero mostrato nel riepilogo del frontend |
+| `summary` | stringa Markdown | no | Testo libero mostrato nel riepilogo del frontend |
 
 Esempio:
 
@@ -38,14 +38,10 @@ summary = """
 
 ### Markdown
 
-Il campo `summary` e' oggi trattato come testo semplice. E' possibile usare una
-struttura markdown-like per leggibilita' nel file sorgente, ma SaniKey non
-converte Markdown in HTML.
-
-Blast radius di un vero rendering Markdown:
-
-- frontend: servirebbe un renderer Markdown o una conversione build-time;
-- sicurezza: l'HTML generato dovrebbe essere sanificato per evitare injection;
+Il campo `summary` supporta Markdown CommonMark e viene convertito in HTML
+durante la build. L'HTML grezzo inserito nel Markdown viene escapato: usare
+Markdown strutturale (`#`, `##`, liste, enfasi, link) invece di markup HTML
+manuale.
 - offline: eventuali librerie devono essere vendorizzate o eliminate durante la
   build, senza dipendenze cloud;
 - test: servirebbero test per rendering, escaping, link, liste, titoli e

@@ -119,6 +119,10 @@ def _app_js() -> str:
   return value === null || value === undefined ? "" : String(value);
 }
 
+function html(value) {
+  return value === null || value === undefined ? "" : String(value);
+}
+
 function formatDate(value) {
   const rendered = text(value);
   const match = rendered.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -137,7 +141,7 @@ function renderSummary(summary) {
     <p>Documenti: ${summary.document_count}</p>
     <p>Problemi: ${summary.problem_count}</p>
     <p>Procedure: ${summary.procedure_count}</p>
-    <p>${text(summary.clinical_summary)}</p>`;
+    <div class="markdown">${html(summary.clinical_summary_html) || `<p>${text(summary.clinical_summary)}</p>`}</div>`;
 }
 
 function renderTimeline(timeline) {
@@ -157,6 +161,7 @@ function renderDocuments(documents, query = "") {
     `<article><h3>${text(item.title)}</h3>
       <p>${formatDate(item.date)} ${text(item.category)} ${text(item.kind)}</p>
       <p>${item.tags.map(text).join(", ")}</p>
+      ${item.markdown_html ? `<div class="markdown">${html(item.markdown_html)}</div>` : ""}
       <a href="${text(item.path)}">Apri originale</a></article>`
   ).join("");
 }
@@ -229,6 +234,22 @@ input {
 article {
   border-bottom: 1px solid #d9e2ec;
   padding: 0.75rem 0;
+}
+
+.markdown {
+  max-width: 64rem;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  margin: 0.75rem 0 0.25rem;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol {
+  margin: 0.5rem 0;
 }
 
 .error {

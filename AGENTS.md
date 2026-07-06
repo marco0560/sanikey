@@ -64,6 +64,29 @@ Use the following shared skills for the corresponding task classes:
 If a required skill is unavailable, state that explicitly and apply the same
 rules manually.
 
+For any task where an available skill is explicitly named by the user or clearly
+matches the task class, read that skill before acting and follow it. Required
+repo skills listed above are mandatory; other applicable skills are still part
+of the operating contract when available.
+
+## 4.1 Codira Orientation
+
+When the repository provides `codira`, use it to orient code exploration before
+broad text search or large file reads.
+
+Required sequence for non-trivial code work:
+
+1. Run `uv run codira caps --json` to confirm the current command surface.
+2. Run `uv run codira index` before indexed lookup.
+3. Prefer narrow indexed queries such as `sym`, `refs`, `calls`, or `ctx` to
+   identify the relevant modules and symbols.
+4. Read the files indicated by Codira before editing.
+5. Use `rg` for textual follow-up, documentation search, or when Codira cannot
+   answer the question directly.
+
+Using Codira only as a final audit is insufficient for code changes unless the
+task is trivial and already localized by an explicit file path and symbol.
+
 ## 5. Validation Contract
 
 Assume the following commands are the required validation surface:

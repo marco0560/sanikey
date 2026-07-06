@@ -173,6 +173,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-156 | La build incrementale riusa il testo estratto per documenti invariati e rigenera il database dall'inventario corrente. | 8 |  |
 | DA-157 | Il frontend offline carica i dati essenziali come JavaScript locale per funzionare anche da `file://`. | 12 |  |
 | DA-158 | L'export USB verso target esistenti sostituisce il contenuto del target senza rimuovere il mountpoint. | 17 |  |
+| DA-159 | I contenuti Markdown vengono renderizzati in HTML statico durante la build con HTML grezzo disabilitato. | 12 |  |
 
 ---
 
@@ -256,6 +257,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-156 | La build incrementale riusa il testo estratto per documenti invariati e rigenera il database dall'inventario corrente. |  |
 | DA-157 | Il frontend offline carica i dati essenziali come JavaScript locale per funzionare anche da `file://`. |  |
 | DA-158 | L'export USB verso target esistenti sostituisce il contenuto del target senza rimuovere il mountpoint. |  |
+| DA-159 | I contenuti Markdown vengono renderizzati in HTML statico durante la build con HTML grezzo disabilitato. |  |
 
 ### Database SQLite
 

@@ -60,7 +60,23 @@ def test_generate_exports_writes_frontend_data(tmp_path: Path) -> None:
         "synthetic",
         encoding="utf-8",
     )
+    (laboratory / "20260103 Summary.md").write_text(
+        "# Referto\n\n- Voce\n\n<script>alert(1)</script>",
+        encoding="utf-8",
+    )
     person.metadata_directory.mkdir()
+    (person.metadata_directory / "clinical_summary.toml").write_text(
+        """
+summary = \"\"\"
+# Sintesi clinica
+
+- Ipertensione.
+
+<script>alert(1)</script>
+\"\"\"
+""",
+        encoding="utf-8",
+    )
     (person.metadata_directory / "document_tags.toml").write_text(
         """
 [tags]
@@ -92,14 +108,21 @@ links = ["therapy-a"]
     timeline = json.loads(result.timeline.read_text(encoding="utf-8"))
     summary = json.loads(result.summary.read_text(encoding="utf-8"))
     data_script = result.data_script.read_text(encoding="utf-8")
-    assert documents[0]["tags"] == ["report"]
+    document_by_title = {item["title"]: item for item in documents}
+    assert document_by_title["Report"]["tags"] == ["report"]
+    assert document_by_title["Summary"]["markdown_html"].startswith("<h1>Referto</h1>")
+    assert "<script>" not in document_by_title["Summary"]["markdown_html"]
+    assert "&lt;script&gt;" in document_by_title["Summary"]["markdown_html"]
     assert search[0]["text"] == "Report laboratory report"
     assert timeline[0]["id"] == "therapy-interval"
     assert timeline[0]["start_date"] == "2026-01-01"
     assert timeline[0]["end_date"] == "2026-01-31"
     assert timeline[0]["links"] == ["therapy-a"]
     assert timeline[1]["start_date"] == "2026-01-02"
-    assert summary["document_count"] == 1
+    assert summary["document_count"] == 2
+    assert summary["clinical_summary_html"].startswith("<h1>Sintesi clinica</h1>")
+    assert "<script>" not in summary["clinical_summary_html"]
+    assert "&lt;script&gt;" in summary["clinical_summary_html"]
     assert data_script.startswith("window.SANIKEY_DATA = ")
     assert '"documents":' in data_script
     assert '"summary":' in data_script

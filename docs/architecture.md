@@ -54,6 +54,8 @@ struttura USB.
 - `documents.py`: scansiona i documenti, calcola digest, estrae testo
   supportato e rileva duplicati.
 - `metadata.py`: carica metadati curati da file TOML.
+- `markdown.py`: converte contenuti Markdown curati o documentali in HTML
+  statico con HTML grezzo disabilitato.
 - `dicom.py`: cataloga supporti DICOM, legge DICOMDIR, raggruppa istanze per
   StudyInstanceUID e coalesce i record duplicati dello stesso studio prima
   della persistenza.

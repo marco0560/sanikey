@@ -60,3 +60,6 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "${match[3]}/${match[2]}/${match[1]}" in script
     assert "formatdaterange(item.start_date, item.end_date)" in script
     assert "formatdate(item.date)" in script
+    assert "clinical_summary_html" in script
+    assert "markdown_html" in script
+    assert ".markdown" in stylesheet

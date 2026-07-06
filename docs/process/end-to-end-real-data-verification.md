@@ -102,8 +102,8 @@ adattando id, nomi e contenuti.
 può essere trattata come anamnesi/sommario narrativo: problemi rilevanti,
 interventi, terapie importanti, allergie note, avvertenze e contesto utile alla
 consultazione. Se il testo ha più righe, usare una stringa TOML multilinea.
-Il testo e' trattato come plain text: eventuali marker Markdown aiutano la
-scrittura ma non vengono convertiti in HTML nel frontend.
+Il testo supporta Markdown CommonMark e viene convertito in HTML durante la
+build; eventuale HTML grezzo nel Markdown viene escapato.
 
 Esempio `clinical_summary.toml`:
 
@@ -558,7 +558,28 @@ Controllare manualmente che:
 - `search.json` contenga sia documenti sia metadati curati;
 - `timeline.json` contenga eventi datati e terapie come intervalli, se i dati
   curati li includono;
+- `summary.json` contenga `clinical_summary_html` quando
+  `clinical_summary.toml` usa `summary`;
+- i documenti `.md` in `documents.json` contengano `markdown_html`;
 - proposte AI non approvate non compaiano negli export standard.
+
+Verificare il rendering Markdown senza esporre HTML grezzo:
+
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
+
+for patient in ("marco", "irene"):
+    root = Path("local-data/generated") / patient / "web" / "data"
+    summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
+    documents = json.loads((root / "documents.json").read_text(encoding="utf-8"))
+    html_fields = [summary.get("clinical_summary_html") or ""]
+    html_fields.extend(item.get("markdown_html") or "" for item in documents)
+    assert not any("<script" in value.lower() for value in html_fields)
+    print(patient, "markdown_html_fields", sum(1 for value in html_fields if value))
+PY
+```
 
 Verificare il database:
 

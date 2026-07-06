@@ -2313,6 +2313,7 @@ name = "sanikey"
 source = { editable = "." }
 dependencies = [
     { name = "jsonschema" },
+    { name = "markdown-it-py" },
     { name = "odfpy" },
     { name = "openpyxl" },
     { name = "py7zr" },
@@ -2347,6 +2348,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jsonschema", specifier = ">=4.23.0,<5" },
+    { name = "markdown-it-py", specifier = ">=3.0.0,<5" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6,<2" },
     { name = "mkdocs-awesome-pages-plugin", marker = "extra == 'docs'", specifier = ">=2.10,<3" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.7,<10" },

@@ -167,7 +167,8 @@ salvare gli snapshot in un'altra directory.
 
 Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 
-- `.txt` e `.md`: contenuto testuale diretto;
+- `.txt`: contenuto testuale diretto;
+- `.md`: contenuto testuale diretto e rendering HTML Markdown nel frontend;
 - `.pdf`: testo digitale con PyMuPDF e OCR con OCRmyPDF quando necessario;
 - `.jpg`, `.jpeg`, `.png`: OCR immagine tramite `tesseract`;
 - `.docx`, `.xlsx`, `.odt`, `.ods`: testo e celle tramite librerie Python;
@@ -223,6 +224,10 @@ tool esterno.
 Il testo estratto con successo viene salvato nella tabella SQLite
 `document_text` e indicizzato in `document_fts` insieme a titolo, categoria e
 tag. I file DICOM restano esclusi dall'estrazione testo.
+I documenti `.md` e i campi TOML documentati come Markdown, incluso
+`clinical_summary.toml`, vengono convertiti in HTML durante la build. L'HTML
+grezzo presente nel Markdown viene escapato; il frontend usa solo l'HTML
+generato dalla pipeline.
 
 Per le immagini, SaniKey usa il comando di sistema `tesseract`. Quando sono
 disponibili i language pack `ita` ed `eng`, usa `ita+eng`; altrimenti ricade

@@ -5114,6 +5114,10 @@ Può essere inizialmente proposta dall'AI ma deve essere revisionata.
 
 La sintesi finale viene mantenuta manualmente.
 
+Il campo `summary` supporta Markdown CommonMark. Durante la build SaniKey
+genera HTML statico per la consultazione frontend e disabilita l'HTML grezzo
+contenuto nel Markdown.
+
 ---
 
 ### 10.11 Directory medications
@@ -8021,6 +8025,9 @@ Esempi:
 * procedure rilevanti;
 * ultime visite.
 
+Quando `clinical_summary.toml` contiene `summary`, l'export include anche
+`clinical_summary_html`, renderizzato a build-time da Markdown.
+
 ---
 
 ### 16.9 Documents Export
@@ -8032,6 +8039,9 @@ documents.json
 Contiene i metadati documentali necessari alla consultazione.
 
 Non contiene il contenuto binario dei documenti.
+
+Per i documenti `.md`, l'export include `markdown_html`, renderizzato a
+build-time da Markdown con HTML grezzo disabilitato.
 
 ---
 

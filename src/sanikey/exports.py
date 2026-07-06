@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
+from .markdown import render_markdown
 from .models import TimelineEvent
 
 if TYPE_CHECKING:
@@ -85,6 +86,7 @@ def generate_exports(
         "procedure_count": len(metadata.procedures),
         "observation_count": len(metadata.observations),
         "clinical_summary": metadata.clinical_summary,
+        "clinical_summary_html": render_markdown(metadata.clinical_summary),
     }
     documents_path = _write_json(
         data_dir / "documents.json",
@@ -184,7 +186,27 @@ def _document_payload(
         "container_id": document.container_id,
         "internal_path": document.internal_path,
         "tags": list(_document_tags(document, metadata)),
+        "markdown_html": _document_markdown_html(document),
     }
+
+
+def _document_markdown_html(document: DocumentRecord) -> str | None:
+    """Render Markdown document content for frontend display.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Document record.
+
+    Returns
+    -------
+    str | None
+        Rendered HTML for Markdown documents, otherwise ``None``.
+    """
+
+    if document.path.suffix.lower() != ".md":
+        return None
+    return render_markdown(document.path.read_text(encoding="utf-8", errors="replace"))
 
 
 def _document_search_payload(
