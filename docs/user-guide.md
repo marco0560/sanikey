@@ -240,9 +240,17 @@ uv run sanikey build-patient patient-a --config config/accounts.toml --mode full
 Il comando stampa un riepilogo leggibile con conteggi, percorsi degli artefatti
 principali e path del report. `documents=` conta i documenti sorgente
 deduplicati; `derived_documents=`, `dicom_instances=` e `total_records=`
-distinguono contenuti estratti dai contenitori e istanze DICOM. I warning
-lunghi o ripetitivi non vengono serializzati in stdout: sono conservati nel
-report JSON indicato dalla riga
+distinguono contenuti estratti dai contenitori e istanze DICOM.
+`extracted_documents=` conta i documenti elaborati dall'estrazione testo nella
+run corrente; `cached_documents=` conta i documenti invariati riusati dalla
+cache incrementale. In modalità `incremental`, predefinita, SaniKey riusa il
+testo estratto quando `document_id`, path, tipo, SHA256 e provenance del
+documento coincidono con la cache in `local_build/cache/extracted_text.json`. In
+modalità `full`, l'estrazione testo viene sempre rieseguita. Il database viene
+comunque rigenerato dall'inventario corrente, usando testo nuovo o cache, per
+evitare record obsoleti.
+I warning lunghi o ripetitivi non vengono serializzati in stdout: sono
+conservati nel report JSON indicato dalla riga
 `report=...`. I warning sui documenti duplicati restano visibili anche in
 stdout perché richiedono una decisione manuale.
 Anche `build-patient` usa punti di avanzamento su `stderr` quando il terminale e'

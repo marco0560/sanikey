@@ -375,6 +375,29 @@ uv run sanikey build-patient irene --config config/accounts.toml
 uv run sanikey build-patient irene --config config/accounts.toml
 ```
 
+Nella prima build incrementale dopo una build full, o dopo la rimozione della
+cache, `extracted_documents=` può essere maggiore di zero e `cached_documents=`
+può essere zero. Nella seconda build incrementale senza modifiche ai sorgenti,
+`cached_documents=` deve aumentare e `extracted_documents=` deve scendere a zero
+per i documenti non DICOM già estratti con la stessa identità (`document_id`,
+path, kind, SHA256 e provenance). Il file di cache si trova in:
+
+```bash
+test -f local-data/generated/marco/cache/extracted_text.json
+test -f local-data/generated/irene/cache/extracted_text.json
+```
+
+Eseguire una build full per verificare che la cache non venga usata come
+scorciatoia:
+
+```bash
+uv run sanikey build-patient marco --config config/accounts.toml --mode full
+uv run sanikey build-patient irene --config config/accounts.toml --mode full
+```
+
+In questo caso `cached_documents=` deve essere `0` e `extracted_documents=` deve
+riflettere i documenti non DICOM sottoposti a estrazione testo.
+
 Generare l'export USB verso un target locale di verifica:
 
 ```bash

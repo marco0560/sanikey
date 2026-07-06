@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, cast
 from .containers import stage_container_documents
 from .database import build_database
 from .dicom import catalog_dicom_studies
-from .documents import extract_text
+from .documents import ExtractedText, extract_text
 from .exports import generate_exports
 from .frontend import build_frontend
 from .inspection import (
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .config import AccountsConfig, PersonConfig
+    from .models import DocumentRecord
     from .progress import ProgressReporter
 
 
@@ -42,12 +43,18 @@ class BuildCounts:
         DICOM instance count.
     total_records : int
         Total source and derived document records.
+    extracted_documents : int
+        Documents processed by extraction in this build.
+    cached_documents : int
+        Documents reused from the extraction cache in this build.
     """
 
     documents: int
     derived_documents: int
     dicom_instances: int
     total_records: int
+    extracted_documents: int = 0
+    cached_documents: int = 0
 
 
 @dataclass(frozen=True)
@@ -68,6 +75,10 @@ class PatientBuildResult:
         DICOM instance count.
     total_records : int
         Total source and derived document records.
+    extracted_documents : int
+        Documents processed by extraction in this build.
+    cached_documents : int
+        Documents reused from the extraction cache in this build.
     duplicates : int
         Duplicate digest count.
     warnings : int
@@ -90,6 +101,8 @@ class PatientBuildResult:
     derived_documents: int
     dicom_instances: int
     total_records: int
+    extracted_documents: int
+    cached_documents: int
     duplicates: int
     warnings: int
     warning_messages: tuple[str, ...]
@@ -97,6 +110,25 @@ class PatientBuildResult:
     manifest: Path
     checksums: Path
     report: Path
+
+
+@dataclass(frozen=True)
+class ExtractDocumentsResult:
+    """Result of build-time document text extraction.
+
+    Parameters
+    ----------
+    items : tuple[ExtractedText, ...]
+        Extracted text records for database persistence.
+    extracted : int
+        Documents processed by extraction in this build.
+    cached : int
+        Documents reused from cache in this build.
+    """
+
+    items: tuple[ExtractedText, ...]
+    extracted: int
+    cached: int
 
 
 def build_patient(
@@ -145,16 +177,13 @@ def build_patient(
     extraction_documents = tuple(
         document for document in documents if not document.kind.startswith("dicom_")
     )
-    if progress is not None:
-        progress.begin(f"extract-text {person.id}", total=len(extraction_documents))
-    extracted_items = []
-    for index, document in enumerate(extraction_documents, start=1):
-        extracted_items.append(extract_text(document))
-        if progress is not None:
-            progress.advance(index, total=len(extraction_documents))
-    if progress is not None:
-        progress.done(f"done documents={len(extraction_documents)}")
-    extracted = tuple(extracted_items)
+    extracted_result = _extract_documents(
+        person,
+        extraction_documents,
+        mode=mode,
+        progress=progress,
+    )
+    extracted = extracted_result.items
     inspection_warnings = tuple(
         warning
         for warning in inspection.warning_messages
@@ -180,6 +209,8 @@ def build_patient(
             1 for document in documents if document.kind == "dicom_file"
         ),
         total_records=len(documents),
+        extracted_documents=extracted_result.extracted,
+        cached_documents=extracted_result.cached,
     )
     db_result = build_database(person, documents, metadata, dicom_studies, extracted)
     manifest_path = _write_manifest(
@@ -206,6 +237,8 @@ def build_patient(
         derived_documents=counts.derived_documents,
         dicom_instances=counts.dicom_instances,
         total_records=counts.total_records,
+        extracted_documents=counts.extracted_documents,
+        cached_documents=counts.cached_documents,
         duplicates=len(inspection.duplicates),
         warnings=warnings,
         warning_messages=warning_messages,
@@ -243,6 +276,233 @@ def build_all(
         build_patient(person, mode=mode, progress=progress)
         for person in config.enabled_people()
     )
+
+
+def _extract_documents(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+    *,
+    mode: str,
+    progress: ProgressReporter | None,
+) -> ExtractDocumentsResult:
+    """Extract document text using the incremental cache when enabled.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    documents : tuple[DocumentRecord, ...]
+        Documents eligible for text extraction.
+    mode : str
+        Build mode.
+    progress : ProgressReporter | None
+        Progress reporter for extraction.
+
+    Returns
+    -------
+    ExtractDocumentsResult
+        Extracted text rows and cache counters.
+    """
+
+    cache_path = _extraction_cache_path(person)
+    cache = _read_extraction_cache(cache_path) if mode == "incremental" else {}
+    next_cache: dict[str, dict[str, object]] = {}
+    extracted_items = []
+    extracted_count = 0
+    cached_count = 0
+    if progress is not None:
+        progress.begin(f"extract-text {person.id}", total=len(documents))
+    for index, document in enumerate(documents, start=1):
+        cached = _cached_extracted_text(cache, document)
+        if cached is None:
+            item = extract_text(document)
+            extracted_count += 1
+        else:
+            item = cached
+            cached_count += 1
+        extracted_items.append(item)
+        next_cache[document.document_id] = _extraction_cache_entry(document, item)
+        if progress is not None:
+            progress.advance(index, total=len(documents))
+    if progress is not None:
+        progress.done(
+            f"done documents={len(documents)} "
+            f"extracted={extracted_count} cached={cached_count}"
+        )
+    _write_extraction_cache(cache_path, next_cache)
+    return ExtractDocumentsResult(
+        items=tuple(extracted_items),
+        extracted=extracted_count,
+        cached=cached_count,
+    )
+
+
+def _extraction_cache_path(person: PersonConfig) -> Path:
+    """Return the patient extraction cache path.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+
+    Returns
+    -------
+    pathlib.Path
+        Extraction cache path.
+    """
+
+    return person.local_build / "cache" / "extracted_text.json"
+
+
+def _read_extraction_cache(target: Path) -> dict[str, dict[str, object]]:
+    """Read a persisted extraction cache.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        Cache path.
+
+    Returns
+    -------
+    dict[str, dict[str, object]]
+        Cache entries keyed by document id.
+    """
+
+    if not target.is_file():
+        return {}
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        return {}
+    entries = payload.get("documents")
+    if not isinstance(entries, dict):
+        return {}
+    return {
+        key: value
+        for key, value in entries.items()
+        if isinstance(key, str) and isinstance(value, dict)
+    }
+
+
+def _write_extraction_cache(
+    target: Path,
+    entries: dict[str, dict[str, object]],
+) -> None:
+    """Write the extraction cache.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        Cache path.
+    entries : dict[str, dict[str, object]]
+        Cache entries keyed by document id.
+
+    Returns
+    -------
+    None
+    """
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "documents": entries,
+    }
+    target.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _cached_extracted_text(
+    cache: dict[str, dict[str, object]],
+    document: DocumentRecord,
+) -> ExtractedText | None:
+    """Return cached extracted text when a document entry still matches.
+
+    Parameters
+    ----------
+    cache : dict[str, dict[str, object]]
+        Cache entries keyed by document id.
+    document : DocumentRecord
+        Current document record.
+
+    Returns
+    -------
+    ExtractedText | None
+        Cached extraction result, or ``None`` when the document must be
+        processed again.
+    """
+
+    entry = cache.get(document.document_id)
+    if entry is None:
+        return None
+    expected = _document_cache_identity(document)
+    if any(entry.get(key) != value for key, value in expected.items()):
+        return None
+    text = entry.get("text")
+    warnings = entry.get("warnings")
+    if not isinstance(text, str) or not isinstance(warnings, list):
+        return None
+    if not all(isinstance(warning, str) for warning in warnings):
+        return None
+    return ExtractedText(
+        document_id=document.document_id,
+        text=text,
+        warnings=tuple(warnings),
+    )
+
+
+def _extraction_cache_entry(
+    document: DocumentRecord,
+    extracted: ExtractedText,
+) -> dict[str, object]:
+    """Build a cache entry for one extracted document.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Document record.
+    extracted : ExtractedText
+        Extracted text result.
+
+    Returns
+    -------
+    dict[str, object]
+        JSON-serializable cache entry.
+    """
+
+    return {
+        **_document_cache_identity(document),
+        "text": extracted.text,
+        "warnings": list(extracted.warnings),
+    }
+
+
+def _document_cache_identity(document: DocumentRecord) -> dict[str, object]:
+    """Return fields that make an extraction cache entry valid.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Document record.
+
+    Returns
+    -------
+    dict[str, object]
+        Stable document identity fields for extraction reuse.
+    """
+
+    return {
+        "document_id": document.document_id,
+        "path": str(document.path),
+        "kind": document.kind,
+        "sha256": document.sha256,
+        "origin": document.origin,
+        "container_id": document.container_id,
+        "internal_path": document.internal_path,
+    }
 
 
 def _write_manifest(

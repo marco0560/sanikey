@@ -60,7 +60,8 @@ struttura USB.
 - `database.py`: scrive l'archivio SQLite.
 - `exports.py`: scrive export JSON statici per ricerca, timeline e sommari.
 - `frontend.py`: renderizza l'entrypoint web statico.
-- `build.py`: coordina la pipeline locale di build paziente.
+- `build.py`: coordina la pipeline locale di build paziente e la cache
+  incrementale dell'estrazione testo.
 - `usb.py`: esporta e valida la struttura USB.
 - `proposals.py`: salva proposte deterministiche da revisione manuale.
 - `cli.py`: espone l'interfaccia a riga di comando.

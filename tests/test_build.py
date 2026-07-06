@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from sanikey.build import build_all, build_patient
 from sanikey.config import AccountsConfig, PersonConfig
+from sanikey.documents import ExtractedText
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -138,6 +139,96 @@ def test_repeated_incremental_build_preserves_manifest_and_checksums(
 
     assert second_manifest == first_manifest
     assert second_checksums == first_checksums
+
+
+def test_incremental_build_reuses_extracted_text_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify unchanged documents are not re-extracted incrementally.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    calls = 0
+
+    def fake_extract(document):
+        nonlocal calls
+        calls += 1
+        return ExtractedText(document_id=document.document_id, text="cached text")
+
+    monkeypatch.setattr("sanikey.build.extract_text", fake_extract)
+
+    first = build_patient(person)
+    second = build_patient(person)
+
+    assert calls == 1
+    assert first.extracted_documents == 1
+    assert first.cached_documents == 0
+    assert second.extracted_documents == 0
+    assert second.cached_documents == 1
+    with sqlite3.connect(second.database) as connection:
+        row = connection.execute("SELECT text FROM document_text").fetchone()
+    assert row == ("cached text",)
+
+
+def test_full_build_ignores_extracted_text_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify full builds recompute extraction even when cache exists.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    calls = 0
+
+    def fake_extract(document):
+        nonlocal calls
+        calls += 1
+        return ExtractedText(document_id=document.document_id, text=f"text {calls}")
+
+    monkeypatch.setattr("sanikey.build.extract_text", fake_extract)
+
+    build_patient(person)
+    result = build_patient(person, mode="full")
+
+    assert calls == 2
+    assert result.extracted_documents == 1
+    assert result.cached_documents == 0
+    with sqlite3.connect(result.database) as connection:
+        row = connection.execute("SELECT text FROM document_text").fetchone()
+    assert row == ("text 2",)
 
 
 def test_build_all_skips_disabled_patients_and_isolates_outputs(

@@ -4043,7 +4043,9 @@ Ricostruzione completa.
 
 #### incremental
 
-Aggiornamento dei soli elementi modificati.
+Aggiornamento incrementale dei passaggi costosi supportati. La build riusa il
+testo estratto per documenti invariati e rigenera gli artefatti finali
+dall'inventario corrente.
 
 ---
 
@@ -7618,7 +7620,9 @@ Utilizzata:
 
 #### costruzione incrementale
 
-Rigenera esclusivamente gli elementi modificati.
+Riusa il testo estratto per documenti invariati e rigenera gli artefatti finali
+dall'inventario corrente. La validita' della cache di estrazione dipende da
+identita' documento, path, tipo, SHA256 e provenance.
 
 È la modalità predefinita.
 

@@ -170,6 +170,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-153 | Il testo estratto dai documenti viene persistito in SQLite e indicizzato in FTS5. | 9 |  |
 | DA-154 | `scan-documents` crea lo staging dei container per verifica manuale, salvo opt-out esplicito. | 15 |  |
 | DA-155 | Le istanze DICOM leggibili vengono raggruppate per StudyInstanceUID o DICOMDIR e coalescono record duplicati dello stesso studio. | 8 |  |
+| DA-156 | La build incrementale riusa il testo estratto per documenti invariati e rigenera il database dall'inventario corrente. | 8 |  |
 
 ---
 
@@ -250,6 +251,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. |  |
 | DA-152 | I supporti DICOM annidati nei contenitori vengono espansi ricorsivamente in staging. |  |
 | DA-155 | Le istanze DICOM leggibili vengono raggruppate per StudyInstanceUID o DICOMDIR e coalescono record duplicati dello stesso studio. |  |
+| DA-156 | La build incrementale riusa il testo estratto per documenti invariati e rigenera il database dall'inventario corrente. |  |
 
 ### Database SQLite
 
