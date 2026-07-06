@@ -15,6 +15,7 @@ from .documents import DocumentRecordOrigin, document_record_for_path
 if TYPE_CHECKING:
     from .config import PersonConfig
     from .models import DocumentRecord
+    from .progress import ProgressReporter
 
 CONTAINER_SUFFIXES = {".7z", ".img", ".iso", ".rar", ".zip"}
 TECHNICAL_PATH_SEGMENTS = {"assets", "help", "jre", "manual", "viewer-windows"}
@@ -79,6 +80,9 @@ class ContainerStagingResult:
 def stage_container_documents(
     person: PersonConfig,
     documents: tuple[DocumentRecord, ...],
+    *,
+    progress: ProgressReporter | None = None,
+    progress_label: str | None = None,
 ) -> ContainerStagingResult:
     """Extract supported containers into generated staging.
 
@@ -88,6 +92,10 @@ def stage_container_documents(
         Patient configuration.
     documents : tuple[DocumentRecord, ...]
         Source and derived documents to inspect for containers.
+    progress : ProgressReporter | None, optional
+        Progress reporter for staged containers.
+    progress_label : str | None, optional
+        Label for the progress line.
 
     Returns
     -------
@@ -100,6 +108,8 @@ def stage_container_documents(
         shutil.rmtree(staging_root)
     staging_root.mkdir(parents=True, exist_ok=True)
     queued = list(_container_documents(documents))
+    if progress is not None and progress_label is not None:
+        progress.begin(progress_label)
     processed: set[str] = set()
     staged_documents: list[DocumentRecord] = []
     members: list[StagedContainerMember] = []
@@ -114,6 +124,12 @@ def stage_container_documents(
         staged_documents.extend(container_result.documents)
         members.extend(container_result.members)
         queued.extend(_container_documents(container_result.documents))
+        if progress is not None:
+            progress.advance(len(processed))
+    if progress is not None and progress_label is not None:
+        progress.done(
+            f"done containers={len(processed)} derived={len(staged_documents)}"
+        )
     manifest = _write_container_manifest(person, tuple(members), tuple(warnings))
     return ContainerStagingResult(
         documents=tuple(staged_documents),
@@ -406,20 +422,36 @@ def _extract_with_7z(source: Path, target: Path) -> None:
         If ``7z`` is unavailable or the command fails.
     """
 
-    executable = shutil.which("7z")
-    if executable is None:
-        msg = "7z command not installed; ISO staging skipped"
+    seven_zip = shutil.which("7z")
+    seven_zip_message = "7z command not installed"
+    if seven_zip is not None:
+        completed = subprocess.run(
+            [seven_zip, "x", "-y", f"-o{target}", str(source)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if completed.returncode == 0:
+            return
+        seven_zip_message = (
+            completed.stderr or completed.stdout or "7z failed"
+        ).strip()
+    bsdtar = shutil.which("bsdtar")
+    if bsdtar is None:
+        msg = f"ISO staging skipped: {seven_zip_message}; bsdtar command not installed"
         raise ValueError(msg)
     completed = subprocess.run(
-        [executable, "x", "-y", f"-o{target}", str(source)],
+        [bsdtar, "-xf", str(source), "-C", str(target)],
         check=False,
         capture_output=True,
         text=True,
         timeout=300,
     )
     if completed.returncode != 0:
-        message = (completed.stderr or completed.stdout or "7z failed").strip()
-        raise ValueError(message)
+        message = (completed.stderr or completed.stdout or "bsdtar failed").strip()
+        msg = f"ISO staging skipped: {seven_zip_message}; bsdtar failed: {message}"
+        raise ValueError(msg)
 
 
 def _safe_member_path(target: Path, member_name: str) -> Path:

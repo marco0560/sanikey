@@ -133,11 +133,12 @@ def build_patient(
     build_root = person.local_build
     build_root.mkdir(parents=True, exist_ok=True)
     inspection = inspect_patient_documents(person, progress=progress)
-    if progress is not None:
-        progress.begin(f"stage-containers {person.id}")
-    staging = stage_container_documents(person, inspection.documents)
-    if progress is not None:
-        progress.done(f"done derived={len(staging.documents)}")
+    staging = stage_container_documents(
+        person,
+        inspection.documents,
+        progress=progress,
+        progress_label=f"stage-containers {person.id}",
+    )
     documents = (*inspection.documents, *staging.documents)
     dicom_studies = catalog_dicom_studies(person, documents)
     metadata = load_curated_metadata(person.metadata_directory)

@@ -78,3 +78,26 @@ def test_progress_dots_are_silent_on_non_tty() -> None:
     progress.done("done")
 
     assert stream.getvalue() == ""
+
+
+def test_progress_dots_render_each_advance_without_total() -> None:
+    """Verify open-ended progress lines render one dot per advance.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    stream = TtyStringIO()
+    progress = ProgressDots(enabled=True, stream=stream, interval=50)
+
+    progress.begin("stage-containers patient-a")
+    for index in range(1, 4):
+        progress.advance(index)
+    progress.done("done containers=3")
+
+    assert stream.getvalue() == "stage-containers patient-a: ... done containers=3\n"

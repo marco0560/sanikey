@@ -90,11 +90,12 @@ def inspect_patient_documents(
     container_staging = None
     catalog_documents = documents
     if stage_containers:
-        if progress is not None:
-            progress.begin(f"stage-containers {person.id}")
-        container_staging = stage_container_documents(person, documents)
-        if progress is not None:
-            progress.done(f"done derived={len(container_staging.documents)}")
+        container_staging = stage_container_documents(
+            person,
+            documents,
+            progress=progress,
+            progress_label=f"stage-containers {person.id}",
+        )
         catalog_documents = (*documents, *container_staging.documents)
     dicom_studies = catalog_dicom_studies(
         person,

@@ -447,6 +447,71 @@ def test_extract_with_7z_reports_failed_command(
         _extract_with_7z(tmp_path / "image.iso", tmp_path / "target")
 
 
+def test_extract_with_7z_falls_back_to_bsdtar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify disk image extraction retries with bsdtar after 7z failures.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    calls = []
+
+    def fake_which(name: str) -> str | None:
+        """Return synthetic executable paths.
+
+        Parameters
+        ----------
+        name : str
+            Executable name.
+
+        Returns
+        -------
+        str | None
+            Synthetic path when supported.
+        """
+
+        return {"7z": "/usr/bin/7z", "bsdtar": "/usr/bin/bsdtar"}.get(name)
+
+    def fake_run(command, **_kwargs):
+        """Fail 7z and succeed bsdtar.
+
+        Parameters
+        ----------
+        command : list[str]
+            Command invocation.
+        **_kwargs : object
+            Keyword arguments ignored by the fake.
+
+        Returns
+        -------
+        subprocess.CompletedProcess[str]
+            Synthetic command result.
+        """
+
+        calls.append(command)
+        if command[0].endswith("7z"):
+            return subprocess.CompletedProcess(command, 2, "", "7z failed")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(containers_module.shutil, "which", fake_which)
+    monkeypatch.setattr(containers_module.subprocess, "run", fake_run)
+
+    _extract_with_7z(tmp_path / "image.iso", tmp_path / "target")
+
+    assert [call[0] for call in calls] == ["/usr/bin/7z", "/usr/bin/bsdtar"]
+
+
 def test_extract_container_rejects_unsupported_suffix(tmp_path: Path) -> None:
     """Verify unsupported container suffixes are rejected.
 

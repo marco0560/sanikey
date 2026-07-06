@@ -156,12 +156,13 @@ Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 - `.doc`, `.xls`: conversione tramite LibreOffice o `soffice`, se disponibile;
 - `.zip`, `.7z`, `.rar`: inventario dei file contenuti nell'archivio.
 
-Durante `build-patient`, gli archivi e le immagini ISO supportate vengono anche
-estratti in una staging area generata sotto `local_build/staging/containers`.
-Il contenitore originale resta il documento autorevole; i membri estratti sono
-documenti derivati con provenance verso il contenitore, path interno e SHA256
-proprio. Se un archivio è cifrato, corrotto o non leggibile, il contenitore
-resta catalogato e il problema viene registrato come warning.
+Durante `scan-documents` e `build-patient`, gli archivi e le immagini disco
+supportate vengono anche estratti in una staging area generata sotto
+`local_build/staging/containers`. Il contenitore originale resta il documento
+autorevole; i membri estratti sono documenti derivati con provenance verso il
+contenitore, path interno e SHA256 proprio. Se un archivio è cifrato, corrotto o
+non leggibile, il contenitore resta catalogato e il problema viene registrato
+come warning.
 
 I file ISO DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. Gli archivi `.zip`, `.7z` e `.rar` sono trattati inizialmente come
@@ -171,6 +172,8 @@ con contenuto DICOM o file con magic bytes DICOM. Quando vengono estratti in
 staging, eventuali immagini disco `.iso` o `.img` annidate vengono espanse a
 loro volta. I file DICOM interni sono catalogati come DICOM e non passano
 dall'OCR o dall'estrazione testo ordinaria.
+Per le immagini disco SaniKey prova prima il comando `7z`; se il file è un ISO
+valido ma `7z` non riesce ad aprirlo, ritenta con `bsdtar` quando disponibile.
 I file tecnici dei viewer inclusi nei supporti, per esempio runtime Java, DLL,
 manuali, HTML di help o asset applicativi, restano tracciati nel manifest di
 staging ma non entrano nella pipeline documentale ordinaria.

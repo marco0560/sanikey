@@ -143,9 +143,10 @@ class ProgressDots:
 
         if not self.enabled or not self._active:
             return
-        should_dot = (
-            completed == total or completed - self._last_dot_at >= self.interval
-        )
+        interval = self.interval
+        if total is None or total <= self.interval:
+            interval = 1
+        should_dot = completed == total or completed - self._last_dot_at >= interval
         if should_dot:
             print(".", end="", file=self.stream, flush=True)
             self._last_dot_at = completed

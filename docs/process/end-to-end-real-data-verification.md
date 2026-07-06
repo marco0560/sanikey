@@ -10,7 +10,7 @@ su un dataset reale controllato.
 Dimostrare che SaniKey può:
 
 - leggere una configurazione locale fuori da Git;
-- processare documenti reali di un paziente;
+- processare documenti reali di uno o piu' pazienti;
 - generare database, export JSON, timeline, ricerca e frontend statico;
 - costruire l'immagine USB canonica in `exports/usb-image/`;
 - copiare l'immagine verso un target di verifica;
@@ -40,13 +40,13 @@ iniziare.
 Creare un'area privata non committata dal repository, per esempio:
 
 ```bash
-mkdir -p local-data/{usb-target,generated/marco,marco/{documents,metadata}}
+mkdir -p local-data/{usb-target,{marco,irene}/{documents,metadata},generated/{marco,irene}}
 ```
 
 con `local-data/` in `.gitignore`.
 
-Inserire in `local-data/marco/documents` un piccolo campione reale
-ma controllato:
+Inserire in `local-data/marco/documents` e `local-data/irene/documents` un
+piccolo campione reale ma controllato:
 
 - almeno un referto testuale o PDF;
 - almeno un documento con data nel nome, se disponibile;
@@ -56,8 +56,10 @@ ma controllato:
 Annotare hash e timestamp prima della build:
 
 ```bash
-find local-data/marco/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/before.sha256
-find local-data/marco/documents -type f -printf '%p\t%T@\n' | sort > local-data/before-mtime.tsv
+find local-data/marco/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/marco-before.sha256
+find local-data/marco/documents -type f -printf '%p\t%T@\n' | sort > local-data/marco-before-mtime.tsv
+find local-data/irene/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/irene-before.sha256
+find local-data/irene/documents -type f -printf '%p\t%T@\n' | sort > local-data/irene-before-mtime.tsv
 ```
 
 ## Configurazione locale
@@ -79,6 +81,14 @@ source_documents = "local-data/marco/documents"
 metadata_directory = "local-data/marco/metadata"
 local_build = "local-data/generated/marco"
 usb_uuid = "MANUAL-TEST-USB"
+
+[[person]]
+id = "irene"
+display_name = "Irene Corazzesi"
+source_documents = "local-data/irene/documents"
+metadata_directory = "local-data/irene/metadata"
+local_build = "local-data/generated/irene"
+usb_uuid = "MANUAL-TEST-USB"
 ```
 
 Verificare che Git non veda dati privati:
@@ -92,7 +102,10 @@ correggere `.gitignore` o i percorsi locali prima di procedere.
 
 ## Metadati curati minimi
 
-Creare metadati minimi in `local-data/marco/metadata`.
+Creare metadati minimi in `local-data/marco/metadata` e
+`local-data/irene/metadata`. Gli esempi sotto usano un solo paziente: replicare
+la stessa struttura nella directory metadata di ogni paziente configurato,
+adattando id, nomi e contenuti.
 
 `clinical_summary.toml` contiene una sintesi clinica libera. Per l'uso corrente
 può essere trattata come anamnesi/sommario narrativo: problemi rilevanti,
@@ -260,11 +273,15 @@ directory di staging generate dallo scan:
 ```bash
 python -m json.tool local-data/generated/marco/manifests/container_staging.json | less
 find local-data/generated/marco/staging/containers -maxdepth 2 -type f | sort | less
+python -m json.tool local-data/generated/irene/manifests/container_staging.json | less
+find local-data/generated/irene/staging/containers -maxdepth 2 -type f | sort | less
 ```
 
 Questo controllo serve a verificare manualmente se gli archivi contengono
 supporti DICOM, immagini disco annidate, referti PDF o solo materiale tecnico
-del viewer. Eseguire anche il preflight leggero prima di una build lunga:
+del viewer. Se un paziente non contiene archivi, il manifest deve comunque
+esistere con `members` vuoto. Eseguire anche il preflight leggero prima di una
+build lunga:
 
 ```bash
 uv run sanikey scan-documents --config config/accounts.toml --preflight
@@ -295,15 +312,23 @@ nell'archivio generato e segnala il file saltato insieme al file trattenuto. In
 presenza di duplicati inattesi, fermarsi e decidere manualmente se rimuovere,
 rinominare o archiviare separatamente una delle copie prima di proseguire.
 
-Eseguire la build completa:
+Eseguire la build completa per tutti i pazienti abilitati:
+
+```bash
+uv run sanikey build-all --config config/accounts.toml --mode full
+```
+
+In alternativa, per isolare un problema, eseguire un paziente alla volta:
 
 ```bash
 uv run sanikey build-patient marco --config config/accounts.toml --mode full
+uv run sanikey build-patient irene --config config/accounts.toml --mode full
 ```
 
-L'output deve essere un riepilogo multi-riga leggibile, non una riga JSON
-minificata. Annotare il percorso `report=...`: contiene il dettaglio completo
-dei warning e deve essere consultato se `warnings` e' maggiore di zero.
+L'output deve essere un riepilogo multi-riga leggibile per ogni paziente, non
+una riga JSON minificata. Annotare ogni percorso `report=...`: contiene il
+dettaglio completo dei warning e deve essere consultato se `warnings` e'
+maggiore di zero.
 `documents=` conta solo i documenti sorgente deduplicati; usare
 `derived_documents=`, `dicom_instances=` e `total_records=` per valutare quanto
 deriva da contenitori e supporti diagnostici.
@@ -315,6 +340,7 @@ manifest di staging rigenerato:
 
 ```bash
 python -m json.tool local-data/generated/marco/manifests/container_staging.json | less
+python -m json.tool local-data/generated/irene/manifests/container_staging.json | less
 ```
 
 Controllare che ogni membro estratto abbia `container_id`, `internal_path`,
@@ -335,6 +361,8 @@ Eseguire una build incrementale ripetuta:
 ```bash
 uv run sanikey build-patient marco --config config/accounts.toml
 uv run sanikey build-patient marco --config config/accounts.toml
+uv run sanikey build-patient irene --config config/accounts.toml
+uv run sanikey build-patient irene --config config/accounts.toml
 ```
 
 Generare l'export USB verso un target locale di verifica:
@@ -361,6 +389,12 @@ test -f local-data/generated/marco/web/data/documents.json
 test -f local-data/generated/marco/web/data/search.json
 test -f local-data/generated/marco/web/data/timeline.json
 test -f local-data/generated/marco/checksums.sha256
+test -f local-data/generated/irene/database/medical_archive.db
+test -f local-data/generated/irene/web/index.html
+test -f local-data/generated/irene/web/data/documents.json
+test -f local-data/generated/irene/web/data/search.json
+test -f local-data/generated/irene/web/data/timeline.json
+test -f local-data/generated/irene/checksums.sha256
 test -f exports/usb-image/SANIKEY-MANIFEST.json
 test -f local-data/usb-target/SANIKEY-MANIFEST.json
 ```
@@ -375,10 +409,14 @@ uv run sanikey validate-usb local-data/usb-target
 Verificare che i documenti originali non siano stati modificati:
 
 ```bash
-find local-data/marco/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/after.sha256
-find local-data/marco/documents -type f -printf '%p\t%T@\n' | sort > local-data/after-mtime.tsv
-diff -u local-data/before.sha256 local-data/after.sha256
-diff -u local-data/before-mtime.tsv local-data/after-mtime.tsv
+find local-data/marco/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/marco-after.sha256
+find local-data/marco/documents -type f -printf '%p\t%T@\n' | sort > local-data/marco-after-mtime.tsv
+find local-data/irene/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/irene-after.sha256
+find local-data/irene/documents -type f -printf '%p\t%T@\n' | sort > local-data/irene-after-mtime.tsv
+diff -u local-data/marco-before.sha256 local-data/marco-after.sha256
+diff -u local-data/marco-before-mtime.tsv local-data/marco-after-mtime.tsv
+diff -u local-data/irene-before.sha256 local-data/irene-after.sha256
+diff -u local-data/irene-before-mtime.tsv local-data/irene-after-mtime.tsv
 ```
 
 Entrambi i `diff` devono essere vuoti.
@@ -399,6 +437,9 @@ Ispezionare i JSON statici:
 python -m json.tool local-data/generated/marco/web/data/documents.json >/tmp/sanikey-documents.json
 python -m json.tool local-data/generated/marco/web/data/search.json >/tmp/sanikey-search.json
 python -m json.tool local-data/generated/marco/web/data/timeline.json >/tmp/sanikey-timeline.json
+python -m json.tool local-data/generated/irene/web/data/documents.json >/tmp/sanikey-irene-documents.json
+python -m json.tool local-data/generated/irene/web/data/search.json >/tmp/sanikey-irene-search.json
+python -m json.tool local-data/generated/irene/web/data/timeline.json >/tmp/sanikey-irene-timeline.json
 ```
 
 Controllare manualmente che:
@@ -417,6 +458,10 @@ sqlite3 local-data/generated/marco/database/medical_archive.db '.tables'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM documents;'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM document_text;'
 sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
+sqlite3 local-data/generated/irene/database/medical_archive.db '.tables'
+sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM documents;'
+sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM document_text;'
+sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
 ```
 
 La query su `document_text` deve essere maggiore di zero se nel set sono presenti
@@ -431,9 +476,10 @@ Aprire il frontend generato dal target:
 
 ```bash
 xdg-open local-data/usb-target/START-HERE-Marco-Coppola.html
+xdg-open local-data/usb-target/START-HERE-Irene-Corazzesi.html
 ```
 
-Se `xdg-open` non è disponibile, aprire manualmente il file nel browser.
+Se `xdg-open` non è disponibile, aprire manualmente i file nel browser.
 
 Controllare:
 
