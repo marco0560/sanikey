@@ -20,6 +20,7 @@ from .errors import SaniKeyError
 from .exports import generate_exports
 from .frontend import build_frontend
 from .inspection import inspect_patient_documents
+from .integrity import check_source_snapshots, write_source_snapshot
 from .metadata import load_curated_metadata
 from .privacy import validate_privacy
 from .progress import ProgressDots
@@ -113,6 +114,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_progress_argument(scan_parser)
     scan_parser.set_defaults(func=run_scan_documents)
+
+    integrity_parser = subparsers.add_parser(
+        "document-integrity",
+        help="Create or verify source document integrity snapshots",
+    )
+    _add_config_arguments(integrity_parser)
+    integrity_parser.add_argument(
+        "action",
+        choices=("before", "after", "check"),
+        help="Snapshot phase or verification action",
+    )
+    integrity_parser.add_argument("--patient", help="Only process one patient id")
+    integrity_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("local-data"),
+        help="Directory for patient snapshot files",
+    )
+    integrity_parser.set_defaults(func=run_document_integrity)
 
     extract_parser = subparsers.add_parser(
         "extract-text",
@@ -374,6 +394,51 @@ def run_scan_documents(args: argparse.Namespace) -> int:
             print(f"ERROR: cannot write scan output: {exc}")
             return 1
     return 0
+
+
+def run_document_integrity(args: argparse.Namespace) -> int:
+    """Create or verify source document integrity snapshots.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(args.config)
+        selected_people = _selected_people(config, args.patient)
+    except SaniKeyError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    status = 0
+    for person in selected_people:
+        try:
+            if args.action in {"before", "after"}:
+                result = write_source_snapshot(
+                    person,
+                    label=args.action,
+                    output_dir=args.output_dir,
+                )
+            else:
+                result = check_source_snapshots(person, output_dir=args.output_dir)
+        except OSError as exc:
+            print(f"ERROR: patient={person.id} {exc}")
+            status = 1
+            continue
+        print(
+            f"patient={result.patient_id} action={args.action} "
+            f"status={result.status} sha256={result.sha256_path} "
+            f"mtime={result.mtime_path}"
+        )
+        if result.status != "ok" and args.action == "check":
+            status = 1
+    return status
 
 
 def _format_scan_verbose(

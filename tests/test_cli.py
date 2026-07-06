@@ -465,6 +465,171 @@ usb_uuid = "1A2B-3C4D"
     assert not (build_root / "staging" / "containers").exists()
 
 
+def test_document_integrity_creates_and_checks_patient_snapshots(
+    tmp_path: Path,
+) -> None:
+    """Verify document-integrity uses configured patients for snapshots.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source_a = tmp_path / "patient-a" / "documents"
+    source_b = tmp_path / "patient-b" / "documents"
+    source_a.mkdir(parents=True)
+    source_b.mkdir(parents=True)
+    (source_a / "20260102 A.txt").write_text("a", encoding="utf-8")
+    (source_b / "20260102 B.txt").write_text("b", encoding="utf-8")
+    snapshots = tmp_path / "snapshots"
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source_a}"
+metadata_directory = "{tmp_path / "patient-a" / "metadata"}"
+local_build = "{tmp_path / "generated" / "patient-a"}"
+usb_uuid = "1A2B-3C4D"
+
+[[person]]
+id = "patient-b"
+display_name = "Patient B"
+source_documents = "{source_b}"
+metadata_directory = "{tmp_path / "patient-b" / "metadata"}"
+local_build = "{tmp_path / "generated" / "patient-b"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    for action in ("before", "after", "check"):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                MODULE,
+                "document-integrity",
+                action,
+                "--config",
+                str(config_path),
+                "--output-dir",
+                str(snapshots),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0
+        assert "patient=patient-a" in result.stdout
+        assert "patient=patient-b" in result.stdout
+
+    assert (snapshots / "patient-a-before.sha256").is_file()
+    assert (snapshots / "patient-a-after-mtime.tsv").is_file()
+    assert (snapshots / "patient-b-before.sha256").is_file()
+    assert (snapshots / "patient-b-after-mtime.tsv").is_file()
+
+
+def test_document_integrity_check_fails_when_sources_change(tmp_path: Path) -> None:
+    """Verify document-integrity reports modified source documents.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    path = source / "20260102 Report.txt"
+    path.write_text("before", encoding="utf-8")
+    snapshots = tmp_path / "snapshots"
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    before = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "document-integrity",
+            "before",
+            "--config",
+            str(config_path),
+            "--output-dir",
+            str(snapshots),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert before.returncode == 0
+    path.write_text("after", encoding="utf-8")
+    after = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "document-integrity",
+            "after",
+            "--config",
+            str(config_path),
+            "--output-dir",
+            str(snapshots),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert after.returncode == 0
+
+    check = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "document-integrity",
+            "check",
+            "--config",
+            str(config_path),
+            "--output-dir",
+            str(snapshots),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert check.returncode == 1
+    assert "status=changed" in check.stdout
+
+
 def test_scan_documents_verbose_renders_readable_inventory(tmp_path: Path) -> None:
     """Verify verbose scan-documents renders a readable inventory table.
 

@@ -147,6 +147,21 @@ uv run sanikey scan-documents --config config/accounts.toml --output local-data/
 tab-separated estesa con paziente, tipo, categoria, data ISO, titolo, SHA256 e
 path assoluto. Il formato `csv` usa gli stessi campi con intestazione.
 
+Per verificare che i documenti sorgente non vengano modificati dalla pipeline,
+creare uno snapshot prima della build, uno dopo la build e poi confrontarli:
+
+```bash
+uv run sanikey document-integrity before --config config/accounts.toml
+uv run sanikey document-integrity after --config config/accounts.toml
+uv run sanikey document-integrity check --config config/accounts.toml
+```
+
+Il comando usa i pazienti abilitati in `accounts.toml` e scrive per ciascun
+`id` paziente i file `PATIENT-before.sha256`, `PATIENT-before-mtime.tsv`,
+`PATIENT-after.sha256` e `PATIENT-after-mtime.tsv` nella directory `local-data`.
+Usare `--patient` per limitare il controllo a un paziente e `--output-dir` per
+salvare gli snapshot in un'altra directory.
+
 Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 
 - `.txt` e `.md`: contenuto testuale diretto;

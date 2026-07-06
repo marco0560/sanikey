@@ -53,15 +53,6 @@ piccolo campione reale ma controllato:
 - opzionalmente un supporto DICOM ISO o ZIP;
 - opzionalmente sottodirectory cliniche, ad esempio `laboratory/` o `imaging/`.
 
-Annotare hash e timestamp prima della build:
-
-```bash
-find local-data/marco/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/marco-before.sha256
-find local-data/marco/documents -type f -printf '%p\t%T@\n' | sort > local-data/marco-before-mtime.tsv
-find local-data/irene/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/irene-before.sha256
-find local-data/irene/documents -type f -printf '%p\t%T@\n' | sort > local-data/irene-before-mtime.tsv
-```
-
 ## Configurazione locale
 
 Creare `config/accounts.toml`. Il file è privato e deve restare ignorato da Git.
@@ -253,6 +244,17 @@ Questo passo deve anche validare i metadati curati: correggere subito TOML
 malformati, id duplicati o terapie che citano un `medication_id` non presente in
 `medications.toml`.
 
+Creare lo snapshot iniziale dei documenti sorgente configurati:
+
+```bash
+uv run sanikey document-integrity before --config config/accounts.toml --output-dir local-data
+```
+
+Il comando usa i pazienti abilitati in `accounts.toml` e produce per ciascun
+paziente i file `PATIENT-before.sha256` e `PATIENT-before-mtime.tsv`, per
+esempio `local-data/marco-before.sha256` e
+`local-data/irene-before-mtime.tsv`.
+
 Eseguire una scansione preliminare dei documenti:
 
 ```bash
@@ -409,17 +411,14 @@ uv run sanikey validate-usb local-data/usb-target
 Verificare che i documenti originali non siano stati modificati:
 
 ```bash
-find local-data/marco/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/marco-after.sha256
-find local-data/marco/documents -type f -printf '%p\t%T@\n' | sort > local-data/marco-after-mtime.tsv
-find local-data/irene/documents -type f -print0 | sort -z | xargs -0 sha256sum > local-data/irene-after.sha256
-find local-data/irene/documents -type f -printf '%p\t%T@\n' | sort > local-data/irene-after-mtime.tsv
-diff -u local-data/marco-before.sha256 local-data/marco-after.sha256
-diff -u local-data/marco-before-mtime.tsv local-data/marco-after-mtime.tsv
-diff -u local-data/irene-before.sha256 local-data/irene-after.sha256
-diff -u local-data/irene-before-mtime.tsv local-data/irene-after-mtime.tsv
+uv run sanikey document-integrity after --config config/accounts.toml --output-dir local-data
+uv run sanikey document-integrity check --config config/accounts.toml --output-dir local-data
 ```
 
-Entrambi i `diff` devono essere vuoti.
+Il controllo deve stampare `status=ok` per ogni paziente. Se stampa
+`status=changed` o restituisce stato non zero, fermarsi: almeno un file sotto
+`source_documents` e' stato modificato, aggiunto o rimosso rispetto allo
+snapshot iniziale.
 
 Verificare che cache, log e directory temporanee generate non siano nel target:
 
