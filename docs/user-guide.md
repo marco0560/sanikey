@@ -108,7 +108,10 @@ e' attivo. Prima della scansione viene ripetuto il controllo dei metadati curati
 dei pazienti selezionati, cosi' un errore in `therapies.toml` blocca subito il
 comando invece di emergere dopo una build lunga.
 Su terminali interattivi, i passi lunghi stampano punti di avanzamento su
-`stderr`, senza modificare l'output riepilogativo su `stdout`. Per disattivarli:
+`stderr`, senza modificare l'output riepilogativo su `stdout`.
+`scan-documents` stampa un punto ogni 20 file sorgente, lo staging un punto per
+ogni container processato e il catalogo DICOM un punto ogni 50 record. Per
+disattivarli:
 
 ```bash
 uv run sanikey scan-documents --config config/accounts.toml --no-progress
@@ -189,9 +192,19 @@ loro volta. I file DICOM interni sono catalogati come DICOM e non passano
 dall'OCR o dall'estrazione testo ordinaria.
 Per le immagini disco SaniKey prova prima il comando `7z`; se il file è un ISO
 valido ma `7z` non riesce ad aprirlo, ritenta con `bsdtar` quando disponibile.
+Quando le istanze DICOM sono leggibili, SaniKey usa `pydicom` per raggrupparle
+in studi clinici tramite `StudyInstanceUID`. Se è presente un `DICOMDIR`, i
+record `STUDY` vengono usati per creare gli studi anche quando il supporto
+contiene più arborescenze. Se lo stesso studio è rilevato sia dal `DICOMDIR` sia
+dalle istanze DICOM, SaniKey conserva un solo record di studio prima della
+scrittura nel database. I file DICOM privi di metadati leggibili restano
+catalogati singolarmente come fallback diagnostico.
 I file tecnici dei viewer inclusi nei supporti, per esempio runtime Java, DLL,
 manuali, HTML di help o asset applicativi, restano tracciati nel manifest di
-staging ma non entrano nella pipeline documentale ordinaria.
+staging ma non entrano nella pipeline documentale ordinaria. Il manifest di
+staging può essere molto grande perché registra ogni membro estratto dai
+contenitori per audit e verifica manuale; non è un report compatto da leggere
+integralmente in terminale.
 
 Per i PDF, SaniKey sceglie automaticamente il provider:
 

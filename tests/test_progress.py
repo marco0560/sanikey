@@ -101,3 +101,26 @@ def test_progress_dots_render_each_advance_without_total() -> None:
     progress.done("done containers=3")
 
     assert stream.getvalue() == "stage-containers patient-a: ... done containers=3\n"
+
+
+def test_progress_dots_support_line_interval_override() -> None:
+    """Verify progress lines can override the default dot interval.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    stream = TtyStringIO()
+    progress = ProgressDots(enabled=True, stream=stream, interval=50)
+
+    progress.begin("scan-documents patient-a", total=40, interval=20)
+    for index in range(1, 41):
+        progress.advance(index, total=40)
+    progress.done("done files=40")
+
+    assert stream.getvalue() == "scan-documents patient-a: 0/40 .. done files=40\n"

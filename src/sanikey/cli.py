@@ -750,6 +750,10 @@ def run_process_dicom(args: argparse.Namespace) -> int:
                         extracted,
                         str(len(study.viewer_paths)),
                         str(len(study.warnings)),
+                        study.study_instance_uid or "",
+                        study.study_date or "",
+                        study.study_description or "",
+                        str(study.instance_count),
                     )
                 )
             )

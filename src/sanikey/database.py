@@ -200,7 +200,11 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             support_kind TEXT NOT NULL,
             extracted_path TEXT,
             viewer_count INTEGER NOT NULL,
-            warning_count INTEGER NOT NULL
+            warning_count INTEGER NOT NULL,
+            study_instance_uid TEXT,
+            study_date TEXT,
+            study_description TEXT,
+            instance_count INTEGER NOT NULL
         );
         """
     )
@@ -378,8 +382,9 @@ def _insert_dicom(
         """
         INSERT INTO dicom_studies(
             id, patient_id, support_path, support_kind, extracted_path,
-            viewer_count, warning_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            viewer_count, warning_count, study_instance_uid, study_date,
+            study_description, instance_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             (
@@ -390,6 +395,10 @@ def _insert_dicom(
                 None if study.extracted_path is None else str(study.extracted_path),
                 len(study.viewer_paths),
                 len(study.warnings),
+                study.study_instance_uid,
+                study.study_date,
+                study.study_description,
+                study.instance_count,
             )
             for study in studies
         ),

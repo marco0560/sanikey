@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
+import warnings
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
@@ -36,6 +38,14 @@ class DicomStudy:
         Detected viewer executables or launch files.
     warnings : tuple[str, ...]
         Non-fatal cataloging warnings.
+    study_instance_uid : str | None
+        DICOM Study Instance UID when available.
+    study_date : str | None
+        DICOM study date when available.
+    study_description : str | None
+        DICOM study description when available.
+    instance_count : int
+        Number of DICOM instances grouped into the study.
     """
 
     study_id: str
@@ -45,6 +55,29 @@ class DicomStudy:
     extracted_path: Path | None = None
     viewer_paths: tuple[Path, ...] = ()
     warnings: tuple[str, ...] = ()
+    study_instance_uid: str | None = None
+    study_date: str | None = None
+    study_description: str | None = None
+    instance_count: int = 1
+
+
+@dataclass(frozen=True)
+class DicomMetadata:
+    """Relevant DICOM study metadata.
+
+    Parameters
+    ----------
+    study_instance_uid : str | None
+        Study Instance UID.
+    study_date : str | None
+        Study date normalized as ISO date when possible.
+    study_description : str | None
+        Study description.
+    """
+
+    study_instance_uid: str | None = None
+    study_date: str | None = None
+    study_description: str | None = None
 
 
 def catalog_dicom_studies(
@@ -75,19 +108,35 @@ def catalog_dicom_studies(
 
     if progress is not None and progress_label is not None:
         progress.begin(progress_label, total=len(documents))
-    studies = []
+    support_studies: list[DicomStudy] = []
+    dicom_files: list[DocumentRecord] = []
     for index, document in enumerate(documents, start=1):
         if _is_dicom_support(document):
-            studies.append(_study_from_document(person, document))
+            if document.path.name.lower() == "dicomdir":
+                studies_from_dicomdir = _studies_from_dicomdir(person, document)
+                if studies_from_dicomdir:
+                    support_studies.extend(studies_from_dicomdir)
+                else:
+                    dicom_files.append(document)
+            elif document.kind == "dicom_file":
+                dicom_files.append(document)
+            else:
+                support_studies.extend(_studies_from_document(person, document))
         if progress is not None:
             progress.advance(index, total=len(documents))
+    studies = _coalesce_dicom_studies(
+        (*support_studies, *_studies_from_dicom_files(person, tuple(dicom_files)))
+    )
     if progress is not None and progress_label is not None:
         progress.done(f"done studies={len(studies)}")
     return tuple(sorted(studies, key=lambda study: str(study.support_path)))
 
 
-def _study_from_document(person: PersonConfig, document: DocumentRecord) -> DicomStudy:
-    """Build a DICOM study from one original support document.
+def _studies_from_document(
+    person: PersonConfig,
+    document: DocumentRecord,
+) -> tuple[DicomStudy, ...]:
+    """Build DICOM studies from one support document.
 
     Parameters
     ----------
@@ -98,10 +147,14 @@ def _study_from_document(person: PersonConfig, document: DocumentRecord) -> Dico
 
     Returns
     -------
-    DicomStudy
-        Catalog entry.
+    tuple[DicomStudy, ...]
+        Catalog entries.
     """
 
+    if document.path.name.lower() == "dicomdir":
+        studies = _studies_from_dicomdir(person, document)
+        if studies:
+            return studies
     extracted = _manual_extracted_path(person, document)
     viewers = _viewer_paths(extracted) if extracted is not None else ()
     warnings: tuple[str, ...] = ()
@@ -114,15 +167,268 @@ def _study_from_document(person: PersonConfig, document: DocumentRecord) -> Dico
         "dicom_zip",
     }:
         warnings = ("manual DICOM expansion directory not found",)
-    return DicomStudy(
-        study_id=document.document_id,
-        patient_id=document.patient_id,
-        support_path=document.path,
-        support_kind=support_kind,
-        extracted_path=extracted,
-        viewer_paths=viewers,
-        warnings=warnings,
+    return (
+        DicomStudy(
+            study_id=document.document_id,
+            patient_id=document.patient_id,
+            support_path=document.path,
+            support_kind=support_kind,
+            extracted_path=extracted,
+            viewer_paths=viewers,
+            warnings=warnings,
+        ),
     )
+
+
+def _studies_from_dicom_files(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+) -> tuple[DicomStudy, ...]:
+    """Group DICOM files by Study Instance UID.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    documents : tuple[DocumentRecord, ...]
+        DICOM file documents.
+
+    Returns
+    -------
+    tuple[DicomStudy, ...]
+        Grouped DICOM studies.
+    """
+
+    grouped: dict[str, list[tuple[DocumentRecord, DicomMetadata]]] = {}
+    fallback: list[DicomStudy] = []
+    for document in documents:
+        metadata = _read_dicom_metadata(document.path)
+        if metadata is None or metadata.study_instance_uid is None:
+            fallback.append(
+                DicomStudy(
+                    study_id=document.document_id,
+                    patient_id=document.patient_id,
+                    support_path=document.path,
+                    support_kind=document.kind,
+                )
+            )
+            continue
+        grouped.setdefault(metadata.study_instance_uid, []).append((document, metadata))
+    studies = []
+    for study_uid, items in sorted(grouped.items()):
+        first_document, first_metadata = sorted(
+            items,
+            key=lambda item: str(item[0].path),
+        )[0]
+        studies.append(
+            DicomStudy(
+                study_id=_study_id(person.id, study_uid),
+                patient_id=person.id,
+                support_path=first_document.path,
+                support_kind="dicom_study",
+                study_instance_uid=study_uid,
+                study_date=first_metadata.study_date,
+                study_description=first_metadata.study_description,
+                instance_count=len(items),
+            )
+        )
+    return (*tuple(studies), *tuple(fallback))
+
+
+def _studies_from_dicomdir(
+    person: PersonConfig,
+    document: DocumentRecord,
+) -> tuple[DicomStudy, ...]:
+    """Build DICOM studies from a DICOMDIR file.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    document : DocumentRecord
+        DICOMDIR document.
+
+    Returns
+    -------
+    tuple[DicomStudy, ...]
+        Studies described by the DICOMDIR.
+    """
+
+    try:
+        from pydicom import dcmread
+    except ImportError:
+        return ()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        try:
+            dataset = dcmread(str(document.path), stop_before_pixels=True, force=True)
+        except (OSError, ValueError):
+            return ()
+        records = getattr(dataset, "DirectoryRecordSequence", ())
+        studies = []
+        seen: set[str] = set()
+        for record in records:
+            if getattr(record, "DirectoryRecordType", None) != "STUDY":
+                continue
+            metadata = DicomMetadata(
+                study_instance_uid=_clean_dicom_text(
+                    getattr(record, "StudyInstanceUID", None)
+                ),
+                study_date=_normalize_dicom_date(getattr(record, "StudyDate", None)),
+                study_description=_clean_dicom_text(
+                    getattr(record, "StudyDescription", None)
+                ),
+            )
+            if metadata.study_instance_uid is None:
+                continue
+            if metadata.study_instance_uid in seen:
+                continue
+            seen.add(metadata.study_instance_uid)
+            studies.append(
+                DicomStudy(
+                    study_id=_study_id(person.id, metadata.study_instance_uid),
+                    patient_id=person.id,
+                    support_path=document.path,
+                    support_kind="dicomdir_study",
+                    extracted_path=document.path.parent,
+                    study_instance_uid=metadata.study_instance_uid,
+                    study_date=metadata.study_date,
+                    study_description=metadata.study_description,
+                    instance_count=0,
+                )
+            )
+        return tuple(studies)
+
+
+def _read_dicom_metadata(path: Path) -> DicomMetadata | None:
+    """Read DICOM study metadata from one file.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        DICOM file path.
+
+    Returns
+    -------
+    DicomMetadata | None
+        Study metadata, or ``None`` when the file is not readable as DICOM.
+    """
+
+    try:
+        from pydicom import dcmread
+    except ImportError:
+        return None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        try:
+            dataset = dcmread(
+                str(path),
+                stop_before_pixels=True,
+                specific_tags=[
+                    "StudyInstanceUID",
+                    "StudyDate",
+                    "StudyDescription",
+                ],
+                force=True,
+            )
+        except (OSError, ValueError):
+            return None
+        return DicomMetadata(
+            study_instance_uid=_clean_dicom_text(
+                getattr(dataset, "StudyInstanceUID", None)
+            ),
+            study_date=_normalize_dicom_date(getattr(dataset, "StudyDate", None)),
+            study_description=_clean_dicom_text(
+                getattr(dataset, "StudyDescription", None)
+            ),
+        )
+
+
+def _coalesce_dicom_studies(studies: tuple[DicomStudy, ...]) -> tuple[DicomStudy, ...]:
+    """Merge duplicate study records before persistence.
+
+    Parameters
+    ----------
+    studies : tuple[DicomStudy, ...]
+        Candidate DICOM studies.
+
+    Returns
+    -------
+    tuple[DicomStudy, ...]
+        DICOM studies with unique identifiers.
+    """
+
+    merged: dict[str, DicomStudy] = {}
+    for study in sorted(studies, key=_study_merge_sort_key):
+        existing = merged.get(study.study_id)
+        if existing is None:
+            merged[study.study_id] = study
+            continue
+        merged[study.study_id] = replace(
+            existing,
+            extracted_path=existing.extracted_path or study.extracted_path,
+            viewer_paths=_deduplicate_paths(
+                (*existing.viewer_paths, *study.viewer_paths)
+            ),
+            warnings=_deduplicate_text((*existing.warnings, *study.warnings)),
+            study_instance_uid=existing.study_instance_uid or study.study_instance_uid,
+            study_date=existing.study_date or study.study_date,
+            study_description=(existing.study_description or study.study_description),
+            instance_count=max(existing.instance_count, study.instance_count),
+        )
+    return tuple(merged.values())
+
+
+def _study_merge_sort_key(study: DicomStudy) -> tuple[int, str]:
+    """Return the deterministic merge preference for one DICOM study.
+
+    Parameters
+    ----------
+    study : DicomStudy
+        DICOM study candidate.
+
+    Returns
+    -------
+    tuple[int, str]
+        Sort key that prefers instance-backed records over DICOMDIR-only
+        records while keeping deterministic path order.
+    """
+
+    return (0 if study.instance_count > 0 else 1, str(study.support_path))
+
+
+def _deduplicate_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
+    """Deduplicate paths preserving first occurrence order.
+
+    Parameters
+    ----------
+    paths : tuple[pathlib.Path, ...]
+        Paths to deduplicate.
+
+    Returns
+    -------
+    tuple[pathlib.Path, ...]
+        Unique paths.
+    """
+
+    return tuple(dict.fromkeys(paths))
+
+
+def _deduplicate_text(values: tuple[str, ...]) -> tuple[str, ...]:
+    """Deduplicate text values preserving first occurrence order.
+
+    Parameters
+    ----------
+    values : tuple[str, ...]
+        Text values to deduplicate.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Unique text values.
+    """
+
+    return tuple(dict.fromkeys(values))
 
 
 def _is_dicom_support(document: DocumentRecord) -> bool:
@@ -350,6 +656,68 @@ def _stream_has_dicom_magic(handle: Any) -> bool:
         return bool(handle.read(4) == b"DICM")
     except (AttributeError, OSError):
         return False
+
+
+def _study_id(patient_id: str, study_instance_uid: str) -> str:
+    """Build a stable DICOM study identifier.
+
+    Parameters
+    ----------
+    patient_id : str
+        Patient identifier.
+    study_instance_uid : str
+        DICOM Study Instance UID.
+
+    Returns
+    -------
+    str
+        Stable SHA256 study id.
+    """
+
+    identity = "\0".join(("dicom-study", patient_id, study_instance_uid))
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def _clean_dicom_text(value: object) -> str | None:
+    """Return a stripped DICOM text value.
+
+    Parameters
+    ----------
+    value : object
+        DICOM value.
+
+    Returns
+    -------
+    str | None
+        Stripped text, or ``None`` when empty.
+    """
+
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _normalize_dicom_date(value: object) -> str | None:
+    """Normalize a DICOM DA value to ISO date.
+
+    Parameters
+    ----------
+    value : object
+        DICOM date value.
+
+    Returns
+    -------
+    str | None
+        ISO date when possible, otherwise the original non-empty value.
+    """
+
+    text = _clean_dicom_text(value)
+    if text is None:
+        return None
+    if len(text) == 8 and text.isdigit():
+        return f"{text[:4]}-{text[4:6]}-{text[6:]}"
+    return text
 
 
 def _manual_extracted_path(

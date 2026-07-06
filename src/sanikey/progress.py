@@ -18,7 +18,13 @@ class ProgressReporter(Protocol):
     None
     """
 
-    def begin(self, label: str, *, total: int | None = None) -> None:
+    def begin(
+        self,
+        label: str,
+        *,
+        total: int | None = None,
+        interval: int | None = None,
+    ) -> None:
         """Begin one progress line.
 
         Parameters
@@ -27,6 +33,8 @@ class ProgressReporter(Protocol):
             Human-readable operation label.
         total : int | None, optional
             Expected item count when known.
+        interval : int | None, optional
+            Dot interval override for the progress line.
 
         Returns
         -------
@@ -101,10 +109,17 @@ class ProgressDots:
         self.stream = stream or sys.stderr
         self.enabled = enabled and self.stream.isatty()
         self.interval = max(1, interval)
+        self._current_interval = self.interval
         self._last_dot_at = 0
         self._active = False
 
-    def begin(self, label: str, *, total: int | None = None) -> None:
+    def begin(
+        self,
+        label: str,
+        *,
+        total: int | None = None,
+        interval: int | None = None,
+    ) -> None:
         """Begin one progress line.
 
         Parameters
@@ -113,6 +128,8 @@ class ProgressDots:
             Human-readable operation label.
         total : int | None, optional
             Expected item count when known.
+        interval : int | None, optional
+            Dot interval override for the progress line.
 
         Returns
         -------
@@ -123,6 +140,7 @@ class ProgressDots:
             return
         suffix = "" if total is None else f" 0/{total}"
         print(f"{label}:{suffix} ", end="", file=self.stream, flush=True)
+        self._current_interval = self.interval if interval is None else max(1, interval)
         self._last_dot_at = 0
         self._active = True
 
@@ -143,8 +161,8 @@ class ProgressDots:
 
         if not self.enabled or not self._active:
             return
-        interval = self.interval
-        if total is None or total <= self.interval:
+        interval = self._current_interval
+        if total is None or total <= interval:
             interval = 1
         should_dot = completed == total or completed - self._last_dot_at >= interval
         if should_dot:

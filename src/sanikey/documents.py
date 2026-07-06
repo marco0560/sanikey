@@ -115,7 +115,7 @@ def scan_document_inventory(
         return ()
     files = sorted(path for path in root.rglob("*") if path.is_file())
     if progress is not None and progress_label is not None:
-        progress.begin(progress_label, total=len(files))
+        progress.begin(progress_label, total=len(files), interval=20)
     records = []
     for index, path in enumerate(files, start=1):
         records.append(document_record_for_path(path, root=root, patient_id=person.id))

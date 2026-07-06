@@ -348,6 +348,103 @@ def test_stage_container_documents_recurses_into_nested_disk_images(
     ]
 
 
+def test_stage_container_documents_recurses_into_multiple_nested_disk_images(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify multiple disk images in one archive are staged recursively.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    def fake_extract_with_7z(source: Path, target: Path) -> None:
+        """Write a synthetic DICOM file for each nested disk image.
+
+        Parameters
+        ----------
+        source : pathlib.Path
+            Disk image source.
+        target : pathlib.Path
+            Extraction target.
+
+        Returns
+        -------
+        None
+        """
+
+        target.mkdir(parents=True, exist_ok=True)
+        name = source.stem
+        path = target / "DICOM" / f"{name}.dcm"
+        path.parent.mkdir(parents=True)
+        path.write_bytes((b"\0" * 128) + b"DICM")
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Studies.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("StudyA.iso", b"synthetic iso a")
+        archive.writestr("StudyB.iso", b"synthetic iso b")
+
+    monkeypatch.setattr(containers_module, "_extract_with_7z", fake_extract_with_7z)
+
+    result = stage_container_documents(
+        person,
+        (_document(path, person.source_documents),),
+    )
+
+    assert result.warning_messages == ()
+    assert [document.internal_path for document in result.documents] == [
+        "StudyA.iso",
+        "StudyB.iso",
+        "DICOM/StudyA.dcm",
+        "DICOM/StudyB.dcm",
+    ]
+
+
+def test_stage_container_documents_keeps_multiple_dicom_trees(
+    tmp_path: Path,
+) -> None:
+    """Verify multiple DICOM directory trees in one archive are ingested.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Studies.zip"
+    dicom_bytes = (b"\0" * 128) + b"DICM"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("StudyA/IM000001.dcm", dicom_bytes)
+        archive.writestr("StudyB/IM000001.dcm", dicom_bytes)
+
+    result = stage_container_documents(
+        person,
+        (_document(path, person.source_documents),),
+    )
+
+    assert result.warning_messages == ()
+    assert [document.internal_path for document in result.documents] == [
+        "StudyA/IM000001.dcm",
+        "StudyB/IM000001.dcm",
+    ]
+
+
 def test_stage_container_documents_warns_for_invalid_rar(tmp_path: Path) -> None:
     """Verify invalid RAR files become staging warnings.
 

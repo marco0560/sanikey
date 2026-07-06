@@ -169,6 +169,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-152 | I supporti DICOM annidati nei contenitori vengono espansi ricorsivamente in staging. | 8 |  |
 | DA-153 | Il testo estratto dai documenti viene persistito in SQLite e indicizzato in FTS5. | 9 |  |
 | DA-154 | `scan-documents` crea lo staging dei container per verifica manuale, salvo opt-out esplicito. | 15 |  |
+| DA-155 | Le istanze DICOM leggibili vengono raggruppate per StudyInstanceUID o DICOMDIR e coalescono record duplicati dello stesso studio. | 8 |  |
 
 ---
 
@@ -248,6 +249,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-147 | I path tecnici dei viewer nei contenitori restano manifest-only. |  |
 | DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. |  |
 | DA-152 | I supporti DICOM annidati nei contenitori vengono espansi ricorsivamente in staging. |  |
+| DA-155 | Le istanze DICOM leggibili vengono raggruppate per StudyInstanceUID o DICOMDIR e coalescono record duplicati dello stesso studio. |  |
 
 ### Database SQLite
 

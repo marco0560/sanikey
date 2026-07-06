@@ -346,17 +346,25 @@ python -m json.tool local-data/generated/irene/manifests/container_staging.json 
 ```
 
 Controllare che ogni membro estratto abbia `container_id`, `internal_path`,
-`sha256` e `path`. Gli archivi `.zip`, `.7z` e `.rar` devono risultare supporti
-DICOM solo quando il contenuto lo giustifica, per esempio per presenza di
-`DICOMDIR`, file `.dcm`, immagini disco `.iso`/`.img`, ZIP annidati con slice
-DICOM, path DICOM o magic bytes DICOM. I file DICOM interni devono risultare
-catalogati come DICOM derivati, non trattati come documenti OCR o testo
-ordinario. Se un archivio contiene un'immagine disco `.iso` o `.img`, la
-directory di staging deve contenere sia l'immagine disco estratta sia la sua
-espansione ricorsiva sotto una seconda directory di container. I path tecnici
-dei viewer, ad esempio `Help`, `Manual`,
+`sha256` e `path`. Questo manifest e' intenzionalmente completo e può essere
+molto grande: serve per audit, controllo manuale e provenienza dei membri
+estratti, inclusi i file tecnici non ingeriti come documenti. Gli archivi
+`.zip`, `.7z` e `.rar` devono risultare supporti DICOM solo quando il contenuto
+lo giustifica, per esempio per presenza di `DICOMDIR`, file `.dcm`, immagini
+disco `.iso`/`.img`, ZIP annidati con slice DICOM, path DICOM o magic bytes
+DICOM. I file DICOM interni devono risultare catalogati come DICOM derivati, non
+trattati come documenti OCR o testo ordinario. Se un archivio contiene
+un'immagine disco `.iso` o `.img`, la directory di staging deve contenere sia
+l'immagine disco estratta sia la sua espansione ricorsiva sotto una seconda
+directory di container. I path tecnici dei viewer, ad esempio `Help`, `Manual`,
 `Viewer-Windows`, `jre` e `assets`, devono restare nel manifest ma non comparire
 come documenti derivati nel database.
+Se il supporto contiene più ISO o più arborescenze DICOM, verificare che tutti i
+file DICOM attesi compaiano come membri derivati e che gli studi nel database
+siano raggruppati per `StudyInstanceUID` o, quando presente, dai record `STUDY`
+del `DICOMDIR`. Se uno stesso `StudyInstanceUID` compare sia in `DICOMDIR` sia
+nelle istanze DICOM, il database deve contenere un solo record per quello
+studio.
 
 Eseguire una build incrementale ripetuta:
 
@@ -457,10 +465,14 @@ sqlite3 local-data/generated/marco/database/medical_archive.db '.tables'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM documents;'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM document_text;'
 sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
+sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY support_kind, support_path LIMIT 20;"
+sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT id, count(*) FROM dicom_studies GROUP BY id HAVING count(*) > 1;"
 sqlite3 local-data/generated/irene/database/medical_archive.db '.tables'
 sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM documents;'
 sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM document_text;'
 sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
+sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY support_kind, support_path LIMIT 20;"
+sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT id, count(*) FROM dicom_studies GROUP BY id HAVING count(*) > 1;"
 ```
 
 La query su `document_text` deve essere maggiore di zero se nel set sono presenti
@@ -468,6 +480,11 @@ documenti testuali, PDF con testo digitale, PDF OCR riusciti, immagini OCR
 riuscite o documenti Office leggibili. La query FTS può restituire `0` se il
 termine scelto non esiste in titolo, categoria, tag o testo estratto. Ripetere
 con un termine realmente presente.
+Per i DICOM, `support_kind='dicom_study'` o `support_kind='dicomdir_study'`
+indica uno studio raggruppato; `instance_count` deve essere maggiore di 1 quando
+più slice appartengono allo stesso `StudyInstanceUID`. Record `dicom_file`
+singoli indicano file DICOM senza metadati studio leggibili. Le query con
+`GROUP BY id HAVING count(*) > 1` non devono stampare righe.
 
 ## Consultazione offline
 

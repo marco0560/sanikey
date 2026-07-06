@@ -9,7 +9,7 @@ import pytest
 
 from sanikey.config import PersonConfig
 from sanikey.database import build_database, database_path
-from sanikey.dicom import catalog_dicom_studies
+from sanikey.dicom import DicomStudy, catalog_dicom_studies
 from sanikey.documents import ExtractedText, scan_documents
 from sanikey.metadata import load_curated_metadata
 from sanikey.models import CuratedMetadata, TherapyEpisode
@@ -131,6 +131,12 @@ instructions = "dopo il pasto"
         dicom_count = connection.execute(
             "SELECT count(*) FROM dicom_studies"
         ).fetchone()[0]
+        dicom_row = connection.execute(
+            """
+            SELECT study_instance_uid, study_date, study_description, instance_count
+            FROM dicom_studies
+            """
+        ).fetchone()
         text_count = connection.execute(
             "SELECT count(*) FROM document_text WHERE text LIKE '%hemoglobin%'"
         ).fetchone()[0]
@@ -145,6 +151,7 @@ instructions = "dopo il pasto"
     assert medication == ("Ingredient A", "compresse", "100 mg")
     assert therapy == (None, "risveglio,cena", "dopo il pasto")
     assert dicom_count == 1
+    assert dicom_row == (None, None, None, 1)
     assert text_count == 1
     assert fts_count == 1
     assert fts_text_count == 1
@@ -176,3 +183,57 @@ def test_build_database_rejects_invalid_therapy_reference(tmp_path: Path) -> Non
 
     with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
         build_database(person, documents, metadata, ())
+
+
+def test_build_database_persists_dicom_study_metadata(tmp_path: Path) -> None:
+    """Verify grouped DICOM study metadata is stored in SQLite.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Report.txt"
+    path.write_text("Synthetic text", encoding="utf-8")
+    documents = scan_documents(person)
+    result = build_database(
+        person,
+        documents,
+        CuratedMetadata(),
+        (
+            DicomStudy(
+                study_id="study-a",
+                patient_id="patient-a",
+                support_path=path,
+                support_kind="dicom_study",
+                study_instance_uid="1.2.826.0.1.3680043.10.543.1",
+                study_date="2026-01-02",
+                study_description="Synthetic Study",
+                instance_count=2,
+            ),
+        ),
+    )
+
+    with sqlite3.connect(result.path) as connection:
+        row = connection.execute(
+            """
+            SELECT support_kind, study_instance_uid, study_date,
+                   study_description, instance_count
+            FROM dicom_studies
+            """
+        ).fetchone()
+
+    assert row == (
+        "dicom_study",
+        "1.2.826.0.1.3680043.10.543.1",
+        "2026-01-02",
+        "Synthetic Study",
+        2,
+    )

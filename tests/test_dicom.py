@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import warnings
 import zipfile
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import sanikey.dicom as dicom_module
@@ -38,6 +40,57 @@ def _person(tmp_path: Path) -> PersonConfig:
         local_build=tmp_path / "generated",
         usb_uuid="1A2B-3C4D",
     )
+
+
+def _write_dicom_file(
+    path: Path,
+    *,
+    study_uid: str,
+    study_date: str = "20260102",
+    study_description: str = "Synthetic Study",
+) -> None:
+    """Write a minimal synthetic DICOM file.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Output path.
+    study_uid : str
+        Study Instance UID.
+    study_date : str, optional
+        DICOM study date.
+    study_description : str, optional
+        DICOM study description.
+
+    Returns
+    -------
+    None
+    """
+
+    from pydicom.dataset import FileDataset, FileMetaDataset
+    from pydicom.uid import ExplicitVRLittleEndian, generate_uid
+
+    file_meta = FileMetaDataset()
+    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    file_meta.MediaStorageSOPClassUID = generate_uid()
+    file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.ImplementationClassUID = generate_uid()
+    dataset = FileDataset(
+        str(path),
+        {},
+        file_meta=file_meta,
+        preamble=b"\0" * 128,
+    )
+    dataset.StudyInstanceUID = study_uid
+    dataset.StudyDate = study_date
+    dataset.StudyDescription = study_description
+    dataset.SOPClassUID = file_meta.MediaStorageSOPClassUID
+    dataset.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    dataset.PatientName = "Synthetic^Patient"
+    dataset.PatientID = "SYNTHETIC"
+    dataset.ContentDate = study_date
+    dataset.ContentTime = datetime.now().strftime("%H%M%S")
+    dataset.save_as(path, enforce_file_format=True)
 
 
 def test_catalog_dicom_studies_links_manual_expansion(tmp_path: Path) -> None:
@@ -254,3 +307,210 @@ def test_catalog_dicom_studies_detects_dicom_rar_by_name(
 
     assert len(studies) == 1
     assert studies[0].support_kind == "dicom_rar"
+
+
+def test_catalog_dicom_studies_groups_files_by_study_instance_uid(
+    tmp_path: Path,
+) -> None:
+    """Verify DICOM files with the same Study Instance UID form one study.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    dicom_dir = person.source_documents / "dicom"
+    dicom_dir.mkdir(parents=True)
+    _write_dicom_file(
+        dicom_dir / "IM000001.dcm",
+        study_uid="1.2.826.0.1.3680043.10.543.1",
+        study_description="Grouped Study",
+    )
+    _write_dicom_file(
+        dicom_dir / "IM000002.dcm",
+        study_uid="1.2.826.0.1.3680043.10.543.1",
+        study_description="Grouped Study",
+    )
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert len(studies) == 1
+    assert studies[0].support_kind == "dicom_study"
+    assert studies[0].study_instance_uid == "1.2.826.0.1.3680043.10.543.1"
+    assert studies[0].study_date == "2026-01-02"
+    assert studies[0].study_description == "Grouped Study"
+    assert studies[0].instance_count == 2
+
+
+def test_catalog_dicom_studies_keeps_distinct_study_instance_uids(
+    tmp_path: Path,
+) -> None:
+    """Verify distinct Study Instance UIDs form separate studies.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    dicom_dir = person.source_documents / "dicom"
+    dicom_dir.mkdir(parents=True)
+    _write_dicom_file(
+        dicom_dir / "IM000001.dcm",
+        study_uid="1.2.826.0.1.3680043.10.543.1",
+    )
+    _write_dicom_file(
+        dicom_dir / "IM000002.dcm",
+        study_uid="1.2.826.0.1.3680043.10.543.2",
+    )
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert [study.study_instance_uid for study in studies] == [
+        "1.2.826.0.1.3680043.10.543.1",
+        "1.2.826.0.1.3680043.10.543.2",
+    ]
+
+
+def test_catalog_dicom_studies_reads_study_records_from_dicomdir(
+    tmp_path: Path,
+) -> None:
+    """Verify DICOMDIR STUDY records become grouped DICOM studies.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
+    from pydicom.uid import ExplicitVRLittleEndian, MediaStorageDirectoryStorage
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "DICOMDIR"
+    file_meta = FileMetaDataset()
+    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    file_meta.MediaStorageSOPClassUID = MediaStorageDirectoryStorage
+    file_meta.MediaStorageSOPInstanceUID = "1.2.826.0.1.3680043.10.543.999"
+    dataset = FileDataset(str(path), {}, file_meta=file_meta, preamble=b"\0" * 128)
+    study_a = Dataset()
+    study_a.DirectoryRecordType = "STUDY"
+    study_a.StudyInstanceUID = "1.2.826.0.1.3680043.10.543.10"
+    study_a.StudyDate = "20260102"
+    study_a.StudyDescription = "First Study"
+    study_b = Dataset()
+    study_b.DirectoryRecordType = "STUDY"
+    study_b.StudyInstanceUID = "1.2.826.0.1.3680043.10.543.20"
+    study_b.StudyDate = "20260103"
+    study_b.StudyDescription = "Second Study"
+    dataset.DirectoryRecordSequence = [study_a, study_b]
+    dataset.save_as(path, enforce_file_format=True)
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert [(study.study_instance_uid, study.support_kind) for study in studies] == [
+        ("1.2.826.0.1.3680043.10.543.10", "dicomdir_study"),
+        ("1.2.826.0.1.3680043.10.543.20", "dicomdir_study"),
+    ]
+    assert [study.instance_count for study in studies] == [0, 0]
+
+
+def test_catalog_dicom_studies_merges_dicomdir_and_file_uid(
+    tmp_path: Path,
+) -> None:
+    """Verify DICOMDIR and file records for one UID become one study.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
+    from pydicom.uid import ExplicitVRLittleEndian, MediaStorageDirectoryStorage
+
+    person = _person(tmp_path)
+    dicom_dir = person.source_documents / "dicom"
+    dicom_dir.mkdir(parents=True)
+    study_uid = "1.2.826.0.1.3680043.10.543.30"
+    _write_dicom_file(
+        dicom_dir / "IM000001.dcm",
+        study_uid=study_uid,
+        study_description="Instance Study",
+    )
+    path = dicom_dir / "DICOMDIR"
+    file_meta = FileMetaDataset()
+    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    file_meta.MediaStorageSOPClassUID = MediaStorageDirectoryStorage
+    file_meta.MediaStorageSOPInstanceUID = "1.2.826.0.1.3680043.10.543.998"
+    dataset = FileDataset(str(path), {}, file_meta=file_meta, preamble=b"\0" * 128)
+    study = Dataset()
+    study.DirectoryRecordType = "STUDY"
+    study.StudyInstanceUID = study_uid
+    study.StudyDate = "20260102"
+    study.StudyDescription = "Directory Study"
+    dataset.DirectoryRecordSequence = [study]
+    dataset.save_as(path, enforce_file_format=True)
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert len(studies) == 1
+    assert studies[0].support_kind == "dicom_study"
+    assert studies[0].study_instance_uid == study_uid
+    assert studies[0].instance_count == 1
+
+
+def test_catalog_dicom_studies_suppresses_pydicom_value_warnings(
+    tmp_path: Path,
+    recwarn: pytest.WarningsRecorder,
+) -> None:
+    """Verify non-fatal pydicom value warnings do not leak to callers.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    recwarn : pytest.WarningsRecorder
+        Warning recorder fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    dicom_dir = person.source_documents / "dicom"
+    dicom_dir.mkdir(parents=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        _write_dicom_file(
+            dicom_dir / "IM000001.dcm",
+            study_uid="1.2.826.0.1.3680043.10.543.40",
+            study_description="x" * 76,
+        )
+    recwarn.clear()
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert len(studies) == 1
+    assert list(recwarn) == []

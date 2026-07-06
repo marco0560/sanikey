@@ -54,7 +54,9 @@ struttura USB.
 - `documents.py`: scansiona i documenti, calcola digest, estrae testo
   supportato e rileva duplicati.
 - `metadata.py`: carica metadati curati da file TOML.
-- `dicom.py`: cataloga supporti DICOM e directory di espansione manuale.
+- `dicom.py`: cataloga supporti DICOM, legge DICOMDIR, raggruppa istanze per
+  StudyInstanceUID e coalesce i record duplicati dello stesso studio prima
+  della persistenza.
 - `database.py`: scrive l'archivio SQLite.
 - `exports.py`: scrive export JSON statici per ricerca, timeline e sommari.
 - `frontend.py`: renderizza l'entrypoint web statico.
