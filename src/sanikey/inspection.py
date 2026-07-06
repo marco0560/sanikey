@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from .containers import ContainerStagingResult, stage_container_documents
 from .dicom import DicomStudy, catalog_dicom_studies
 from .documents import (
     ExtractedText,
@@ -39,6 +40,8 @@ class PatientDocumentInspection:
         Fast diagnostic warnings from inventory and DICOM cataloging.
     preflight_warning_messages : tuple[str, ...]
         Optional deeper preflight warnings.
+    container_staging : ContainerStagingResult | None
+        Optional container staging result produced during inspection.
     """
 
     inventory: tuple[DocumentRecord, ...]
@@ -47,12 +50,14 @@ class PatientDocumentInspection:
     dicom_studies: tuple[DicomStudy, ...]
     warning_messages: tuple[str, ...]
     preflight_warning_messages: tuple[str, ...] = ()
+    container_staging: ContainerStagingResult | None = None
 
 
 def inspect_patient_documents(
     person: PersonConfig,
     *,
     preflight: bool = False,
+    stage_containers: bool = False,
     progress: ProgressReporter | None = None,
 ) -> PatientDocumentInspection:
     """Inspect a patient's documents before a full build.
@@ -64,6 +69,8 @@ def inspect_patient_documents(
     preflight : bool, optional
         Whether to run lightweight extraction checks for non-PDF containers and
         office documents.
+    stage_containers : bool, optional
+        Whether to stage supported containers for early manual inspection.
     progress : ProgressReporter | None, optional
         Progress reporter for long inspection steps.
 
@@ -80,9 +87,18 @@ def inspect_patient_documents(
     )
     duplicates = find_duplicate_documents(inventory)
     documents = scan_documents(person)
+    container_staging = None
+    catalog_documents = documents
+    if stage_containers:
+        if progress is not None:
+            progress.begin(f"stage-containers {person.id}")
+        container_staging = stage_container_documents(person, documents)
+        if progress is not None:
+            progress.done(f"done derived={len(container_staging.documents)}")
+        catalog_documents = (*documents, *container_staging.documents)
     dicom_studies = catalog_dicom_studies(
         person,
-        documents,
+        catalog_documents,
         progress=progress,
         progress_label=f"catalog-dicom {person.id}",
     )
@@ -95,6 +111,11 @@ def inspect_patient_documents(
         ),
         *(static_document_warning_messages(documents)),
     )
+    if container_staging is not None:
+        warning_messages = (
+            *warning_messages,
+            *container_staging.warning_messages,
+        )
     preflight_warning_messages = (
         _preflight_warning_messages(documents) if preflight else ()
     )
@@ -105,6 +126,7 @@ def inspect_patient_documents(
         dicom_studies=dicom_studies,
         warning_messages=warning_messages,
         preflight_warning_messages=preflight_warning_messages,
+        container_staging=container_staging,
     )
 
 

@@ -99,15 +99,26 @@ uv run sanikey scan-documents --config config/accounts.toml
 ```
 
 Il comando segnala anche warning rilevabili senza build completa, come
-duplicati, file con estensione non supportata e supporti DICOM senza directory
-di espansione manuale. Prima della scansione viene ripetuto il controllo dei
-metadati curati dei pazienti selezionati, cosi' un errore in `therapies.toml`
-blocca subito il comando invece di emergere dopo una build lunga.
+duplicati e file con estensione non supportata. Per impostazione predefinita
+estrae anche i container supportati in
+`local_build/staging/containers/`, cosi' il contenuto degli archivi puo' essere
+verificato manualmente prima della build completa. Il riepilogo include
+`staged_containers=`, `staged_members=` e `derived_documents=` quando lo staging
+e' attivo. Prima della scansione viene ripetuto il controllo dei metadati curati
+dei pazienti selezionati, cosi' un errore in `therapies.toml` blocca subito il
+comando invece di emergere dopo una build lunga.
 Su terminali interattivi, i passi lunghi stampano punti di avanzamento su
 `stderr`, senza modificare l'output riepilogativo su `stdout`. Per disattivarli:
 
 ```bash
 uv run sanikey scan-documents --config config/accounts.toml --no-progress
+```
+
+Per eseguire una scansione solo inventariale, senza creare o aggiornare lo
+staging dei container:
+
+```bash
+uv run sanikey scan-documents --config config/accounts.toml --no-stage-containers
 ```
 
 Per eseguire anche controlli preliminari leggeri su archivi e documenti Office:
@@ -157,8 +168,9 @@ sorgente. Gli archivi `.zip`, `.7z` e `.rar` sono trattati inizialmente come
 archivi generici e promossi a supporti DICOM solo se contengono `DICOMDIR`, file
 `.dcm`, path DICOM riconoscibili, immagini disco `.iso`/`.img`, ZIP annidati
 con contenuto DICOM o file con magic bytes DICOM. Quando vengono estratti in
-staging, i file DICOM interni sono catalogati come DICOM e non passano dall'OCR
-o dall'estrazione testo ordinaria.
+staging, eventuali immagini disco `.iso` o `.img` annidate vengono espanse a
+loro volta. I file DICOM interni sono catalogati come DICOM e non passano
+dall'OCR o dall'estrazione testo ordinaria.
 I file tecnici dei viewer inclusi nei supporti, per esempio runtime Java, DLL,
 manuali, HTML di help o asset applicativi, restano tracciati nel manifest di
 staging ma non entrano nella pipeline documentale ordinaria.
@@ -172,6 +184,14 @@ Per i PDF, SaniKey sceglie automaticamente il provider:
 `OCRmyPDF` è quindi una dipendenza di sistema supportata. Se nessun provider è
 disponibile, il PDF resta catalogato ma l'estrazione testo viene saltata con un
 warning esplicito sui provider mancanti o insufficienti.
+Se OCRmyPDF fallisce durante l'ottimizzazione del PDF temporaneo, SaniKey ritenta
+senza ottimizzazione perché usa solo il sidecar testuale. I warning registrati
+nel report sono sintetici e non includono il log completo pagina-per-pagina del
+tool esterno.
+
+Il testo estratto con successo viene salvato nella tabella SQLite
+`document_text` e indicizzato in `document_fts` insieme a titolo, categoria e
+tag. I file DICOM restano esclusi dall'estrazione testo.
 
 Per le immagini, SaniKey usa il comando di sistema `tesseract`. Quando sono
 disponibili i language pack `ita` ed `eng`, usa `ita+eng`; altrimenti ricade

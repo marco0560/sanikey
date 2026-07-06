@@ -113,6 +113,31 @@ def test_scan_documents_classifies_archive_and_office_kinds(
     }
 
 
+def test_scan_documents_classifies_img_disk_images_as_dicom_support(
+    tmp_path: Path,
+) -> None:
+    """Verify IMG disk images are recognized as DICOM support containers.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    (document_dir / "20260102 Study.img").write_bytes(b"synthetic image")
+
+    documents = scan_documents(person)
+
+    assert documents[0].kind == "dicom_img"
+
+
 def test_scan_documents_detects_dicom_magic_without_extension(
     tmp_path: Path,
 ) -> None:
@@ -1247,4 +1272,112 @@ def test_extract_text_warns_when_ocrmypdf_fails(
     assert extracted.text == ""
     assert extracted.warnings == (
         "OCRmyPDF failed; PDF text extraction skipped: ocr failed",
+    )
+
+
+def test_extract_text_retries_ocrmypdf_without_optimization(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify OCRmyPDF post-processing failures retry without optimization.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Report.pdf"
+    path.write_bytes(b"%PDF synthetic")
+    document = scan_documents(person)[0]
+    calls = []
+
+    def fake_run(command, **_kwargs):
+        calls.append(command)
+        if "--optimize" in command:
+            sidecar = Path(command[command.index("--sidecar") + 1])
+            sidecar.write_text("retried OCR text", encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, "", "")
+        return subprocess.CompletedProcess(
+            command,
+            2,
+            "",
+            "Traceback\nOSError: image file is truncated (2 bytes not processed)",
+        )
+
+    monkeypatch.setattr(
+        documents_module, "_extract_pdf_text_with_pymupdf", lambda _: None
+    )
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: "/usr/bin/ocrmypdf")
+    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == "retried OCR text"
+    assert extracted.warnings == ()
+    assert calls[1][1:4] == ["--skip-text", "--optimize", "0"]
+
+
+def test_extract_text_summarizes_ocrmypdf_retry_failures(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify OCRmyPDF failures do not dump verbose tool output into warnings.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Report.pdf"
+    path.write_bytes(b"%PDF synthetic")
+    document = scan_documents(person)[0]
+
+    def fake_run(command, **_kwargs):
+        if "--optimize" in command:
+            return subprocess.CompletedProcess(
+                command,
+                2,
+                "",
+                "Page 2\nError: retry failed",
+            )
+        return subprocess.CompletedProcess(
+            command,
+            2,
+            "",
+            "Page 1\nPage 2\nOSError: image file is truncated (4 bytes not processed)",
+        )
+
+    monkeypatch.setattr(
+        documents_module, "_extract_pdf_text_with_pymupdf", lambda _: None
+    )
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: "/usr/bin/ocrmypdf")
+    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == ""
+    assert extracted.warnings == (
+        "OCRmyPDF failed; PDF text extraction skipped: "
+        "OSError: image file is truncated (4 bytes not processed); "
+        "retry with --optimize 0 failed: Error: retry failed",
     )

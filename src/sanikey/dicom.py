@@ -108,6 +108,7 @@ def _study_from_document(person: PersonConfig, document: DocumentRecord) -> Dico
     support_kind = _dicom_support_kind(document)
     if extracted is None and support_kind in {
         "dicom_7z",
+        "dicom_img",
         "dicom_iso",
         "dicom_rar",
         "dicom_zip",
@@ -139,7 +140,7 @@ def _is_dicom_support(document: DocumentRecord) -> bool:
         content.
     """
 
-    if document.kind in {"dicom_file", "dicom_iso"}:
+    if document.kind in {"dicom_file", "dicom_img", "dicom_iso"}:
         return True
     if document.kind != "archive":
         return False

@@ -180,7 +180,7 @@ def build_patient(
         ),
         total_records=len(documents),
     )
-    db_result = build_database(person, documents, metadata, dicom_studies)
+    db_result = build_database(person, documents, metadata, dicom_studies, extracted)
     manifest_path = _write_manifest(
         person,
         build_root=build_root,

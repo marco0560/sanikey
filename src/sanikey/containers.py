@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from .config import PersonConfig
     from .models import DocumentRecord
 
-CONTAINER_SUFFIXES = {".7z", ".iso", ".rar", ".zip"}
+CONTAINER_SUFFIXES = {".7z", ".img", ".iso", ".rar", ".zip"}
 TECHNICAL_PATH_SEGMENTS = {"assets", "help", "jre", "manual", "viewer-windows"}
 
 
@@ -113,6 +113,7 @@ def stage_container_documents(
         warnings.extend(container_result.warning_messages)
         staged_documents.extend(container_result.documents)
         members.extend(container_result.members)
+        queued.extend(_container_documents(container_result.documents))
     manifest = _write_container_manifest(person, tuple(members), tuple(warnings))
     return ContainerStagingResult(
         documents=tuple(staged_documents),
@@ -223,7 +224,14 @@ def _should_ingest_staged_document(document: DocumentRecord) -> bool:
 
     if _is_technical_container_path(document.internal_path):
         return False
-    return document.kind in {"dicom_file", "office", "pdf", "text"}
+    return document.kind in {
+        "dicom_file",
+        "dicom_img",
+        "dicom_iso",
+        "office",
+        "pdf",
+        "text",
+    }
 
 
 def _is_technical_container_path(internal_path: str | None) -> bool:
@@ -279,7 +287,7 @@ def _extract_container(container: DocumentRecord, target: Path) -> None:
     if suffix == ".rar":
         _extract_rar(container.path, target)
         return
-    if suffix == ".iso":
+    if suffix in {".img", ".iso"}:
         _extract_with_7z(container.path, target)
         return
     msg = f"unsupported container format {suffix}"

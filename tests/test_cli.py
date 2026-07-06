@@ -276,6 +276,7 @@ usb_uuid = "1A2B-3C4D"
     )
     assert result.returncode == 0
     assert "documents=1" in result.stdout
+    assert "staged_containers=0 staged_members=0 derived_documents=0" in result.stdout
     assert "Report" not in result.stdout
     assert result.stderr == ""
 
@@ -350,6 +351,118 @@ usb_uuid = "1A2B-3C4D"
 
     assert result.returncode == 1
     assert "duplicate therapy id: duplicate" in result.stdout
+
+
+def test_scan_documents_stages_containers_by_default(tmp_path: Path) -> None:
+    """Verify scan-documents materializes container staging for inspection.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    with zipfile.ZipFile(source / "20260102 Archive.zip", "w") as archive:
+        archive.writestr("report.txt", "synthetic")
+    config_path = tmp_path / "accounts.toml"
+    build_root = tmp_path / "generated"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{build_root}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+            "--no-progress",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "staged_containers=1 staged_members=1 derived_documents=1" in result.stdout
+    assert (build_root / "staging" / "containers").is_dir()
+    assert (build_root / "manifests" / "container_staging.json").is_file()
+
+
+def test_scan_documents_can_skip_container_staging(tmp_path: Path) -> None:
+    """Verify scan-documents can run without materializing staging.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    with zipfile.ZipFile(source / "20260102 Archive.zip", "w") as archive:
+        archive.writestr("report.txt", "synthetic")
+    config_path = tmp_path / "accounts.toml"
+    build_root = tmp_path / "generated"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{build_root}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "scan-documents",
+            "--config",
+            str(config_path),
+            "--no-stage-containers",
+            "--no-progress",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "staged_containers=" not in result.stdout
+    assert not (build_root / "staging" / "containers").exists()
 
 
 def test_scan_documents_verbose_renders_readable_inventory(tmp_path: Path) -> None:
@@ -691,9 +804,10 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "documents=2 duplicates=0 warnings=1" in result.stdout
+    assert "documents=2 duplicates=0 warnings=0" in result.stdout
+    assert "staged_containers=1 staged_members=1 derived_documents=0" in result.stdout
     assert "unsupported text extraction for .jpg" not in result.stdout
-    assert "manual DICOM expansion directory not found" in result.stdout
+    assert "manual DICOM expansion directory not found" not in result.stdout
 
 
 def test_scan_documents_preflight_reports_corrupt_office_file(

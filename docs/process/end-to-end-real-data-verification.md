@@ -249,8 +249,22 @@ uv run sanikey scan-documents --config config/accounts.toml
 Il comando stampa solo il riepilogo per paziente e gli eventuali warning
 rilevabili senza build completa. Su terminale interattivo puo' stampare punti di
 avanzamento su `stderr`; aggiungere `--no-progress` se si vuole un log
-strettamente privo di progress. Eseguire anche il preflight leggero prima di una
-build lunga:
+strettamente privo di progress. Per impostazione predefinita crea anche lo
+staging dei container in `local_build/staging/containers/`; usare
+`--no-stage-containers` solo quando serve una scansione esclusivamente
+inventariale e non si vuole materializzare il contenuto degli archivi.
+
+Se sono presenti archivi, prima della build lunga aprire il manifest e le
+directory di staging generate dallo scan:
+
+```bash
+python -m json.tool local-data/generated/marco/manifests/container_staging.json | less
+find local-data/generated/marco/staging/containers -maxdepth 2 -type f | sort | less
+```
+
+Questo controllo serve a verificare manualmente se gli archivi contengono
+supporti DICOM, immagini disco annidate, referti PDF o solo materiale tecnico
+del viewer. Eseguire anche il preflight leggero prima di una build lunga:
 
 ```bash
 uv run sanikey scan-documents --config config/accounts.toml --preflight
@@ -296,8 +310,8 @@ deriva da contenitori e supporti diagnostici.
 I punti di avanzamento, quando presenti, devono essere su `stderr`, non dentro
 il riepilogo su `stdout`.
 
-Se sono presenti archivi o immagini ISO, verificare anche il manifest di
-staging:
+Se sono presenti archivi o immagini ISO, riverificare anche dopo la build il
+manifest di staging rigenerato:
 
 ```bash
 python -m json.tool local-data/generated/marco/manifests/container_staging.json | less
@@ -309,7 +323,10 @@ DICOM solo quando il contenuto lo giustifica, per esempio per presenza di
 `DICOMDIR`, file `.dcm`, immagini disco `.iso`/`.img`, ZIP annidati con slice
 DICOM, path DICOM o magic bytes DICOM. I file DICOM interni devono risultare
 catalogati come DICOM derivati, non trattati come documenti OCR o testo
-ordinario. I path tecnici dei viewer, ad esempio `Help`, `Manual`,
+ordinario. Se un archivio contiene un'immagine disco `.iso` o `.img`, la
+directory di staging deve contenere sia l'immagine disco estratta sia la sua
+espansione ricorsiva sotto una seconda directory di container. I path tecnici
+dei viewer, ad esempio `Help`, `Manual`,
 `Viewer-Windows`, `jre` e `assets`, devono restare nel manifest ma non comparire
 come documenti derivati nel database.
 
@@ -398,11 +415,15 @@ Verificare il database:
 ```bash
 sqlite3 local-data/generated/marco/database/medical_archive.db '.tables'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM documents;'
+sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM document_text;'
 sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
 ```
 
-La query FTS può restituire `0` se il termine scelto non esiste nei titoli,
-categorie o tag. Ripetere con un termine realmente presente.
+La query su `document_text` deve essere maggiore di zero se nel set sono presenti
+documenti testuali, PDF con testo digitale, PDF OCR riusciti, immagini OCR
+riuscite o documenti Office leggibili. La query FTS può restituire `0` se il
+termine scelto non esiste in titolo, categoria, tag o testo estratto. Ripetere
+con un termine realmente presente.
 
 ## Consultazione offline
 

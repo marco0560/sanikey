@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
     from .config import PersonConfig
     from .dicom import DicomStudy
+    from .documents import ExtractedText
     from .models import CuratedMetadata, DocumentRecord
 
 
@@ -58,6 +59,7 @@ def build_database(
     documents: tuple[DocumentRecord, ...],
     metadata: CuratedMetadata,
     dicom_studies: tuple[DicomStudy, ...],
+    extracted_text: tuple[ExtractedText, ...] = (),
 ) -> DatabaseBuildResult:
     """Build a complete per-patient SQLite database.
 
@@ -71,6 +73,8 @@ def build_database(
         Curated metadata.
     dicom_studies : tuple[DicomStudy, ...]
         Cataloged DICOM studies.
+    extracted_text : tuple[ExtractedText, ...], optional
+        Extracted text records to persist and index.
 
     Returns
     -------
@@ -85,7 +89,7 @@ def build_database(
     with sqlite3.connect(path) as connection:
         connection.execute("PRAGMA foreign_keys = ON")
         _create_schema(connection)
-        _insert_documents(connection, documents)
+        _insert_documents(connection, documents, extracted_text)
         _insert_metadata(connection, metadata)
         _insert_dicom(connection, dicom_studies)
         connection.commit()
@@ -131,8 +135,13 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             title,
             category,
             tags,
-            content='documents',
-            content_rowid='rowid'
+            text
+        );
+
+        CREATE TABLE document_text (
+            document_id TEXT PRIMARY KEY,
+            text TEXT NOT NULL,
+            FOREIGN KEY (document_id) REFERENCES documents(id)
         );
 
         CREATE TABLE problems (
@@ -200,6 +209,7 @@ def _create_schema(connection: sqlite3.Connection) -> None:
 def _insert_documents(
     connection: sqlite3.Connection,
     documents: tuple[DocumentRecord, ...],
+    extracted_text: tuple[ExtractedText, ...],
 ) -> None:
     """Insert documents and lexical index rows.
 
@@ -209,14 +219,19 @@ def _insert_documents(
         Open database connection.
     documents : tuple[DocumentRecord, ...]
         Documents to insert.
+    extracted_text : tuple[ExtractedText, ...]
+        Extracted text records to persist and index.
 
     Returns
     -------
     None
     """
 
+    text_by_document_id = {
+        item.document_id: item.text for item in extracted_text if item.text
+    }
     for document in documents:
-        connection.execute(
+        cursor = connection.execute(
             """
             INSERT INTO documents (
                 id, patient_id, path, title, category, kind, sha256,
@@ -238,10 +253,22 @@ def _insert_documents(
                 document.internal_path,
             ),
         )
+        text = text_by_document_id.get(document.document_id, "")
+        if text:
+            connection.execute(
+                "INSERT INTO document_text(document_id, text) VALUES (?, ?)",
+                (document.document_id, text),
+            )
         connection.execute(
-            "INSERT INTO document_fts(rowid, title, category, tags) "
-            "VALUES (last_insert_rowid(), ?, ?, ?)",
-            (document.title, document.category, " ".join(document.tags)),
+            "INSERT INTO document_fts(rowid, title, category, tags, text) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                cursor.lastrowid,
+                document.title,
+                document.category,
+                " ".join(document.tags),
+                text,
+            ),
         )
 
 

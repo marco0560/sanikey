@@ -106,6 +106,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run lightweight pre-build checks for archives and office documents",
     )
+    scan_parser.add_argument(
+        "--no-stage-containers",
+        action="store_true",
+        help="Skip container staging during scan",
+    )
     _add_progress_argument(scan_parser)
     scan_parser.set_defaults(func=run_scan_documents)
 
@@ -331,17 +336,28 @@ def run_scan_documents(args: argparse.Namespace) -> int:
         inspection = inspect_patient_documents(
             person,
             preflight=args.preflight,
+            stage_containers=not args.no_stage_containers,
             progress=progress,
         )
         warning_messages = (
             *inspection.warning_messages,
             *inspection.preflight_warning_messages,
         )
-        print(
+        summary = (
             f"patient={person.id} files={len(inspection.inventory)} "
             f"documents={len(inspection.documents)} "
             f"duplicates={len(inspection.duplicates)} warnings={len(warning_messages)}"
         )
+        if inspection.container_staging is not None:
+            staged_container_ids = {
+                member.container_id for member in inspection.container_staging.members
+            }
+            summary = (
+                f"{summary} staged_containers={len(staged_container_ids)} "
+                f"staged_members={len(inspection.container_staging.members)} "
+                f"derived_documents={len(inspection.container_staging.documents)}"
+            )
+        print(summary)
         for warning in warning_messages:
             print(f"WARNING: {warning}")
         if args.verbose:

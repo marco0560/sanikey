@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zipfile
 from typing import TYPE_CHECKING
 
 from sanikey.config import PersonConfig
@@ -126,6 +127,32 @@ def test_inspect_patient_documents_preflight_reports_image_ocr_warnings(
     assert result.preflight_warning_messages == (
         f"{path}: Tesseract not installed; image OCR skipped",
     )
+
+
+def test_inspect_patient_documents_can_stage_containers(tmp_path: Path) -> None:
+    """Verify inspection optionally stages containers for manual review.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Archive.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("report.txt", "synthetic")
+
+    result = inspect_patient_documents(person, stage_containers=True)
+
+    assert result.container_staging is not None
+    assert len(result.container_staging.members) == 1
+    assert result.container_staging.documents[0].internal_path == "report.txt"
 
 
 def test_extraction_warning_messages_filters_static_warnings(tmp_path: Path) -> None:

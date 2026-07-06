@@ -287,6 +287,67 @@ def test_stage_container_documents_extracts_7z_archive(tmp_path: Path) -> None:
     assert result.documents[0].path.read_text(encoding="utf-8") == "synthetic"
 
 
+def test_stage_container_documents_recurses_into_nested_disk_images(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify archive members that are disk images are staged recursively.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    def fake_extract_with_7z(source: Path, target: Path) -> None:
+        """Write a synthetic DICOM file for a nested disk image.
+
+        Parameters
+        ----------
+        source : pathlib.Path
+            Disk image source.
+        target : pathlib.Path
+            Extraction target.
+
+        Returns
+        -------
+        None
+        """
+
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "DICOM" / "IM000001.dcm").parent.mkdir(parents=True)
+        (target / "DICOM" / "IM000001.dcm").write_bytes((b"\0" * 128) + b"DICM")
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Study.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("Study.iso", b"synthetic iso")
+
+    monkeypatch.setattr(containers_module, "_extract_with_7z", fake_extract_with_7z)
+
+    result = stage_container_documents(
+        person,
+        (_document(path, person.source_documents),),
+    )
+
+    assert result.warning_messages == ()
+    assert [document.internal_path for document in result.documents] == [
+        "Study.iso",
+        "DICOM/IM000001.dcm",
+    ]
+    assert [document.kind for document in result.documents] == [
+        "dicom_iso",
+        "dicom_file",
+    ]
+
+
 def test_stage_container_documents_warns_for_invalid_rar(tmp_path: Path) -> None:
     """Verify invalid RAR files become staging warnings.
 

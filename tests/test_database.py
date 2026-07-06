@@ -10,7 +10,7 @@ import pytest
 from sanikey.config import PersonConfig
 from sanikey.database import build_database, database_path
 from sanikey.dicom import catalog_dicom_studies
-from sanikey.documents import scan_documents
+from sanikey.documents import ExtractedText, scan_documents
 from sanikey.metadata import load_curated_metadata
 from sanikey.models import CuratedMetadata, TherapyEpisode
 
@@ -100,6 +100,12 @@ instructions = "dopo il pasto"
         documents,
         load_curated_metadata(person.metadata_directory),
         catalog_dicom_studies(person, documents),
+        (
+            ExtractedText(
+                document_id=documents[0].document_id,
+                text="Synthetic extracted hemoglobin content",
+            ),
+        ),
     )
 
     assert result.path == database_path(person)
@@ -125,15 +131,23 @@ instructions = "dopo il pasto"
         dicom_count = connection.execute(
             "SELECT count(*) FROM dicom_studies"
         ).fetchone()[0]
+        text_count = connection.execute(
+            "SELECT count(*) FROM document_text WHERE text LIKE '%hemoglobin%'"
+        ).fetchone()[0]
         fts_count = connection.execute(
             "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'Blood'"
+        ).fetchone()[0]
+        fts_text_count = connection.execute(
+            "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'hemoglobin'"
         ).fetchone()[0]
     assert document_count == 2
     assert problem_count == 1
     assert medication == ("Ingredient A", "compresse", "100 mg")
     assert therapy == (None, "risveglio,cena", "dopo il pasto")
     assert dicom_count == 1
+    assert text_count == 1
     assert fts_count == 1
+    assert fts_text_count == 1
 
 
 def test_build_database_rejects_invalid_therapy_reference(tmp_path: Path) -> None:

@@ -69,6 +69,29 @@ def test_catalog_dicom_studies_links_manual_expansion(tmp_path: Path) -> None:
     assert studies[0].warnings == ()
 
 
+def test_catalog_dicom_studies_accepts_img_disk_images(tmp_path: Path) -> None:
+    """Verify IMG disk images are cataloged as DICOM supports.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Study.img").write_bytes(b"img")
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert len(studies) == 1
+    assert studies[0].support_kind == "dicom_img"
+
+
 def test_catalog_dicom_studies_warns_when_expansion_missing(tmp_path: Path) -> None:
     """Verify missing manual expansion is a warning, not deletion or failure.
 

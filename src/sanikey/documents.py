@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from .progress import ProgressReporter
 
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
-DICOM_EXTENSIONS = {".dcm": "dicom_file", ".iso": "dicom_iso"}
+DICOM_EXTENSIONS = {".dcm": "dicom_file", ".img": "dicom_img", ".iso": "dicom_iso"}
 TEXT_EXTENSIONS = {".txt", ".md"}
 IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 ARCHIVE_EXTENSIONS = {".7z", ".rar", ".zip"}
@@ -951,23 +951,39 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
         temp_root = Path(directory)
         sidecar = temp_root / "document.txt"
         output_pdf = temp_root / "document.pdf"
-        completed = subprocess.run(
-            [
-                executable,
-                "--skip-text",
-                "--sidecar",
-                str(sidecar),
-                str(document.path),
-                str(output_pdf),
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
+        completed = _run_ocrmypdf(
+            executable,
+            document.path,
+            sidecar,
+            output_pdf,
         )
+        if completed.returncode != 0 and _should_retry_ocrmypdf_without_optimize(
+            completed
+        ):
+            sidecar.unlink(missing_ok=True)
+            output_pdf.unlink(missing_ok=True)
+            retry = _run_ocrmypdf(
+                executable,
+                document.path,
+                sidecar,
+                output_pdf,
+                optimize=False,
+            )
+            if retry.returncode == 0:
+                completed = retry
+            else:
+                detail = _summarize_command_failure(completed)
+                retry_detail = _summarize_command_failure(retry)
+                return ExtractedText(
+                    document_id=document.document_id,
+                    text="",
+                    warnings=(
+                        "OCRmyPDF failed; PDF text extraction skipped: "
+                        f"{detail}; retry with --optimize 0 failed: {retry_detail}",
+                    ),
+                )
         if completed.returncode != 0:
-            detail = completed.stderr.strip() or completed.stdout.strip()
-            if not detail:
-                detail = f"exit status {completed.returncode}"
+            detail = _summarize_command_failure(completed)
             return ExtractedText(
                 document_id=document.document_id,
                 text="",
@@ -983,3 +999,101 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
             document_id=document.document_id,
             text=sidecar.read_text(encoding="utf-8", errors="replace"),
         )
+
+
+def _run_ocrmypdf(
+    executable: str,
+    source: Path,
+    sidecar: Path,
+    output_pdf: Path,
+    *,
+    optimize: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    """Run OCRmyPDF for one PDF document.
+
+    Parameters
+    ----------
+    executable : str
+        OCRmyPDF executable path.
+    source : pathlib.Path
+        Source PDF.
+    sidecar : pathlib.Path
+        Text sidecar output path.
+    output_pdf : pathlib.Path
+        Temporary OCR PDF output path.
+    optimize : bool, optional
+        Whether OCRmyPDF should run its PDF optimization phase.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        Completed OCRmyPDF process.
+    """
+
+    command = [executable, "--skip-text"]
+    if not optimize:
+        command.extend(("--optimize", "0"))
+    command.extend(("--sidecar", str(sidecar), str(source), str(output_pdf)))
+    return subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _should_retry_ocrmypdf_without_optimize(
+    completed: subprocess.CompletedProcess[str],
+) -> bool:
+    """Return whether OCRmyPDF should be retried without optimization.
+
+    Parameters
+    ----------
+    completed : subprocess.CompletedProcess[str]
+        Failed OCRmyPDF process.
+
+    Returns
+    -------
+    bool
+        ``True`` when the failure appears to happen after OCR during PDF
+        optimization or image transcoding.
+    """
+
+    output = f"{completed.stderr}\n{completed.stdout}".lower()
+    return any(
+        marker in output
+        for marker in (
+            "optimize_pdf",
+            "optimize.py",
+            "transcode_jpegs",
+            "image file is truncated",
+        )
+    )
+
+
+def _summarize_command_failure(completed: subprocess.CompletedProcess[str]) -> str:
+    """Summarize a failed external command without dumping full logs.
+
+    Parameters
+    ----------
+    completed : subprocess.CompletedProcess[str]
+        Failed command result.
+
+    Returns
+    -------
+    str
+        Short failure detail suitable for user-facing reports.
+    """
+
+    lines = [
+        line.strip()
+        for text in (completed.stderr, completed.stdout)
+        for line in text.splitlines()
+        if line.strip()
+    ]
+    for line in reversed(lines):
+        if any(marker in line for marker in ("Error", "Exception", "OSError")):
+            return line
+    if lines:
+        return lines[-1]
+    return f"exit status {completed.returncode}"
