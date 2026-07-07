@@ -280,6 +280,44 @@ necessari alla prima schermata sono esportati anche in `web/data.js`, caricato
 come script locale, così Chrome e gli altri browser non devono usare `fetch()`
 su URL `file://`.
 
+### Personalizzare la Consultazione
+
+L'aspetto e il comportamento iniziale del frontend possono essere configurati in
+`config/accounts.toml`. I valori in `[global.ui]` valgono per tutti i pazienti;
+un eventuale blocco `ui` dentro una voce `[[person]]` li sovrascrive solo per
+quel paziente.
+
+```toml
+[global.ui]
+accent_color = "#2563eb"
+density = "comfortable"
+default_tab = "documents"
+timeline_order = "desc"
+document_link_mode = "usb-relative"
+subtitle = "Archivio sanitario personale"
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "local-data/patient-a/documents"
+metadata_directory = "local-data/patient-a/metadata"
+local_build = "local-data/generated/patient-a"
+usb_uuid = "MANUAL-TEST-USB"
+
+[person.ui]
+default_tab = "timeline"
+subtitle = "Archivio Patient A"
+```
+
+I valori ammessi sono:
+
+- `density`: `compact`, `comfortable`;
+- `default_tab`: `documents`, `timeline`, `summary`;
+- `timeline_order`: `desc`, `asc`;
+- `document_link_mode`: `usb-relative`;
+- `accent_color`: colore esadecimale `#rrggbb`;
+- `subtitle`: testo libero breve.
+
 ## Revisionare le Proposte
 
 La prima implementazione include proposte deterministiche da revisionare

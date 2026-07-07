@@ -174,6 +174,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-157 | Il frontend offline carica i dati essenziali come JavaScript locale per funzionare anche da `file://`. | 12 |  |
 | DA-158 | L'export USB verso target esistenti sostituisce il contenuto del target senza rimuovere il mountpoint. | 17 |  |
 | DA-159 | I contenuti Markdown vengono renderizzati in HTML statico durante la build con HTML grezzo disabilitato. | 12 |  |
+| DA-160 | Il frontend di consultazione usa un layout statico responsive con split view sui monitor larghi, tab sugli schermi stretti e configurazione UI validata in `accounts.toml`. | 12 | [adr-frontend-consultation-ui.md](adr-frontend-consultation-ui.md) |
 
 ---
 

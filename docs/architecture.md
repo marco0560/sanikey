@@ -120,6 +120,29 @@ patients/
 `web` è il frontend statico generato sulla chiavetta USB. Nel repository
 corrisponde agli artefatti frontend generati da `frontend.py`.
 
+## Frontend di Consultazione
+
+Il frontend e' una pagina statica consultabile da `file://`. I dati essenziali
+sono esportati in `web/data.js` come JavaScript locale; il browser non deve
+effettuare richieste `fetch()` per mostrare la prima schermata.
+
+La UI e' progettata per PC non noti in anticipo:
+
+- usa HTML, CSS e JavaScript statici;
+- evita framework frontend e runtime server;
+- puo' usare un helper JavaScript vendorizzato solo se resta piccolo e copiato
+  nell'export;
+- su schermi larghi separa risultati/documenti da timeline e riepilogo;
+- su schermi stretti usa tab per evitare pagine troppo lunghe;
+- mostra i risultati di ricerca senza lasciare la timeline davanti;
+- genera link ai documenti originali relativi al frontend USB, non ai percorsi
+  sorgente del computer di build.
+
+La personalizzazione UI e' export-time e viene validata dalla configurazione:
+`[global.ui]` definisce i default dell'export, mentre `[[person]].ui` puo'
+sovrascriverli per un singolo paziente. I valori accettati sono chiusi per
+mantenere leggibilita' e supportabilita'.
+
 ## Funzionalità Rimandate
 
 La prima implementazione lascia intenzionalmente fuori ambito diverse

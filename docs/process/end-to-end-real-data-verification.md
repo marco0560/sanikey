@@ -484,6 +484,24 @@ Nel browser, controllare che la ricerca funzioni e che non compaia `Failed to
 fetch` aprendo le pagine direttamente dalla chiavetta. Smontare la chiavetta
 solo dopo `sync` e dopo la chiusura delle verifiche:
 
+Verificare anche il comportamento della UI di consultazione:
+
+- la pagina mostra il paziente corretto e l'eventuale sottotitolo configurato;
+- la ricerca porta immediatamente ai risultati documentali;
+- la timeline e' consultabile in ordine cronologico inverso salvo diversa
+  configurazione;
+- su schermo largo i risultati e la timeline non si coprono;
+- su schermo stretto o riducendo la finestra sono presenti tab navigabili;
+- i link `Apri originale` puntano a file sotto la chiavetta e non a percorsi
+  assoluti del computer di build.
+
+Controllare automaticamente che il payload frontend della chiavetta non contenga
+path sorgente assoluti:
+
+```bash
+! rg '/home/|file://' "$USB_MOUNT"/patients/*/web/data.js
+```
+
 ```bash
 sync
 ```
