@@ -1627,6 +1627,77 @@ usb_uuid = "1A2B-3C4D"
     assert (tmp_path / "exports" / "usb-image" / "START-HERE-Patient-A.html").is_file()
 
 
+def test_export_usb_subcommand_accepts_no_progress(tmp_path: Path) -> None:
+    """Verify export-usb supports disabling interactive progress.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "20260102 Report.txt").write_text("synthetic", encoding="utf-8")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    build_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "build-patient",
+            "patient-a",
+            "--config",
+            str(config_path),
+            "--no-progress",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    target = tmp_path / "usb"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "export-usb",
+            "--config",
+            str(config_path),
+            "--no-progress",
+            str(target),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert build_result.returncode == 0
+    assert result.returncode == 0
+    assert "usb=" in result.stdout
+    assert result.stderr == ""
+    assert (target / "START-HERE-Patient-A.html").is_file()
+
+
 def test_list_patients_wrapper_script_runs(tmp_path: Path) -> None:
     """Verify compatibility scripts delegate to the package CLI.
 

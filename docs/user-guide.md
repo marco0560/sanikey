@@ -345,6 +345,17 @@ directory simulata:
 uv run sanikey deploy-usb --config config/accounts.toml /path/to/usb-root
 ```
 
+Per esportare artefatti gia' generati:
+
+```bash
+uv run sanikey export-usb --config config/accounts.toml /path/to/usb-root
+```
+
+`export-usb` e `deploy-usb` usano punti di avanzamento su `stderr` quando il
+terminale e' interattivo. Le fasi principali sono generazione immagine,
+manifest/checksum e copia verso il target. Usare `--no-progress` per un output
+strettamente testuale o facilmente copiabile.
+
 Valida la struttura esportata:
 
 ```bash

@@ -62,6 +62,86 @@ def _write_document(person: PersonConfig, filename: str, text: str) -> None:
     (person.source_documents / filename).write_text(text, encoding="utf-8")
 
 
+class ProgressRecorder:
+    """Record progress labels emitted by USB export.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    def __init__(self) -> None:
+        """Initialize the recorder.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
+        self.labels: list[str] = []
+
+    def begin(
+        self,
+        label: str,
+        *,
+        total: int | None = None,
+        interval: int | None = None,
+    ) -> None:
+        """Record a progress line label.
+
+        Parameters
+        ----------
+        label : str
+            Progress label.
+        total : int | None, optional
+            Expected item count.
+        interval : int | None, optional
+            Dot interval override.
+
+        Returns
+        -------
+        None
+        """
+
+        self.labels.append(label)
+
+    def advance(self, completed: int, *, total: int | None = None) -> None:
+        """Ignore progress advancement.
+
+        Parameters
+        ----------
+        completed : int
+            Completed item count.
+        total : int | None, optional
+            Expected item count.
+
+        Returns
+        -------
+        None
+        """
+
+    def done(self, summary: str = "done") -> None:
+        """Ignore progress completion.
+
+        Parameters
+        ----------
+        summary : str, optional
+            Completion summary.
+
+        Returns
+        -------
+        None
+        """
+
+
 def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
     """Verify simulated USB export layout and validation.
 
@@ -97,6 +177,36 @@ def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
     assert (usb_image_root(config) / "START-HERE-Patient-A.html").is_file()
     assert usb_image_root(config) != result.root
     assert validate_usb(result.root)
+
+
+def test_export_usb_reports_progress_phases(tmp_path: Path) -> None:
+    """Verify USB export emits progress labels for long-running phases.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path, "patient-a", "Patient A")
+    _write_document(person, "20260102 Report.txt", "synthetic")
+    build_patient(person, mode="full")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+    progress = ProgressRecorder()
+
+    export_usb(config, tmp_path / "usb", progress=progress)
+
+    assert progress.labels == [
+        "export-usb image",
+        "export-usb manifest",
+        "export-usb target",
+    ]
 
 
 def test_export_usb_isolates_enabled_patients(tmp_path: Path) -> None:

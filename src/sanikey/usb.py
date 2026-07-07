@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .config import AccountsConfig, PersonConfig
+    from .progress import ProgressReporter
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,12 @@ def usb_image_root(config: AccountsConfig) -> Path:
     return root / "exports" / "usb-image"
 
 
-def export_usb(config: AccountsConfig, target: Path) -> UsbExportResult:
+def export_usb(
+    config: AccountsConfig,
+    target: Path,
+    *,
+    progress: ProgressReporter | None = None,
+) -> UsbExportResult:
     """Export enabled patients through the canonical USB image.
 
     Parameters
@@ -68,6 +74,8 @@ def export_usb(config: AccountsConfig, target: Path) -> UsbExportResult:
     target : pathlib.Path
         Target USB root or simulated USB directory. The complete USB image is
         first built under ``exports/usb-image`` and then mirrored here.
+    progress : ProgressReporter | None, optional
+        Optional interactive progress reporter.
 
     Returns
     -------
@@ -78,11 +86,17 @@ def export_usb(config: AccountsConfig, target: Path) -> UsbExportResult:
     image_root = usb_image_root(config)
     _reset_directory(image_root)
     patients = config.enabled_people()
-    for person in patients:
+    if progress is not None:
+        progress.begin("export-usb image", total=len(patients), interval=1)
+    for index, person in enumerate(patients, start=1):
         _export_patient(person, image_root)
-    _write_manifest(patients, image_root)
+        if progress is not None:
+            progress.advance(index, total=len(patients))
+    if progress is not None:
+        progress.done(f"done patients={len(patients)}")
+    _write_manifest(patients, image_root, progress=progress)
     if image_root.resolve() != target.resolve():
-        _replace_tree(image_root, target)
+        _replace_tree(image_root, target, progress=progress)
     manifest = target / "SANIKEY-MANIFEST.json"
     return UsbExportResult(
         root=target,
@@ -198,7 +212,12 @@ def _reset_directory(target: Path) -> None:
     target.mkdir(parents=True)
 
 
-def _replace_tree(source: Path, target: Path) -> None:
+def _replace_tree(
+    source: Path,
+    target: Path,
+    *,
+    progress: ProgressReporter | None = None,
+) -> None:
     """Replace target contents with a copied tree.
 
     Parameters
@@ -207,6 +226,8 @@ def _replace_tree(source: Path, target: Path) -> None:
         Source directory to copy.
     target : pathlib.Path
         Target directory whose contents are replaced.
+    progress : ProgressReporter | None, optional
+        Optional interactive progress reporter.
 
     Returns
     -------
@@ -216,17 +237,76 @@ def _replace_tree(source: Path, target: Path) -> None:
     if target.exists():
         if not target.is_dir():
             target.unlink()
-            shutil.copytree(source, target)
+            _copy_tree_with_progress(source, target, progress=progress)
             return
         _clear_directory_contents(target)
     else:
         target.mkdir(parents=True)
-    for item in source.iterdir():
-        destination = target / item.name
-        if item.is_dir():
-            shutil.copytree(item, destination)
-        else:
-            shutil.copy2(item, destination)
+    _copy_directory_contents(source, target, progress=progress)
+
+
+def _copy_tree_with_progress(
+    source: Path,
+    target: Path,
+    *,
+    progress: ProgressReporter | None = None,
+) -> None:
+    """Copy one directory tree with optional per-file progress.
+
+    Parameters
+    ----------
+    source : pathlib.Path
+        Source directory.
+    target : pathlib.Path
+        Target directory.
+    progress : ProgressReporter | None, optional
+        Optional interactive progress reporter.
+
+    Returns
+    -------
+    None
+    """
+
+    target.mkdir(parents=True)
+    _copy_directory_contents(source, target, progress=progress)
+
+
+def _copy_directory_contents(
+    source: Path,
+    target: Path,
+    *,
+    progress: ProgressReporter | None = None,
+) -> None:
+    """Copy directory contents with optional per-file progress.
+
+    Parameters
+    ----------
+    source : pathlib.Path
+        Source directory.
+    target : pathlib.Path
+        Existing target directory.
+    progress : ProgressReporter | None, optional
+        Optional interactive progress reporter.
+
+    Returns
+    -------
+    None
+    """
+
+    files = sorted(path for path in source.rglob("*") if path.is_file())
+    directories = sorted(path for path in source.rglob("*") if path.is_dir())
+    if progress is not None:
+        progress.begin("export-usb target", total=len(files), interval=20)
+    for directory in directories:
+        (target / directory.relative_to(source)).mkdir(parents=True, exist_ok=True)
+    for index, path in enumerate(files, start=1):
+        destination = target / path.relative_to(source)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+        if progress is not None:
+            progress.advance(index, total=len(files))
+    if progress is not None:
+        progress.done(f"done files={len(files)}")
 
 
 def _clear_directory_contents(target: Path) -> None:
@@ -249,7 +329,12 @@ def _clear_directory_contents(target: Path) -> None:
             item.unlink()
 
 
-def _write_manifest(people: tuple[PersonConfig, ...], target: Path) -> Path:
+def _write_manifest(
+    people: tuple[PersonConfig, ...],
+    target: Path,
+    *,
+    progress: ProgressReporter | None = None,
+) -> Path:
     """Write USB manifest with checksums.
 
     Parameters
@@ -258,6 +343,8 @@ def _write_manifest(people: tuple[PersonConfig, ...], target: Path) -> Path:
         Exported people.
     target : pathlib.Path
         USB root.
+    progress : ProgressReporter | None, optional
+        Optional interactive progress reporter.
 
     Returns
     -------
@@ -266,11 +353,17 @@ def _write_manifest(people: tuple[PersonConfig, ...], target: Path) -> Path:
     """
 
     manifest = target / "SANIKEY-MANIFEST.json"
-    checksums = {
-        str(path.relative_to(target)): _sha256(path)
-        for path in sorted(item for item in target.rglob("*") if item.is_file())
-        if path != manifest
-    }
+    files = sorted(item for item in target.rglob("*") if item.is_file())
+    checksums: dict[str, str] = {}
+    if progress is not None:
+        progress.begin("export-usb manifest", total=len(files), interval=20)
+    for index, path in enumerate(files, start=1):
+        if path != manifest:
+            checksums[str(path.relative_to(target))] = _sha256(path)
+        if progress is not None:
+            progress.advance(index, total=len(files))
+    if progress is not None:
+        progress.done(f"done files={len(files)}")
     payload = {
         "schema_version": 1,
         "patients": [

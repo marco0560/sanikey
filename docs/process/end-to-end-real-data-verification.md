@@ -411,6 +411,10 @@ uv run sanikey validate-usb exports/usb-image
 uv run sanikey validate-usb local-data/usb-target
 ```
 
+`export-usb` stampa progress interattivo su `stderr` durante generazione
+immagine, checksum/manifest e copia verso il target. Se serve un log senza
+punti di avanzamento, aggiungere `--no-progress`.
+
 I comandi `validate-usb` devono stampare:
 
 ```text

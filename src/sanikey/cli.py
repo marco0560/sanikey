@@ -229,6 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_arguments(export_parser)
     export_parser.add_argument("target", type=Path)
+    _add_progress_argument(export_parser)
     export_parser.set_defaults(func=run_export_usb)
 
     validate_usb_parser = subparsers.add_parser(
@@ -244,6 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_arguments(deploy_parser)
     deploy_parser.add_argument("target", type=Path)
+    _add_progress_argument(deploy_parser)
     deploy_parser.set_defaults(func=run_deploy_usb)
     return parser
 
@@ -1017,7 +1019,7 @@ def run_export_usb(args: argparse.Namespace) -> int:
 
     try:
         config = load_accounts(args.config)
-        result = export_usb(config, args.target)
+        result = export_usb(config, args.target, progress=_progress_from_args(args))
         print(f"usb={result.root} patients={result.patients} files={result.files}")
     except SaniKeyError as exc:
         print(f"ERROR: {exc}")
@@ -1062,9 +1064,10 @@ def run_deploy_usb(args: argparse.Namespace) -> int:
 
     try:
         config = load_accounts(args.config)
-        for result in build_all(config, mode="incremental"):
+        progress = _progress_from_args(args)
+        for result in build_all(config, mode="incremental", progress=progress):
             _print_build_result(result)
-        export = export_usb(config, args.target)
+        export = export_usb(config, args.target, progress=progress)
         print(f"usb={export.root} patients={export.patients} files={export.files}")
         if not validate_usb(args.target):
             print("ERROR: USB validation failed")
