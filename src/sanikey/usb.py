@@ -84,8 +84,13 @@ def export_usb(
     """
 
     image_root = usb_image_root(config)
+    if progress is not None:
+        progress.begin("export-usb prepare", total=1, interval=1)
     _reset_directory(image_root)
     patients = config.enabled_people()
+    if progress is not None:
+        progress.advance(1, total=1)
+        progress.done(f"done image_root={image_root}")
     if progress is not None:
         progress.begin("export-usb image", total=len(patients), interval=1)
     for index, person in enumerate(patients, start=1):

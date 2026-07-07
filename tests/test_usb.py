@@ -203,6 +203,7 @@ def test_export_usb_reports_progress_phases(tmp_path: Path) -> None:
     export_usb(config, tmp_path / "usb", progress=progress)
 
     assert progress.labels == [
+        "export-usb prepare",
         "export-usb image",
         "export-usb manifest",
         "export-usb target",

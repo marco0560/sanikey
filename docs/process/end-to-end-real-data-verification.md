@@ -506,6 +506,32 @@ path sorgente assoluti:
 ! rg '/home/|file://' "$USB_MOUNT"/patients/*/web/data.js
 ```
 
+Verificare anche che almeno un link `Apri originale` risolva realmente a un
+file copiato sulla chiavetta. Il comando seguente legge il primo `href`
+documentale dal `data.js` del paziente `marco`, lo risolve rispetto alla
+directory `web/` e controlla che il file esista:
+
+```bash
+python - <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+web = Path(sys.argv[1])
+payload = web.joinpath("data.js").read_text(encoding="utf-8")
+match = re.fullmatch(r"window[.]SANIKEY_DATA = (.*);\n", payload, re.S)
+if match is None:
+    raise SystemExit("data.js non contiene il payload SANIKEY_DATA atteso")
+data = json.loads(match.group(1))
+href = next(item["href"] for item in data["documents"] if item.get("href"))
+target = (web / href).resolve()
+if not target.is_file():
+    raise SystemExit(f"Apri originale non risolve a un file: {target}")
+print(target)
+PY "$USB_MOUNT/patients/marco/web"
+```
+
 ```bash
 sync
 ```
