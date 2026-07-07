@@ -69,17 +69,22 @@ def generate_exports(
     data_dir = person.local_build / "web" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     documents_payload = [
-        _document_payload(document, metadata) for document in documents
+        _document_payload(person, document, metadata) for document in documents
     ]
     search_payload = [
         *(_document_search_payload(document, metadata) for document in documents),
         *_metadata_search_payloads(metadata),
     ]
-    timeline_events = _timeline_events(documents, metadata)
+    timeline_events = _timeline_events(
+        documents,
+        metadata,
+        order=person.ui.timeline_order,
+    )
     timeline_payload = [asdict(event) for event in timeline_events]
     summary_payload = {
         "patient_id": person.id,
         "display_name": person.display_name,
+        "ui": asdict(person.ui),
         "document_count": len(documents),
         "problem_count": len(metadata.problems),
         "therapy_count": len(metadata.therapies),
@@ -157,6 +162,7 @@ def _write_data_script(target: Path, payload: dict[str, Any]) -> Path:
 
 
 def _document_payload(
+    person: PersonConfig,
     document: DocumentRecord,
     metadata: CuratedMetadata,
 ) -> dict[str, Any]:
@@ -164,6 +170,8 @@ def _document_payload(
 
     Parameters
     ----------
+    person : PersonConfig
+        Patient configuration.
     document : DocumentRecord
         Document record.
     metadata : CuratedMetadata
@@ -181,7 +189,8 @@ def _document_payload(
         "date": document.date,
         "category": document.category,
         "kind": document.kind,
-        "path": str(document.path),
+        "path": _document_display_path(person, document),
+        "href": _document_href(person, document),
         "origin": document.origin,
         "container_id": document.container_id,
         "internal_path": document.internal_path,
@@ -207,6 +216,58 @@ def _document_markdown_html(document: DocumentRecord) -> str | None:
     if document.path.suffix.lower() != ".md":
         return None
     return render_markdown(document.path.read_text(encoding="utf-8", errors="replace"))
+
+
+def _document_display_path(person: PersonConfig, document: DocumentRecord) -> str:
+    """Build a non-sensitive document path for frontend display.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    document : DocumentRecord
+        Document record.
+
+    Returns
+    -------
+    str
+        Relative source path for original documents or container internal path
+        for derived members.
+    """
+
+    if document.origin == "source":
+        try:
+            return document.path.relative_to(person.source_documents).as_posix()
+        except ValueError:
+            return document.path.name
+    return document.internal_path or document.path.name
+
+
+def _document_href(person: PersonConfig, document: DocumentRecord) -> str | None:
+    """Build the frontend link to the exported original document.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    document : DocumentRecord
+        Document record.
+
+    Returns
+    -------
+    str | None
+        Relative URL from ``web/index.html`` to the copied USB document, or
+        ``None`` for derived container members that are not exported as
+        independent original files.
+    """
+
+    if document.origin != "source":
+        return None
+    try:
+        relative = document.path.relative_to(person.source_documents)
+    except ValueError:
+        return None
+    return f"../documents/{relative.as_posix()}"
 
 
 def _document_search_payload(
@@ -271,6 +332,8 @@ def _document_tags(
 def _timeline_events(
     documents: tuple[DocumentRecord, ...],
     metadata: CuratedMetadata,
+    *,
+    order: str = "desc",
 ) -> tuple[TimelineEvent, ...]:
     """Build generated and curated timeline events.
 
@@ -280,6 +343,8 @@ def _timeline_events(
         Document records.
     metadata : CuratedMetadata
         Curated metadata.
+    order : str, optional
+        Timeline sort order, either ``desc`` or ``asc``.
 
     Returns
     -------
@@ -303,12 +368,13 @@ def _timeline_events(
         for therapy in metadata.therapies
         if therapy.start_date is not None
     )
-    return tuple(
-        sorted(
-            (*metadata.timeline_events, *therapy_events, *document_events),
-            key=lambda item: (item.start_date or "", item.title),
-        )
+    ordered = sorted(
+        (*metadata.timeline_events, *therapy_events, *document_events),
+        key=lambda item: (item.start_date or "", item.title),
     )
+    if order == "asc":
+        return tuple(ordered)
+    return tuple(reversed(ordered))
 
 
 def _metadata_search_payloads(metadata: CuratedMetadata) -> tuple[dict[str, Any], ...]:

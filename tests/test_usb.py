@@ -89,6 +89,11 @@ def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
     assert (result.root / "patients" / "patient-a" / "medical_archive.db").is_file()
     assert (result.root / "patients" / "patient-a" / "web" / "index.html").is_file()
     assert (result.root / "patients" / "patient-a" / "web" / "data.js").is_file()
+    data_script = (
+        result.root / "patients" / "patient-a" / "web" / "data.js"
+    ).read_text(encoding="utf-8")
+    assert '"href": "../documents/20260102 Report.txt"' in data_script
+    assert str(person.source_documents) not in data_script
     assert (usb_image_root(config) / "START-HERE-Patient-A.html").is_file()
     assert usb_image_root(config) != result.root
     assert validate_usb(result.root)

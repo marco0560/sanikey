@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from sanikey.config import PersonConfig
+from sanikey.config import PersonConfig, UiConfig
 from sanikey.documents import scan_documents
 from sanikey.exports import generate_exports
 from sanikey.metadata import load_curated_metadata
@@ -110,22 +110,33 @@ links = ["therapy-a"]
     data_script = result.data_script.read_text(encoding="utf-8")
     document_by_title = {item["title"]: item for item in documents}
     assert document_by_title["Report"]["tags"] == ["report"]
+    assert document_by_title["Report"]["path"] == "laboratory/20260102 Report.txt"
+    assert document_by_title["Report"]["href"] == (
+        "../documents/laboratory/20260102 Report.txt"
+    )
+    assert not document_by_title["Report"]["href"].startswith("/")
     assert document_by_title["Summary"]["markdown_html"].startswith("<h1>Referto</h1>")
     assert "<script>" not in document_by_title["Summary"]["markdown_html"]
     assert "&lt;script&gt;" in document_by_title["Summary"]["markdown_html"]
     assert search[0]["text"] == "Report laboratory report"
-    assert timeline[0]["id"] == "therapy-interval"
-    assert timeline[0]["start_date"] == "2026-01-01"
-    assert timeline[0]["end_date"] == "2026-01-31"
-    assert timeline[0]["links"] == ["therapy-a"]
-    assert timeline[1]["start_date"] == "2026-01-02"
+    assert [item["start_date"] for item in timeline] == [
+        "2026-01-03",
+        "2026-01-02",
+        "2026-01-01",
+    ]
+    assert timeline[2]["id"] == "therapy-interval"
+    assert timeline[2]["end_date"] == "2026-01-31"
+    assert timeline[2]["links"] == ["therapy-a"]
     assert summary["document_count"] == 2
+    assert summary["ui"]["default_tab"] == "documents"
+    assert summary["ui"]["timeline_order"] == "desc"
     assert summary["clinical_summary_html"].startswith("<h1>Sintesi clinica</h1>")
     assert "<script>" not in summary["clinical_summary_html"]
     assert "&lt;script&gt;" in summary["clinical_summary_html"]
     assert data_script.startswith("window.SANIKEY_DATA = ")
     assert '"documents":' in data_script
     assert '"summary":' in data_script
+    assert "/home/" not in data_script
 
 
 def test_generate_exports_excludes_unapproved_proposals(tmp_path: Path) -> None:
@@ -269,3 +280,49 @@ date = "2026-01-05"
     assert therapy_event["title"] == "Terapia: Drug A"
     assert therapy_event["start_date"] == "2026-01-03"
     assert therapy_event["end_date"] == "2026-01-31"
+
+
+def test_generate_exports_honors_ascending_timeline_order(tmp_path: Path) -> None:
+    """Verify UI config can request oldest-first timeline export.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    base = _person(tmp_path)
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        ui=UiConfig(timeline_order="asc"),
+    )
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic-a",
+        encoding="utf-8",
+    )
+    (person.source_documents / "20260103 Followup.txt").write_text(
+        "synthetic-b",
+        encoding="utf-8",
+    )
+
+    result = generate_exports(
+        person,
+        scan_documents(person),
+        load_curated_metadata(person.metadata_directory),
+    )
+    timeline = json.loads(result.timeline.read_text(encoding="utf-8"))
+
+    assert [item["start_date"] for item in timeline] == [
+        "2026-01-02",
+        "2026-01-03",
+    ]
