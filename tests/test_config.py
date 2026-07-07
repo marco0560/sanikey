@@ -63,6 +63,157 @@ def test_load_accounts_accepts_valid_synthetic_config(tmp_path: Path) -> None:
     assert config.config_version == 1
     assert config.people[0].id == "patient-a"
     assert config.enabled_people()[0].display_name == "Patient A"
+    assert config.ui.default_tab == "documents"
+    assert config.people[0].ui.timeline_order == "desc"
+
+
+def test_load_accounts_parses_ui_defaults_and_person_override(
+    tmp_path: Path,
+) -> None:
+    """Verify UI config merges global defaults with per-person overrides.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[global.ui]
+accent_color = "#1D4ED8"
+density = "compact"
+default_tab = "timeline"
+timeline_order = "asc"
+document_link_mode = "usb-relative"
+subtitle = "Archivio condiviso"
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+
+[person.ui]
+default_tab = "documents"
+subtitle = "Archivio Patient A"
+""",
+        encoding="utf-8",
+    )
+
+    config = load_accounts(config_path)
+
+    assert config.ui.default_tab == "timeline"
+    assert config.ui.accent_color == "#1d4ed8"
+    assert config.people[0].ui.density == "compact"
+    assert config.people[0].ui.timeline_order == "asc"
+    assert config.people[0].ui.default_tab == "documents"
+    assert config.people[0].ui.subtitle == "Archivio Patient A"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("accent_color", '"blue"', "must be a #rrggbb color"),
+        ("density", '"wide"', "must be one of"),
+        ("default_tab", '"search"', "must be one of"),
+        ("timeline_order", '"newest"', "must be one of"),
+        ("document_link_mode", '"absolute"', "must be one of"),
+    ],
+)
+def test_load_accounts_rejects_invalid_ui_values(
+    tmp_path: Path,
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    """Verify UI configuration fields are closed and validated.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    field : str
+        UI field to write.
+    value : str
+        TOML value to write.
+    message : str
+        Expected diagnostic substring.
+
+    Returns
+    -------
+    None
+    """
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[global.ui]
+{field} = {value}
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match=message):
+        load_accounts(config_path)
+
+
+def test_load_accounts_rejects_unknown_ui_field(tmp_path: Path) -> None:
+    """Verify UI configuration rejects unsupported fields.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[global.ui]
+custom_css = "theme.css"
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="unknown fields: custom_css"):
+        load_accounts(config_path)
 
 
 def test_default_accounts_path_uses_current_working_directory(

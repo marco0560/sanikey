@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import re
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
 from .errors import ConfigError
 
 PATIENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 REQUIRED_PERSON_FIELDS = (
     "id",
     "display_name",
@@ -18,6 +19,20 @@ REQUIRED_PERSON_FIELDS = (
     "metadata_directory",
     "local_build",
     "usb_uuid",
+)
+UI_DENSITIES = frozenset({"compact", "comfortable"})
+UI_TABS = frozenset({"documents", "timeline", "summary"})
+UI_TIMELINE_ORDERS = frozenset({"asc", "desc"})
+UI_DOCUMENT_LINK_MODES = frozenset({"usb-relative"})
+UI_FIELDS = frozenset(
+    {
+        "accent_color",
+        "density",
+        "default_tab",
+        "timeline_order",
+        "document_link_mode",
+        "subtitle",
+    }
 )
 
 
@@ -43,6 +58,34 @@ def _fail(message: str) -> None:
 
 
 @dataclass(frozen=True)
+class UiConfig:
+    """Frontend consultation UI configuration.
+
+    Parameters
+    ----------
+    accent_color : str
+        Hexadecimal accent color used by the generated frontend.
+    density : str
+        Layout density, either ``compact`` or ``comfortable``.
+    default_tab : str
+        Initial consultation tab.
+    timeline_order : str
+        Timeline sort order, either ``desc`` or ``asc``.
+    document_link_mode : str
+        Document link strategy. Currently only ``usb-relative`` is supported.
+    subtitle : str
+        Optional short subtitle rendered below the patient name.
+    """
+
+    accent_color: str = "#2563eb"
+    density: str = "comfortable"
+    default_tab: str = "documents"
+    timeline_order: str = "desc"
+    document_link_mode: str = "usb-relative"
+    subtitle: str = "Archivio sanitario personale"
+
+
+@dataclass(frozen=True)
 class PersonConfig:
     """Per-patient configuration.
 
@@ -62,6 +105,8 @@ class PersonConfig:
         Expected filesystem UUID for deployment.
     enabled : bool
         Whether the patient should be included in builds.
+    ui : UiConfig
+        Resolved frontend UI configuration for this patient.
     """
 
     id: str
@@ -71,6 +116,7 @@ class PersonConfig:
     local_build: Path
     usb_uuid: str
     enabled: bool = True
+    ui: UiConfig = field(default_factory=UiConfig)
 
 
 @dataclass(frozen=True)
@@ -85,11 +131,14 @@ class AccountsConfig:
         Patient entries in deterministic file order.
     path : pathlib.Path
         Path of the loaded configuration file.
+    ui : UiConfig
+        Global frontend UI defaults.
     """
 
     config_version: int
     people: tuple[PersonConfig, ...]
     path: Path
+    ui: UiConfig = field(default_factory=UiConfig)
 
     def enabled_people(self) -> tuple[PersonConfig, ...]:
         """Return enabled patient entries.
@@ -194,15 +243,24 @@ def parse_accounts_data(data: dict[str, Any], *, path: Path) -> AccountsConfig:
     people_items = cast("list[Any]", people_data)
 
     base_dir = _path_base(path)
+    global_ui = _parse_ui_config(global_section.get("ui", {}), context="[global.ui]")
     people = tuple(
-        _parse_person(item, index=index, base_dir=base_dir)
+        _parse_person(item, index=index, base_dir=base_dir, global_ui=global_ui)
         for index, item in enumerate(people_items)
     )
     _validate_unique_ids(people)
-    return AccountsConfig(config_version=version, people=people, path=path)
+    return AccountsConfig(
+        config_version=version, people=people, path=path, ui=global_ui
+    )
 
 
-def _parse_person(item: Any, *, index: int, base_dir: Path) -> PersonConfig:
+def _parse_person(
+    item: Any,
+    *,
+    index: int,
+    base_dir: Path,
+    global_ui: UiConfig,
+) -> PersonConfig:
     """Parse one ``[[person]]`` entry.
 
     Parameters
@@ -213,6 +271,8 @@ def _parse_person(item: Any, *, index: int, base_dir: Path) -> PersonConfig:
         Zero-based person index for diagnostics.
     base_dir : pathlib.Path
         Base directory for relative paths.
+    global_ui : UiConfig
+        Global UI defaults to merge with per-person overrides.
 
     Returns
     -------
@@ -241,6 +301,11 @@ def _parse_person(item: Any, *, index: int, base_dir: Path) -> PersonConfig:
     enabled = item.get("enabled", True)
     if not isinstance(enabled, bool):
         _fail(f"[[person]] entry {index} field enabled must be boolean")
+    ui = _parse_ui_config(
+        item.get("ui", {}),
+        context=f"[[person]] entry {index} ui",
+        base=global_ui,
+    )
 
     return PersonConfig(
         id=person_id,
@@ -254,7 +319,198 @@ def _parse_person(item: Any, *, index: int, base_dir: Path) -> PersonConfig:
         local_build=_require_path(item, "local_build", index=index, base_dir=base_dir),
         usb_uuid=_require_string(item, "usb_uuid", index=index),
         enabled=enabled,
+        ui=ui,
     )
+
+
+def _parse_ui_config(
+    value: Any,
+    *,
+    context: str,
+    base: UiConfig | None = None,
+) -> UiConfig:
+    """Parse and validate a UI configuration table.
+
+    Parameters
+    ----------
+    value : Any
+        Raw TOML value.
+    context : str
+        Diagnostic context.
+    base : UiConfig | None, optional
+        Base configuration used for override merging.
+
+    Returns
+    -------
+    UiConfig
+        Validated UI configuration.
+
+    Raises
+    ------
+    ConfigError
+        If the table or any field is invalid.
+    """
+
+    if not isinstance(value, dict):
+        _fail(f"{context} must be a table")
+    unknown = sorted(set(value) - UI_FIELDS)
+    if unknown:
+        _fail(f"{context} unknown fields: {', '.join(unknown)}")
+    source = UiConfig() if base is None else base
+    return UiConfig(
+        accent_color=_optional_color(
+            value, "accent_color", context=context, default=source.accent_color
+        ),
+        density=_optional_choice(
+            value,
+            "density",
+            context=context,
+            choices=UI_DENSITIES,
+            default=source.density,
+        ),
+        default_tab=_optional_choice(
+            value,
+            "default_tab",
+            context=context,
+            choices=UI_TABS,
+            default=source.default_tab,
+        ),
+        timeline_order=_optional_choice(
+            value,
+            "timeline_order",
+            context=context,
+            choices=UI_TIMELINE_ORDERS,
+            default=source.timeline_order,
+        ),
+        document_link_mode=_optional_choice(
+            value,
+            "document_link_mode",
+            context=context,
+            choices=UI_DOCUMENT_LINK_MODES,
+            default=source.document_link_mode,
+        ),
+        subtitle=_optional_short_string(
+            value, "subtitle", context=context, default=source.subtitle
+        ),
+    )
+
+
+def _optional_color(
+    item: dict[str, Any],
+    field_name: str,
+    *,
+    context: str,
+    default: str,
+) -> str:
+    """Return an optional hexadecimal color field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        UI configuration table.
+    field_name : str
+        Field to read.
+    context : str
+        Diagnostic context.
+    default : str
+        Default value when the field is omitted.
+
+    Returns
+    -------
+    str
+        Validated color.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not a ``#rrggbb`` color.
+    """
+
+    value = item.get(field_name, default)
+    if not isinstance(value, str) or COLOR_RE.fullmatch(value) is None:
+        _fail(f"{context} field {field_name} must be a #rrggbb color")
+    return cast("str", value).lower()
+
+
+def _optional_choice(
+    item: dict[str, Any],
+    field_name: str,
+    *,
+    context: str,
+    choices: frozenset[str],
+    default: str,
+) -> str:
+    """Return an optional closed-set string field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        UI configuration table.
+    field_name : str
+        Field to read.
+    context : str
+        Diagnostic context.
+    choices : frozenset[str]
+        Accepted values.
+    default : str
+        Default value when the field is omitted.
+
+    Returns
+    -------
+    str
+        Validated choice.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not one of ``choices``.
+    """
+
+    value = item.get(field_name, default)
+    if not isinstance(value, str) or value not in choices:
+        accepted = ", ".join(sorted(choices))
+        _fail(f"{context} field {field_name} must be one of: {accepted}")
+    return cast("str", value)
+
+
+def _optional_short_string(
+    item: dict[str, Any],
+    field_name: str,
+    *,
+    context: str,
+    default: str,
+) -> str:
+    """Return an optional short string field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        UI configuration table.
+    field_name : str
+        Field to read.
+    context : str
+        Diagnostic context.
+    default : str
+        Default value when the field is omitted.
+
+    Returns
+    -------
+    str
+        Stripped string value.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not a string or is too long.
+    """
+
+    value = item.get(field_name, default)
+    if not isinstance(value, str):
+        _fail(f"{context} field {field_name} must be a string")
+    rendered = cast("str", value).strip()
+    if len(rendered) > 120:
+        _fail(f"{context} field {field_name} must be at most 120 characters")
+    return rendered
 
 
 def _require_string(item: dict[str, Any], field: str, *, index: int) -> str:
