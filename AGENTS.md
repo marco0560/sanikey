@@ -87,6 +87,19 @@ Required sequence for non-trivial code work:
 Using Codira only as a final audit is insufficient for code changes unless the
 task is trivial and already localized by an explicit file path and symbol.
 
+## 4.2 Token And Context Discipline
+
+- Use Codex memory as an index, not as a transcript: when relevant, search the
+  configured Codex memory registry first and open only the directly relevant
+  rollout summary unless exact historical evidence is required.
+- During implementation, run focused tests and checks for the touched surface;
+  run `uv run python scripts/validate_repo.py` once at the coherent slice or
+  phase boundary, and again only after subsequent changes.
+- Keep intermediary updates short and operational; do not paste long tool output
+  unless the user explicitly asks for it.
+- When committing, use `commit-block-generator` and include a descriptive body,
+  not a subject-only commit.
+
 ## 5. Validation Contract
 
 Assume the following commands are the required validation surface:
