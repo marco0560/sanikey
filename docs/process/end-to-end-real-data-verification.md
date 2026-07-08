@@ -495,11 +495,21 @@ solo dopo `sync` e dopo la chiusura delle verifiche:
 Verificare anche il comportamento della UI di consultazione:
 
 - la pagina mostra il paziente corretto e l'eventuale sottotitolo configurato;
-- la ricerca porta immediatamente ai risultati documentali;
+- la ricerca porta immediatamente a risultati federati raggruppati per sezioni,
+  con link iniziali a `Documenti`, `Terapie`, `Farmaci`, `Problemi`,
+  `Procedure`, `Osservazioni` o `Studi DICOM` quando presenti;
+- una query con nome commerciale di un farmaco reale mostra il farmaco e le
+  terapie collegate;
+- una query con principio attivo reale mostra farmaci o terapie collegate;
+- una query con schedula reale, per esempio `cena` o `risveglio`, mostra le
+  terapie che la contengono;
 - la tab `Ricerca avanzata` permette una query su testo estratto/OCR, per
   esempio un valore di laboratorio realmente presente come `Creatinina`;
 - una query booleana reale, per esempio `creatinina AND (2024 OR 2025) NOT urine`,
-  mostra risultati comprensibili o un messaggio di sintassi leggibile;
+  mostra risultati comprensibili anche nei metadati clinici, oppure un messaggio
+  di sintassi leggibile;
+- la tab `Riepilogo` mostra una dashboard clinica con problemi, terapie,
+  farmaci, osservazioni, procedure e studi DICOM sintetici quando presenti;
 - la timeline e' consultabile in ordine cronologico inverso salvo diversa
   configurazione;
 - su schermo largo i risultati e la timeline non si coprono;
@@ -614,7 +624,8 @@ Controllare manualmente che:
 
 - `documents.json` contenga i documenti attesi, le categorie derivate dalle
   directory e i tag curati;
-- `search.json` contenga sia documenti sia metadati curati;
+- `search.json` contenga sia documenti sia metadati curati, con sezioni e campi
+  renderizzabili dalla UI;
 - `content-search.js` contenga il payload `SANIKEY_CONTENT_SEARCH` con documenti
   dotati di testo estratto quando l'estrazione/OCR e' riuscita;
 - `timeline.json` contenga eventi datati e terapie come intervalli, se i dati
@@ -623,6 +634,31 @@ Controllare manualmente che:
   `clinical_summary.toml` usa `summary`;
 - i documenti `.md` in `documents.json` contengano `markdown_html`;
 - proposte AI non approvate non compaiano negli export standard.
+
+Verificare che `data.js` contenga il payload clinico usato dalla dashboard:
+
+```bash
+python - <<'PY'
+import json
+import re
+from pathlib import Path
+
+for patient in ("marco", "irene"):
+    script = Path("local-data/generated") / patient / "web" / "data.js"
+    payload = script.read_text(encoding="utf-8")
+    match = re.fullmatch(r"window[.]SANIKEY_DATA = (.*);\n", payload, re.S)
+    if match is None:
+        raise SystemExit(f"{script} non contiene SANIKEY_DATA")
+    data = json.loads(match.group(1))
+    clinical = data["clinical"]
+    print(
+        patient,
+        "therapies", len(clinical["therapies"]),
+        "medications", len(clinical["medications"]),
+        "dicom_studies", len(clinical["dicom_studies"]),
+    )
+PY
+```
 
 Verificare che il payload avanzato sia JSON valido all'interno dello script
 locale:

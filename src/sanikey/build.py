@@ -200,7 +200,13 @@ def build_patient(
         cached_documents=extracted_result.cached,
     )
     db_result = build_database(person, documents, metadata, dicom_studies, extracted)
-    export_result = generate_exports(person, documents, metadata, extracted)
+    export_result = generate_exports(
+        person,
+        documents,
+        metadata,
+        extracted,
+        dicom_studies,
+    )
     warning_messages = (
         *inspection_warnings,
         *static_document_warning_messages(staging.documents),

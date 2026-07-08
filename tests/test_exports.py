@@ -6,6 +6,7 @@ import json
 from typing import TYPE_CHECKING
 
 from sanikey.config import PersonConfig, SearchConfig, SearchDictionary, UiConfig
+from sanikey.dicom import DicomStudy
 from sanikey.documents import ExtractedText, scan_documents
 from sanikey.exports import generate_exports
 from sanikey.metadata import load_curated_metadata
@@ -127,6 +128,7 @@ links = ["therapy-a"]
     assert "<script>" not in document_by_title["Summary"]["markdown_html"]
     assert "&lt;script&gt;" in document_by_title["Summary"]["markdown_html"]
     assert search[0]["text"] == "Report laboratory report"
+    assert search[0]["href"] == "../documents/laboratory/20260102 Report.txt"
     assert [item["start_date"] for item in timeline] == [
         "2026-01-03",
         "2026-01-02",
@@ -325,9 +327,14 @@ date = "2026-01-05"
     )
 
     search = json.loads(result.search.read_text(encoding="utf-8"))
+    data_script = result.data_script.read_text(encoding="utf-8")
+    data = json.loads(
+        data_script.removeprefix("window.SANIKEY_DATA = ").removesuffix(";\n")
+    )
     timeline = json.loads(result.timeline.read_text(encoding="utf-8"))
     search_by_type = {item["type"]: item for item in search}
     therapy_event = next(item for item in timeline if item["source"] == "therapy")
+    therapy = data["clinical"]["therapies"][0]
 
     assert set(search_by_type) == {
         "document",
@@ -342,12 +349,73 @@ date = "2026-01-05"
         "Drug A Ingredient A compresse 100 mg"
     )
     assert search_by_type["therapy"]["text"] == (
-        "therapy-a drug-a 2026-01-03 2026-01-31 1 tablet risveglio cena dopo il pasto"
+        "therapy-a Drug A Ingredient A drug-a 2026-01-03 2026-01-31 "
+        "1 tablet risveglio, cena dopo il pasto"
     )
+    assert search_by_type["therapy"]["title"] == "Terapia: Drug A"
+    assert search_by_type["therapy"]["section"] == "therapies"
+    assert therapy["medication_name"] == "Drug A"
+    assert therapy["active_ingredient"] == "Ingredient A"
+    assert therapy["schedule"] == ["risveglio", "cena"]
+    assert {"label": "Schedula", "value": "risveglio, cena"} in therapy["fields"]
     assert therapy_event["id"] == "therapy-therapy-a"
     assert therapy_event["title"] == "Terapia: Drug A"
     assert therapy_event["start_date"] == "2026-01-03"
     assert therapy_event["end_date"] == "2026-01-31"
+
+
+def test_generate_exports_includes_synthetic_dicom_study_cards(
+    tmp_path: Path,
+) -> None:
+    """Verify DICOM studies become searchable frontend entities.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    support = person.source_documents / "20260102 TAC.zip"
+    support.write_text("synthetic", encoding="utf-8")
+    document = scan_documents(person)[0]
+    study = DicomStudy(
+        study_id="study-a",
+        patient_id=person.id,
+        support_path=document.path,
+        support_kind="dicom_zip",
+        study_instance_uid="1.2.3",
+        study_date="2026-01-02",
+        study_description="TAC torace",
+        instance_count=42,
+    )
+
+    result = generate_exports(
+        person,
+        (document,),
+        load_curated_metadata(person.metadata_directory),
+        dicom_studies=(study,),
+    )
+
+    search = json.loads(result.search.read_text(encoding="utf-8"))
+    data = json.loads(
+        result.data_script.read_text(encoding="utf-8")
+        .removeprefix("window.SANIKEY_DATA = ")
+        .removesuffix(";\n")
+    )
+    dicom_search = next(item for item in search if item["type"] == "dicom_study")
+    dicom_card = data["clinical"]["dicom_studies"][0]
+
+    assert dicom_search["section"] == "dicom"
+    assert dicom_search["title"] == "TAC torace"
+    assert "1.2.3" in dicom_search["text"]
+    assert dicom_card["instance_count"] == 42
+    assert {"label": "Istanze", "value": "42"} in dicom_card["fields"]
 
 
 def test_generate_exports_honors_ascending_timeline_order(tmp_path: Path) -> None:

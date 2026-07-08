@@ -176,6 +176,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-159 | I contenuti Markdown vengono renderizzati in HTML statico durante la build con HTML grezzo disabilitato. | 12 |  |
 | DA-160 | Il frontend di consultazione usa un layout statico responsive con split view sui monitor larghi, tab sugli schermi stretti e configurazione UI validata in `accounts.toml`. | 12 | [adr-frontend-consultation-ui.md](adr-frontend-consultation-ui.md) |
 | DA-161 | La ricerca avanzata offline usa un indice contenuto separato, caricato on-demand da JavaScript locale, con parser booleano e sinonimi configurabili. | 12 | [adr-advanced-offline-search.md](adr-advanced-offline-search.md) |
+| DA-162 | La UI di consultazione deve rendere cercabili e visibili documenti, metadati clinici curati e studi DICOM sintetici con risultati federati raggruppati. | 12 | [adr-federated-clinical-search-ui.md](adr-federated-clinical-search-ui.md) |
 
 ---
 
@@ -311,6 +312,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-068 | La consultazione non richiede modelli AI attivi. |  |
 | DA-069 | La ricerca deve rimanere utilizzabile anche in assenza completa di funzionalità semantiche. |  |
 | DA-161 | La ricerca avanzata offline usa un indice contenuto separato, caricato on-demand da JavaScript locale, con parser booleano e sinonimi configurabili. | [adr-advanced-offline-search.md](adr-advanced-offline-search.md) |
+| DA-162 | La UI di consultazione deve rendere cercabili e visibili documenti, metadati clinici curati e studi DICOM sintetici con risultati federati raggruppati. | [adr-federated-clinical-search-ui.md](adr-federated-clinical-search-ui.md) |
 
 ### Timeline Clinica
 

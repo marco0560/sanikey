@@ -164,7 +164,20 @@ def _app_js() -> str:
         JavaScript source.
     """
 
-    return r"""function text(value) {
+    return r"""const SECTION_LABELS = {
+  documents: "Documenti",
+  therapies: "Terapie",
+  medications: "Farmaci",
+  problems: "Problemi",
+  procedures: "Procedure",
+  observations: "Osservazioni",
+  dicom: "Studi DICOM",
+  timeline: "Timeline",
+};
+
+const SECTION_ORDER = ["documents", "therapies", "medications", "problems", "procedures", "observations", "dicom", "timeline"];
+
+function text(value) {
   return value === null || value === undefined ? "" : String(value);
 }
 
@@ -208,20 +221,30 @@ function applyUi(summary) {
   document.querySelector("main").dataset.defaultTab = text(ui.default_tab || "documents");
 }
 
-function renderSummary(summary) {
+function renderSummary(summary, clinical = {}) {
   const target = document.querySelector("#summary");
   target.innerHTML = `<h2>Riepilogo</h2>
     <p>Documenti: ${escapeHtml(summary.document_count)}</p>
     <p>Problemi: ${escapeHtml(summary.problem_count)}</p>
     <p>Procedure: ${escapeHtml(summary.procedure_count)}</p>
-    <div class="markdown">${html(summary.clinical_summary_html) || `<p>${escapeHtml(summary.clinical_summary)}</p>`}</div>`;
+    <div class="markdown">${html(summary.clinical_summary_html) || `<p>${escapeHtml(summary.clinical_summary)}</p>`}</div>
+    ${renderClinicalDashboard(clinical)}`;
 }
 
 function renderTimeline(timeline) {
   const target = document.querySelector("#timeline");
   target.innerHTML = "<h2>Timeline</h2>" + timeline.map((item) =>
-    `<article><strong>${escapeHtml(formatDateRange(item.start_date, item.end_date))}</strong> ${escapeHtml(item.title)}</article>`
+    `<article id="entity-${attr(item.id)}"><strong>${escapeHtml(formatDateRange(item.start_date, item.end_date))}</strong> ${escapeHtml(item.title)}
+      ${renderTimelineLinks(item)}</article>`
   ).join("");
+}
+
+function renderTimelineLinks(item) {
+  const links = item.links || [];
+  if (!links.length) {
+    return "";
+  }
+  return `<p>${links.map((link) => `<a href="#entity-${attr(link)}">Dettaglio</a>`).join(" ")}</p>`;
 }
 
 function renderDocuments(documents, query = "") {
@@ -232,12 +255,108 @@ function renderDocuments(documents, query = "") {
   const target = document.querySelector("#documents");
   const count = query ? `<p class="result-count">${selected.length} risultati</p>` : "";
   target.innerHTML = "<h2>Documenti</h2>" + count + selected.map((item) =>
-    `<article><h3>${escapeHtml(item.title)}</h3>
+    `<article id="entity-${attr(item.id)}"><h3>${escapeHtml(item.title)}</h3>
       <p>${escapeHtml(formatDate(item.date))} ${escapeHtml(item.category)} ${escapeHtml(item.kind)}</p>
       <p>${item.tags.map(escapeHtml).join(", ")}</p>
       ${item.markdown_html ? `<div class="markdown">${html(item.markdown_html)}</div>` : ""}
       ${item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : `<span class="muted">Origine nel contenitore</span>`}</article>`
   ).join("");
+}
+
+function renderClinicalDashboard(clinical) {
+  const sections = [
+    ["problems", clinical.problems || []],
+    ["therapies", clinical.therapies || []],
+    ["medications", clinical.medications || []],
+    ["observations", clinical.observations || []],
+    ["procedures", clinical.procedures || []],
+    ["dicom", clinical.dicom_studies || []],
+  ].filter(([, items]) => items.length);
+  if (!sections.length) {
+    return "";
+  }
+  return `<nav class="section-links" aria-label="Sezioni riepilogo">${sections.map(([section, items]) =>
+    `<a href="#summary-${attr(section)}">${escapeHtml(SECTION_LABELS[section])} ${items.length}</a>`
+  ).join("")}</nav>` + sections.map(([section, items]) =>
+    `<section id="summary-${attr(section)}" class="summary-section"><h3>${escapeHtml(SECTION_LABELS[section])}</h3>
+      ${items.map((item) => renderEntityCard(item, section)).join("")}</section>`
+  ).join("");
+}
+
+function renderEntityCard(item, section) {
+  return `<article id="entity-${attr(item.id)}"><h4>${escapeHtml(item.title)}</h4>
+    ${item.date || item.start_date ? `<p>${escapeHtml(formatDate(item.date || item.start_date))}</p>` : ""}
+    ${renderFields(item.fields || [])}
+    ${section === "documents" && item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : ""}</article>`;
+}
+
+function renderFields(fields) {
+  const selected = (fields || []).filter((field) => field.value !== null && field.value !== undefined && text(field.value) !== "");
+  if (!selected.length) {
+    return "";
+  }
+  return `<dl>${selected.map((field) =>
+    `<div><dt>${escapeHtml(field.label)}</dt><dd>${escapeHtml(field.value)}</dd></div>`
+  ).join("")}</dl>`;
+}
+
+function renderSearchResults(target, records, heading, emptyMessage) {
+  const grouped = groupBySection(records);
+  const sections = SECTION_ORDER
+    .filter((section) => grouped[section] && grouped[section].length)
+    .map((section) => [section, grouped[section]]);
+  if (!sections.length) {
+    target.innerHTML = `<h2>${escapeHtml(heading)}</h2><p class="muted">${escapeHtml(emptyMessage)}</p>`;
+    return;
+  }
+  const total = records.length;
+  target.innerHTML = `<h2>${escapeHtml(heading)}</h2><p class="result-count">${total} risultati</p>
+    <nav class="section-links" aria-label="Sezioni risultati">${sections.map(([section, items]) =>
+      `<a href="#results-${attr(section)}">${escapeHtml(SECTION_LABELS[section])} ${items.length}</a>`
+    ).join("")}</nav>` + sections.map(([section, items]) =>
+      `<section id="results-${attr(section)}"><h3>${escapeHtml(SECTION_LABELS[section])}</h3>
+        ${items.map((item) => renderResultCard(item, section)).join("")}</section>`
+    ).join("");
+}
+
+function renderResultCard(item, section) {
+  return `<article><h4>${escapeHtml(item.title)} <span class="badge">${escapeHtml(SECTION_LABELS[section] || item.type)}</span></h4>
+    ${item.subtitle ? `<p>${escapeHtml(item.subtitle)}</p>` : ""}
+    ${renderFields(item.fields || [])}
+    ${item.type === "document" && item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : `<a href="#entity-${attr(item.id)}">Vai alla scheda</a>`}</article>`;
+}
+
+function groupBySection(records) {
+  return records.reduce((grouped, item) => {
+    const section = item.section || "documents";
+    grouped[section] = grouped[section] || [];
+    grouped[section].push(item);
+    return grouped;
+  }, {});
+}
+
+function quickSearchText(item) {
+  return normalizeSearchText([
+    item.title,
+    item.subtitle,
+    item.text,
+    item.date,
+    ...(item.tags || []),
+    ...((item.fields || []).map((field) => field.value)),
+  ].join(" "));
+}
+
+function renderQuickSearch(records, query) {
+  const terms = normalizeSearchText(query).split(/\s+/).filter(Boolean);
+  const selected = records.filter((item) =>
+    terms.every((term) => quickSearchText(item).includes(term))
+  );
+  renderSearchResults(
+    document.querySelector("#documents"),
+    selected,
+    "Risultati",
+    "Nessun risultato nella ricerca rapida.",
+  );
 }
 
 function documentSearchText(item) {
@@ -497,7 +616,25 @@ function loadAdvancedSearchData() {
   });
 }
 
-function renderAdvancedResults(payload, query) {
+function advancedDocumentRecord(item, terms, expansions) {
+  return {
+    id: item.id,
+    type: "document",
+    section: "documents",
+    title: item.title,
+    subtitle: [formatDate(item.date), item.category, item.kind].filter(Boolean).join(" "),
+    date: item.date,
+    text: item.text,
+    href: item.href,
+    fields: [
+      {label: "Categoria", value: item.category},
+      {label: "Tipo", value: item.kind},
+      {label: "Estratto", value: advancedSnippet(item, terms, expansions)},
+    ],
+  };
+}
+
+function renderAdvancedResults(payload, query, clinicalRecords = []) {
   const target = document.querySelector("#advanced-results");
   if (!query.trim()) {
     target.innerHTML = '<p class="muted">Inserisci una query per cercare nel testo estratto e OCR.</p>';
@@ -512,15 +649,18 @@ function renderAdvancedResults(payload, query) {
   }
   const expansions = advancedSearchTerms(payload.dictionary || {});
   const terms = collectPositiveTerms(expression);
-  const selected = (payload.documents || []).filter((item) =>
-    evaluateAdvancedExpression(expression, advancedHaystack(item), expansions)
+  const documentMatches = (payload.documents || [])
+    .filter((item) => evaluateAdvancedExpression(expression, advancedHaystack(item), expansions))
+    .map((item) => advancedDocumentRecord(item, terms, expansions));
+  const clinicalMatches = clinicalRecords.filter((item) =>
+    evaluateAdvancedExpression(expression, quickSearchText(item), expansions)
   );
-  target.innerHTML = `<p class="result-count">${selected.length} risultati nel contenuto</p>` + selected.map((item) =>
-    `<article><h3>${escapeHtml(item.title)} <span class="badge">contenuto</span></h3>
-      <p>${escapeHtml(formatDate(item.date))} ${escapeHtml(item.category)} ${escapeHtml(item.kind)}</p>
-      <p>${escapeHtml(advancedSnippet(item, terms, expansions))}</p>
-      ${item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : `<span class="muted">Origine nel contenitore</span>`}</article>`
-  ).join("");
+  renderSearchResults(
+    target,
+    [...documentMatches, ...clinicalMatches],
+    "Risultati ricerca avanzata",
+    "Nessun risultato nella ricerca avanzata.",
+  );
 }
 
 function main() {
@@ -531,8 +671,10 @@ function main() {
   const summary = data.summary || {};
   const timeline = data.timeline || [];
   const documents = data.documents || [];
+  const clinicalRecords = (data.search || []).filter((item) => item.type !== "document");
+  const quickRecords = data.search || [];
   applyUi(summary);
-  renderSummary(summary);
+  renderSummary(summary, data.clinical || {});
   renderTimeline(timeline);
   renderDocuments(documents);
   const advancedInput = document.querySelector("#advanced-search");
@@ -542,13 +684,17 @@ function main() {
     defaultTab: document.querySelector("main").dataset.defaultTab || "documents",
   });
   document.querySelector("#search").addEventListener("input", (event) => {
-    renderDocuments(documents, event.target.value);
+    if (event.target.value.trim()) {
+      renderQuickSearch(quickRecords, event.target.value);
+    } else {
+      renderDocuments(documents);
+    }
     window.SaniKeyUi.showTab("documents");
   });
   advancedInput.addEventListener("input", (event) => {
     advancedResults.innerHTML = '<p class="muted">Caricamento indice di ricerca avanzata...</p>';
     loadAdvancedSearchData()
-      .then((payload) => renderAdvancedResults(payload, event.target.value))
+      .then((payload) => renderAdvancedResults(payload, event.target.value, clinicalRecords))
       .catch((error) => {
         advancedResults.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
       });
@@ -733,6 +879,21 @@ input {
   margin: 0.35rem 0 0;
 }
 
+.section-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.section-links a {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--accent);
+  padding: 0.25rem 0.6rem;
+  text-decoration: none;
+}
+
 article {
   border-bottom: 1px solid var(--border);
   padding: 0.75rem 0;
@@ -740,6 +901,30 @@ article {
 
 article h3 {
   margin: 0 0 0.25rem;
+}
+
+article h4 {
+  margin: 0 0 0.25rem;
+}
+
+dl {
+  display: grid;
+  gap: 0.25rem 0.75rem;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0.5rem 0;
+}
+
+dl div {
+  display: contents;
+}
+
+dt {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+dd {
+  margin: 0;
 }
 
 .result-count,

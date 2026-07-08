@@ -13,8 +13,17 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .config import PersonConfig
+    from .dicom import DicomStudy
     from .documents import ExtractedText
-    from .models import CuratedMetadata, DocumentRecord, Medication, TherapyEpisode
+    from .models import (
+        ClinicalProblem,
+        CuratedMetadata,
+        DocumentRecord,
+        Medication,
+        Observation,
+        Procedure,
+        TherapyEpisode,
+    )
 
 
 @dataclass(frozen=True)
@@ -56,6 +65,7 @@ def generate_exports(
     documents: tuple[DocumentRecord, ...],
     metadata: CuratedMetadata,
     extracted_text: tuple[ExtractedText, ...] = (),
+    dicom_studies: tuple[DicomStudy, ...] = (),
 ) -> ExportResult:
     """Generate static JSON exports for one patient.
 
@@ -69,6 +79,8 @@ def generate_exports(
         Curated metadata.
     extracted_text : tuple[ExtractedText, ...], optional
         Extracted/OCR text records used by advanced frontend search.
+    dicom_studies : tuple[DicomStudy, ...], optional
+        Cataloged DICOM studies used by the frontend clinical dashboard.
 
     Returns
     -------
@@ -82,9 +94,13 @@ def generate_exports(
     documents_payload = [
         _document_payload(person, document, metadata) for document in ordered_documents
     ]
+    clinical_payload = _clinical_payload(metadata, dicom_studies)
     search_payload = [
-        *(_document_search_payload(document, metadata) for document in documents),
-        *_metadata_search_payloads(metadata),
+        *(
+            _document_search_payload(person, document, metadata)
+            for document in documents
+        ),
+        *_metadata_search_payloads(clinical_payload),
     ]
     timeline_events = _timeline_events(
         documents,
@@ -124,6 +140,7 @@ def generate_exports(
         person.local_build / "web" / "data.js",
         {
             "documents": documents_payload,
+            "clinical": clinical_payload,
             "search": search_payload,
             "timeline": timeline_payload,
             "summary": summary_payload,
@@ -500,6 +517,7 @@ def _document_href(person: PersonConfig, document: DocumentRecord) -> str | None
 
 
 def _document_search_payload(
+    person: PersonConfig,
     document: DocumentRecord,
     metadata: CuratedMetadata,
 ) -> dict[str, Any]:
@@ -507,6 +525,8 @@ def _document_search_payload(
 
     Parameters
     ----------
+    person : PersonConfig
+        Patient configuration.
     document : DocumentRecord
         Document record.
     metadata : CuratedMetadata
@@ -523,9 +543,20 @@ def _document_search_payload(
     return {
         "id": document.document_id,
         "type": "document",
+        "section": "documents",
         "title": document.title,
+        "subtitle": " ".join(
+            item for item in (document.date, document.category, document.kind) if item
+        ),
+        "date": document.date,
         "text": text,
         "tags": list(tags),
+        "fields": [
+            {"label": "Categoria", "value": document.category},
+            {"label": "Tipo", "value": document.kind},
+            {"label": "Percorso", "value": _document_display_path(person, document)},
+        ],
+        "href": _document_href(person, document),
         "origin": document.origin,
         "container_id": document.container_id,
     }
@@ -606,13 +637,320 @@ def _timeline_events(
     return tuple(reversed(ordered))
 
 
-def _metadata_search_payloads(metadata: CuratedMetadata) -> tuple[dict[str, Any], ...]:
-    """Build lexical search payloads for curated clinical entities.
+def _clinical_payload(
+    metadata: CuratedMetadata,
+    dicom_studies: tuple[DicomStudy, ...],
+) -> dict[str, Any]:
+    """Build frontend payloads for curated clinical entities.
 
     Parameters
     ----------
     metadata : CuratedMetadata
         Curated metadata.
+    dicom_studies : tuple[DicomStudy, ...]
+        Cataloged DICOM studies.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable clinical dashboard payload.
+    """
+
+    medications = {
+        medication.id: _medication_payload(medication)
+        for medication in metadata.medications
+    }
+    return {
+        "problems": [_problem_payload(problem) for problem in metadata.problems],
+        "medications": list(medications.values()),
+        "therapies": [
+            _therapy_payload(therapy, medications) for therapy in metadata.therapies
+        ],
+        "procedures": [
+            _procedure_payload(procedure) for procedure in metadata.procedures
+        ],
+        "observations": [
+            _observation_payload(observation) for observation in metadata.observations
+        ],
+        "dicom_studies": [_dicom_study_payload(study) for study in dicom_studies],
+    }
+
+
+def _problem_payload(problem: ClinicalProblem) -> dict[str, Any]:
+    """Build one clinical problem frontend payload.
+
+    Parameters
+    ----------
+    problem : ClinicalProblem
+        Clinical problem model.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    return {
+        "id": problem.id,
+        "type": "problem",
+        "title": problem.title,
+        "status": problem.status,
+        "text": " ".join((problem.title, problem.status)).strip(),
+        "fields": [{"label": "Stato", "value": problem.status}],
+    }
+
+
+def _medication_payload(medication: Medication) -> dict[str, Any]:
+    """Build one medication frontend payload.
+
+    Parameters
+    ----------
+    medication : Medication
+        Medication model.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    fields: list[dict[str, Any]] = [
+        {"label": "Principio attivo", "value": medication.active_ingredient},
+        {"label": "Forma", "value": medication.form},
+        {"label": "Dosaggio per unita'", "value": medication.strength_per_unit},
+    ]
+    return {
+        "id": medication.id,
+        "type": "medication",
+        "title": medication.name,
+        "active_ingredient": medication.active_ingredient,
+        "form": medication.form,
+        "strength_per_unit": medication.strength_per_unit,
+        "text": " ".join(
+            item
+            for item in (
+                medication.name,
+                medication.active_ingredient,
+                medication.form,
+                medication.strength_per_unit,
+            )
+            if item
+        ).strip(),
+        "fields": [field for field in fields if field["value"]],
+    }
+
+
+def _therapy_payload(
+    therapy: TherapyEpisode,
+    medications: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Build one therapy frontend payload.
+
+    Parameters
+    ----------
+    therapy : TherapyEpisode
+        Therapy episode.
+    medications : dict[str, dict[str, Any]]
+        Medication payloads keyed by medication id.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    medication = medications.get(therapy.medication_id, {})
+    medication_name = str(medication.get("title") or therapy.medication_id)
+    active_ingredient = medication.get("active_ingredient")
+    schedule = ", ".join(therapy.schedule)
+    fields: list[dict[str, Any]] = [
+        {"label": "Farmaco", "value": medication_name},
+        {"label": "Principio attivo", "value": active_ingredient},
+        {"label": "Dosaggio", "value": therapy.dosage},
+        {"label": "Schedula", "value": schedule},
+        {"label": "Istruzioni", "value": therapy.instructions},
+        {"label": "Ruolo", "value": therapy.role},
+        {"label": "Inizio", "value": therapy.start_date},
+        {"label": "Fine", "value": therapy.end_date},
+    ]
+    return {
+        "id": therapy.id,
+        "type": "therapy",
+        "title": f"Terapia: {medication_name}",
+        "medication_id": therapy.medication_id,
+        "medication_name": medication_name,
+        "active_ingredient": active_ingredient,
+        "start_date": therapy.start_date,
+        "end_date": therapy.end_date,
+        "date": therapy.start_date,
+        "dosage": therapy.dosage,
+        "role": therapy.role,
+        "schedule": list(therapy.schedule),
+        "instructions": therapy.instructions,
+        "text": " ".join(
+            item
+            for item in (
+                therapy.id,
+                medication_name,
+                str(active_ingredient or ""),
+                therapy.medication_id,
+                therapy.start_date,
+                therapy.end_date,
+                therapy.dosage,
+                therapy.role,
+                schedule,
+                therapy.instructions,
+            )
+            if item
+        ).strip(),
+        "fields": _visible_fields(fields),
+    }
+
+
+def _procedure_payload(procedure: Procedure) -> dict[str, Any]:
+    """Build one procedure frontend payload.
+
+    Parameters
+    ----------
+    procedure : Procedure
+        Procedure model.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    return {
+        "id": procedure.id,
+        "type": "procedure",
+        "title": procedure.title,
+        "date": procedure.date,
+        "status": procedure.status,
+        "text": " ".join(
+            item for item in (procedure.title, procedure.date, procedure.status) if item
+        ).strip(),
+        "fields": [
+            field
+            for field in (
+                {"label": "Data", "value": procedure.date},
+                {"label": "Stato", "value": procedure.status},
+            )
+            if field["value"]
+        ],
+    }
+
+
+def _observation_payload(observation: Observation) -> dict[str, Any]:
+    """Build one observation frontend payload.
+
+    Parameters
+    ----------
+    observation : Observation
+        Observation model.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    return {
+        "id": observation.id,
+        "type": "observation",
+        "title": observation.kind,
+        "date": observation.date,
+        "value": observation.value,
+        "text": " ".join(
+            item
+            for item in (observation.kind, observation.value, observation.date)
+            if item
+        ).strip(),
+        "fields": [
+            field
+            for field in (
+                {"label": "Valore", "value": observation.value},
+                {"label": "Data", "value": observation.date},
+            )
+            if field["value"]
+        ],
+    }
+
+
+def _dicom_study_payload(study: DicomStudy) -> dict[str, Any]:
+    """Build one DICOM study frontend payload.
+
+    Parameters
+    ----------
+    study : DicomStudy
+        Cataloged DICOM study.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    title = study.study_description or study.support_path.name
+    fields: list[dict[str, Any]] = [
+        {"label": "Supporto", "value": study.support_path.name},
+        {"label": "Tipo", "value": study.support_kind},
+        {"label": "Data", "value": study.study_date},
+        {"label": "UID", "value": study.study_instance_uid},
+        {"label": "Istanze", "value": str(study.instance_count)},
+    ]
+    return {
+        "id": study.study_id,
+        "type": "dicom_study",
+        "title": title,
+        "date": study.study_date,
+        "support_kind": study.support_kind,
+        "support_path": study.support_path.name,
+        "study_instance_uid": study.study_instance_uid,
+        "study_description": study.study_description,
+        "instance_count": study.instance_count,
+        "text": " ".join(
+            item
+            for item in (
+                title,
+                study.support_path.name,
+                study.support_kind,
+                study.study_date,
+                study.study_instance_uid,
+                str(study.instance_count),
+            )
+            if item
+        ).strip(),
+        "fields": _visible_fields(fields),
+    }
+
+
+def _visible_fields(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return fields with a present display value.
+
+    Parameters
+    ----------
+    fields : list[dict[str, Any]]
+        Field payloads.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        Field payloads whose ``value`` is not empty.
+    """
+
+    return [field for field in fields if field.get("value")]
+
+
+def _metadata_search_payloads(
+    clinical_payload: dict[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Build lexical search payloads for curated clinical entities.
+
+    Parameters
+    ----------
+    clinical_payload : dict[str, Any]
+        Frontend clinical payload.
 
     Returns
     -------
@@ -621,85 +959,35 @@ def _metadata_search_payloads(metadata: CuratedMetadata) -> tuple[dict[str, Any]
     """
 
     entries: list[dict[str, Any]] = []
-    entries.extend(
-        _entity_search_payload(
-            item_id=problem.id,
-            item_type="problem",
-            title=problem.title,
-            parts=(problem.status,),
+    section_by_type = {
+        "problems": "problems",
+        "medications": "medications",
+        "therapies": "therapies",
+        "procedures": "procedures",
+        "observations": "observations",
+        "dicom_studies": "dicom",
+    }
+    for key, section in section_by_type.items():
+        entries.extend(
+            _entity_search_payload(item, section=section)
+            for item in clinical_payload.get(key, [])
         )
-        for problem in metadata.problems
-    )
-    entries.extend(
-        _entity_search_payload(
-            item_id=medication.id,
-            item_type="medication",
-            title=medication.name,
-            parts=(
-                medication.active_ingredient,
-                medication.form,
-                medication.strength_per_unit,
-            ),
-        )
-        for medication in metadata.medications
-    )
-    entries.extend(
-        _entity_search_payload(
-            item_id=therapy.id,
-            item_type="therapy",
-            title=therapy.id,
-            parts=(
-                therapy.medication_id,
-                therapy.start_date,
-                therapy.end_date,
-                therapy.dosage,
-                therapy.role,
-                " ".join(therapy.schedule) or None,
-                therapy.instructions,
-            ),
-        )
-        for therapy in metadata.therapies
-    )
-    entries.extend(
-        _entity_search_payload(
-            item_id=procedure.id,
-            item_type="procedure",
-            title=procedure.title,
-            parts=(procedure.date, procedure.status),
-        )
-        for procedure in metadata.procedures
-    )
-    entries.extend(
-        _entity_search_payload(
-            item_id=observation.id,
-            item_type="observation",
-            title=observation.kind,
-            parts=(observation.value, observation.date),
-        )
-        for observation in metadata.observations
-    )
     return tuple(entries)
 
 
 def _entity_search_payload(
+    item: dict[str, Any],
     *,
-    item_id: str,
-    item_type: str,
-    title: str,
-    parts: tuple[str | None, ...],
+    section: str,
 ) -> dict[str, Any]:
     """Build a curated entity search payload.
 
     Parameters
     ----------
-    item_id : str
-        Entity id.
-    item_type : str
-        Entity type.
-    title : str
-        Search result title.
-    parts : tuple[str | None, ...]
-        Optional text fragments.
+    item : dict[str, Any]
+        Frontend clinical entity payload.
+    section : str
+        Result section id.
 
     Returns
     -------
@@ -707,14 +995,39 @@ def _entity_search_payload(
         JSON-serializable payload.
     """
 
-    text = " ".join(item for item in (title, *parts) if item).strip()
     return {
-        "id": item_id,
-        "type": item_type,
-        "title": title,
-        "text": text,
+        "id": item["id"],
+        "type": item["type"],
+        "section": section,
+        "title": item["title"],
+        "subtitle": _entity_subtitle(item),
+        "date": item.get("date") or item.get("start_date"),
+        "text": item.get("text", ""),
         "tags": [],
+        "fields": item.get("fields", []),
     }
+
+
+def _entity_subtitle(item: dict[str, Any]) -> str:
+    """Return a compact entity subtitle.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Frontend clinical entity payload.
+
+    Returns
+    -------
+    str
+        Human-readable subtitle.
+    """
+
+    values = []
+    for field in item.get("fields", ())[:3]:
+        value = field.get("value")
+        if value:
+            values.append(str(value))
+    return " | ".join(values)
 
 
 def _therapy_timeline_event(

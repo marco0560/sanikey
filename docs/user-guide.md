@@ -286,17 +286,26 @@ Il frontend e' pensato per la consultazione diretta dalla chiavetta USB. I dati
 necessari alla prima schermata sono esportati anche in `web/data.js`, caricato
 come script locale, così Chrome e gli altri browser non devono usare `fetch()`
 su URL `file://`.
-La ricerca rapida nella tab `Documenti` cerca in titolo, data, categoria,
-percorso, tag e tipo file. La tab `Ricerca avanzata` carica al primo uso
-`web/content-search.js` e cerca anche nel testo estratto da PDF, immagini OCR,
-documenti Office e file testuali. I risultati avanzati mostrano un estratto del
-testo trovato e mantengono il link `Apri originale` quando il documento sorgente
-è esportato sulla chiavetta.
+La ricerca rapida nella tab `Documenti` cerca in documenti, farmaci, terapie,
+problemi, procedure, osservazioni e studi DICOM sintetici. I risultati vengono
+raggruppati per sezione e mostrano link iniziali con conteggi, in modo che il
+medico possa saltare subito alla parte utile.
+La tab `Ricerca avanzata` carica al primo uso `web/content-search.js` e cerca
+anche nel testo estratto da PDF, immagini OCR, documenti Office e file testuali.
+La ricerca avanzata combina quei risultati documentali con gli stessi metadati
+clinici della ricerca rapida.
 
 La sintassi della ricerca avanzata è case-insensitive e accent-insensitive.
 Supporta parole, frasi tra virgolette, `AND`, `OR`, `NOT` e parentesi. Parole
 adiacenti equivalgono a `AND`, quindi `creatinina 2024` è equivalente a
 `creatinina AND 2024`.
+
+La tab `Riepilogo` mostra una dashboard clinica sempre consultabile. Include,
+quando presenti, problemi, terapie, farmaci, osservazioni, procedure e studi
+DICOM sintetici. Le terapie sono arricchite con nome commerciale, principio
+attivo, dosaggio, schedula, istruzioni, periodo e ruolo. Gli studi DICOM sono
+schede sintetiche con supporto, tipo, data/UID quando disponibili e numero di
+istanze; non viene mostrata la lista di ogni singola slice.
 
 ### Personalizzare la Consultazione
 

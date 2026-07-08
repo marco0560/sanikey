@@ -7,3 +7,4 @@ Decisioni successive:
 
 - [Frontend di consultazione offline](adr-frontend-consultation-ui.md)
 - [Ricerca avanzata offline](adr-advanced-offline-search.md)
+- [Ricerca federata e dashboard clinica](adr-federated-clinical-search-ui.md)

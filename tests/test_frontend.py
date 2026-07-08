@@ -78,6 +78,13 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "clinical_summary_html" in script
     assert "markdown_html" in script
     assert "item.href" in script
+    assert "renderclinicaldashboard" in script
+    assert "renderquicksearch" in script
+    assert "rendersearchresults" in script
+    assert "section_links" not in script
+    assert "section-links" in stylesheet
+    assert "data.clinical" in script
+    assert "clinicalrecords" in script
     assert "function documentsearchtext(item)" in script
     assert "terms.every" in script
     assert "item.path" in script

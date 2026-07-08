@@ -6130,7 +6130,8 @@ semantic
 
 ### 12.10 Ricerca semplice
 
-Consiste in una singola casella di ricerca.
+Consiste in una singola casella di ricerca federata sui dati immediatamente
+disponibili nel frontend.
 
 Esempio:
 
@@ -6138,13 +6139,16 @@ Esempio:
 semaglutide
 ```
 
-Il sistema restituisce risultati ordinati per rilevanza.
+Il sistema restituisce risultati raggruppati per sezione: documenti, terapie,
+farmaci, problemi, procedure, osservazioni, studi DICOM e timeline quando
+applicabile. In testa ai risultati sono presenti link alle sezioni con conteggi.
 
 ---
 
 ### 12.11 Ricerca avanzata
 
-Permette di cercare nel contenuto estratto dai documenti e di applicare filtri.
+Permette di cercare nel contenuto estratto dai documenti, nei metadati clinici
+curati e di applicare filtri.
 La consultazione offline espone la ricerca avanzata come sezione distinta dalla
 ricerca semplice sui metadati documentali.
 
@@ -8003,6 +8007,10 @@ Quando è presente testo estratto, la build genera anche `web/content-search.js`
 Questo file contiene l'indice della ricerca avanzata e viene caricato dal
 frontend solo quando l'utente usa la sezione dedicata. Anche questo artefatto è
 JavaScript locale e non richiede `fetch()` o un server HTTP.
+
+`web/data.js` contiene inoltre un blocco `clinical` con problemi, farmaci,
+terapie, procedure, osservazioni e studi DICOM sintetici. Questi dati alimentano
+sia la dashboard clinica del riepilogo sia i risultati federati della ricerca.
 
 ---
 
