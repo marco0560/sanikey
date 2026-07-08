@@ -69,7 +69,8 @@ def generate_exports(
     data_dir = person.local_build / "web" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     documents_payload = [
-        _document_payload(person, document, metadata) for document in documents
+        _document_payload(person, document, metadata)
+        for document in _ordered_documents(documents)
     ]
     search_payload = [
         *(_document_search_payload(document, metadata) for document in documents),
@@ -197,6 +198,30 @@ def _document_payload(
         "tags": list(_document_tags(document, metadata)),
         "markdown_html": _document_markdown_html(document),
     }
+
+
+def _ordered_documents(
+    documents: tuple[DocumentRecord, ...],
+) -> tuple[DocumentRecord, ...]:
+    """Return documents in consultation order.
+
+    Parameters
+    ----------
+    documents : tuple[DocumentRecord, ...]
+        Document records.
+
+    Returns
+    -------
+    tuple[DocumentRecord, ...]
+        Documents ordered from most recent to oldest, with undated documents
+        last and title/path as deterministic tie-breakers.
+    """
+
+    by_title = sorted(
+        documents,
+        key=lambda item: (item.title.lower(), item.path.as_posix()),
+    )
+    return tuple(sorted(by_title, key=lambda item: item.date or "", reverse=True))
 
 
 def _document_markdown_html(document: DocumentRecord) -> str | None:

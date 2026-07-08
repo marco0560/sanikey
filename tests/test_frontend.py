@@ -41,6 +41,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert result.helper.is_file()
     assert "Patient A" in result.index.read_text(encoding="utf-8")
     assert 'data-tab-button="documents"' in result.index.read_text(encoding="utf-8")
+    assert "Aiuto ricerca" in result.index.read_text(encoding="utf-8")
     script = result.script.read_text(encoding="utf-8").lower()
     helper = result.helper.read_text(encoding="utf-8").lower()
     index = result.index.read_text(encoding="utf-8").lower()
@@ -69,6 +70,10 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "clinical_summary_html" in script
     assert "markdown_html" in script
     assert "item.href" in script
+    assert "function documentsearchtext(item)" in script
+    assert "terms.every" in script
+    assert "item.path" in script
     assert ".markdown" in stylesheet
+    assert ".search-help" in stylesheet
     assert "@media (min-width: 56rem)" in stylesheet
     assert "[data-tab-panel].is-active" in stylesheet

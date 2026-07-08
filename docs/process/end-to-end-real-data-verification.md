@@ -512,7 +512,7 @@ documentale dal `data.js` del paziente `marco`, lo risolve rispetto alla
 directory `web/` e controlla che il file esista:
 
 ```bash
-python - <<'PY'
+python - "$USB_MOUNT/patients/marco/web" <<'PY'
 import json
 import re
 import sys
@@ -529,7 +529,7 @@ target = (web / href).resolve()
 if not target.is_file():
     raise SystemExit(f"Apri originale non risolve a un file: {target}")
 print(target)
-PY "$USB_MOUNT/patients/marco/web"
+PY
 ```
 
 ```bash

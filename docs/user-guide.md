@@ -107,6 +107,13 @@ verificato manualmente prima della build completa. Il riepilogo include
 e' attivo. Prima della scansione viene ripetuto il controllo dei metadati curati
 dei pazienti selezionati, cosi' un errore in `therapies.toml` blocca subito il
 comando invece di emergere dopo una build lunga.
+
+I nomi mostrati per i documenti derivano dal nome file: se il nome inizia con
+una data `aaaammgg`, quella parte diventa la data del documento e il resto del
+nome, senza estensione, diventa il titolo. Gli underscore vengono mostrati come
+spazi. Per esempio `20260102 Referto_Laboratorio.pdf` diventa data
+`02/01/2026` e titolo `Referto Laboratorio`.
+
 Su terminali interattivi, i passi lunghi stampano punti di avanzamento su
 `stderr`, senza modificare l'output riepilogativo su `stdout`.
 `scan-documents` stampa un punto ogni 20 file sorgente, lo staging un punto per

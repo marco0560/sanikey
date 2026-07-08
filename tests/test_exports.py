@@ -109,6 +109,7 @@ links = ["therapy-a"]
     summary = json.loads(result.summary.read_text(encoding="utf-8"))
     data_script = result.data_script.read_text(encoding="utf-8")
     document_by_title = {item["title"]: item for item in documents}
+    assert [item["title"] for item in documents] == ["Summary", "Report"]
     assert document_by_title["Report"]["tags"] == ["report"]
     assert document_by_title["Report"]["path"] == "laboratory/20260102 Report.txt"
     assert document_by_title["Report"]["href"] == (

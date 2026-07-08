@@ -104,6 +104,12 @@ def _index_html(person: PersonConfig) -> str:
     </div>
     <label for="search">Cerca nell'archivio</label>
     <input id="search" type="search" placeholder="Cerca documenti, categorie o tag">
+    <details class="search-help">
+      <summary>Aiuto ricerca</summary>
+      <p>Scrivi una o piu' parole presenti in titolo, categoria, tag, tipo,
+      percorso o data. Esempi: <code>cardiologo 2024</code>,
+      <code>analisi pdf</code>, <code>risonanza</code>.</p>
+    </details>
   </header>
   <nav class="tabs" aria-label="Sezioni archivio">
     <button type="button" data-tab-button="documents">Documenti</button>
@@ -194,9 +200,9 @@ function renderTimeline(timeline) {
 }
 
 function renderDocuments(documents, query = "") {
-  const normalized = query.toLowerCase();
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   const selected = documents.filter((item) =>
-    `${item.title} ${item.category} ${item.tags.join(" ")}`.toLowerCase().includes(normalized)
+    terms.every((term) => documentSearchText(item).includes(term))
   );
   const target = document.querySelector("#documents");
   const count = query ? `<p class="result-count">${selected.length} risultati</p>` : "";
@@ -207,6 +213,17 @@ function renderDocuments(documents, query = "") {
       ${item.markdown_html ? `<div class="markdown">${html(item.markdown_html)}</div>` : ""}
       ${item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : `<span class="muted">Origine nel contenitore</span>`}</article>`
   ).join("");
+}
+
+function documentSearchText(item) {
+  return [
+    item.title,
+    item.category,
+    item.kind,
+    item.path,
+    item.date,
+    ...(item.tags || []),
+  ].map(text).join(" ").toLowerCase();
 }
 
 function main() {
@@ -374,6 +391,22 @@ input {
   width: 100%;
 }
 
+.search-help {
+  color: var(--muted);
+  font-size: 0.92rem;
+  grid-column: 2;
+}
+
+.search-help summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.search-help p {
+  margin: 0.35rem 0 0;
+}
+
 article {
   border-bottom: 1px solid var(--border);
   padding: 0.75rem 0;
@@ -452,6 +485,10 @@ body[data-density="compact"] .tabs button {
   header {
     align-items: stretch;
     grid-template-columns: 1fr;
+  }
+
+  .search-help {
+    grid-column: 1;
   }
 }
 
