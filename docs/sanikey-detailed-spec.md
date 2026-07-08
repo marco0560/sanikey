@@ -6144,10 +6144,16 @@ Il sistema restituisce risultati ordinati per rilevanza.
 
 ### 12.11 Ricerca avanzata
 
-Permette di applicare filtri.
+Permette di cercare nel contenuto estratto dai documenti e di applicare filtri.
+La consultazione offline espone la ricerca avanzata come sezione distinta dalla
+ricerca semplice sui metadati documentali.
 
 Esempi:
 
+* testo OCR o testo PDF estratto;
+* query booleane con `AND`, `OR`, `NOT` e parentesi;
+* frasi tra virgolette;
+* sinonimi e normalizzazioni configurabili;
 * intervallo temporale;
 * categoria;
 * tipo documento;
@@ -7992,6 +7998,11 @@ La build genera inoltre `web/data.js`, che incapsula i dataset essenziali in una
 variabile JavaScript locale. Il frontend usa `data.js` per la prima
 consultazione offline da `file://`; i JSON restano presenti come artefatti
 ispezionabili e riprocessabili.
+
+Quando è presente testo estratto, la build genera anche `web/content-search.js`.
+Questo file contiene l'indice della ricerca avanzata e viene caricato dal
+frontend solo quando l'utente usa la sezione dedicata. Anche questo artefatto è
+JavaScript locale e non richiede `fetch()` o un server HTTP.
 
 ---
 

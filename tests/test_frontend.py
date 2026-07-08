@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sanikey.config import PersonConfig
+from sanikey.config import PersonConfig, UiConfig
 from sanikey.frontend import build_frontend
 
 if TYPE_CHECKING:
@@ -41,7 +41,9 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert result.helper.is_file()
     assert "Patient A" in result.index.read_text(encoding="utf-8")
     assert 'data-tab-button="documents"' in result.index.read_text(encoding="utf-8")
+    assert 'data-tab-button="advanced"' in result.index.read_text(encoding="utf-8")
     assert "Aiuto ricerca" in result.index.read_text(encoding="utf-8")
+    assert "Ricerca avanzata" in result.index.read_text(encoding="utf-8")
     script = result.script.read_text(encoding="utf-8").lower()
     helper = result.helper.read_text(encoding="utf-8").lower()
     index = result.index.read_text(encoding="utf-8").lower()
@@ -61,6 +63,12 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert 'script src="assets/ui-helper.js"' in index
     assert "fetch(" not in script
     assert "window.sanikey_data" in script
+    assert "window.sanikey_content_search" in script
+    assert "function parseadvancedquery(query)" in script
+    assert 'script.src = "content-search.js"' in script
+    assert "and" in script
+    assert "or" in script
+    assert "not" in script
     assert "window.sanikeyui" in helper
     assert "setuptabs" in helper
     assert "function formatdate(value)" in script
@@ -75,5 +83,39 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "item.path" in script
     assert ".markdown" in stylesheet
     assert ".search-help" in stylesheet
+    assert ".badge" in stylesheet
+    assert "has-background-image" in stylesheet
     assert "@media (min-width: 56rem)" in stylesheet
     assert "[data-tab-panel].is-active" in stylesheet
+
+
+def test_build_frontend_copies_configured_background_image(tmp_path: Path) -> None:
+    """Verify configured background images are copied into frontend assets.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    background = tmp_path / "background.png"
+    background.write_bytes(b"synthetic image")
+    person = PersonConfig(
+        id="patient-a",
+        display_name="Patient A",
+        source_documents=tmp_path / "documents",
+        metadata_directory=tmp_path / "metadata",
+        local_build=tmp_path / "generated",
+        usb_uuid="1A2B-3C4D",
+        ui=UiConfig(background_image=background),
+    )
+
+    result = build_frontend(person)
+
+    assert (result.web_dir / "assets" / "background.png").read_bytes() == (
+        b"synthetic image"
+    )

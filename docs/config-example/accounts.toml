@@ -1,6 +1,19 @@
 [global]
 config_version = 1
 
+# [global.ui]
+# accent_color = "#2563eb"
+# density = "comfortable"
+# default_tab = "documents"
+# timeline_order = "desc"
+# subtitle = "Archivio sanitario personale"
+# background_image = "config/assets/background.png"
+# background_opacity = 0.10
+#
+# [global.search]
+# dictionary = "config/search-dictionary.toml"
+# advanced_index_warning_mb = 25
+
 [[person]]
 id = "patient-a"
 display_name = "Paziente A"

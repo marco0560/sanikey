@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -62,6 +63,11 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     script.write_text(_app_js(), encoding="utf-8")
     stylesheet.write_text(_style_css(), encoding="utf-8")
     helper.write_text(_ui_helper_js(), encoding="utf-8")
+    if person.ui.background_image is not None:
+        shutil.copy2(
+            person.ui.background_image,
+            assets_dir / f"background{person.ui.background_image.suffix.lower()}",
+        )
     return FrontendResult(
         web_dir=web_dir,
         index=index,
@@ -113,11 +119,25 @@ def _index_html(person: PersonConfig) -> str:
   </header>
   <nav class="tabs" aria-label="Sezioni archivio">
     <button type="button" data-tab-button="documents">Documenti</button>
+    <button type="button" data-tab-button="advanced">Ricerca avanzata</button>
     <button type="button" data-tab-button="timeline">Timeline</button>
     <button type="button" data-tab-button="summary">Riepilogo</button>
   </nav>
   <main data-default-tab="{default_tab}">
     <section id="documents" class="primary-pane" data-tab-panel="documents" aria-label="Documenti"></section>
+    <section id="advanced" class="primary-pane" data-tab-panel="advanced" aria-label="Ricerca avanzata">
+      <h2>Ricerca avanzata</h2>
+      <label for="advanced-search">Cerca nel contenuto OCR e testo estratto</label>
+      <input id="advanced-search" type="search" placeholder='Esempio: creatinina AND (2024 OR 2025) NOT "urine"'>
+      <details class="search-help" open>
+        <summary>Sintassi ricerca avanzata</summary>
+        <p>Usa parole, frasi tra virgolette, <code>AND</code>, <code>OR</code>,
+        <code>NOT</code> e parentesi. Le parole adiacenti valgono come
+        <code>AND</code>. La ricerca non distingue maiuscole, minuscole o
+        accenti e applica sinonimi configurati.</p>
+      </details>
+      <div id="advanced-results" class="advanced-results"></div>
+    </section>
     <aside class="secondary-pane">
       <section id="timeline" data-tab-panel="timeline" aria-label="Timeline"></section>
       <section id="summary" data-tab-panel="summary" aria-label="Riepilogo"></section>
@@ -179,6 +199,11 @@ function formatDateRange(startDate, endDate) {
 function applyUi(summary) {
   const ui = summary.ui || {};
   document.documentElement.style.setProperty("--accent", text(ui.accent_color || "#2563eb"));
+  document.documentElement.style.setProperty("--background-opacity", text(ui.background_opacity || "0.1"));
+  if (ui.background_image) {
+    document.documentElement.style.setProperty("--background-image", `url("${attr(ui.background_image)}")`);
+    document.body.classList.add("has-background-image");
+  }
   document.body.dataset.density = text(ui.density || "comfortable");
   document.querySelector("main").dataset.defaultTab = text(ui.default_tab || "documents");
 }
@@ -226,6 +251,278 @@ function documentSearchText(item) {
   ].map(text).join(" ").toLowerCase();
 }
 
+function normalizeSearchText(value) {
+  return text(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function tokenizeAdvancedQuery(query) {
+  const tokens = [];
+  let index = 0;
+  while (index < query.length) {
+    const char = query[index];
+    if (/\s/.test(char)) {
+      index += 1;
+      continue;
+    }
+    if (char === "(" || char === ")") {
+      tokens.push({type: char, value: char});
+      index += 1;
+      continue;
+    }
+    if (char === '"') {
+      let end = index + 1;
+      let value = "";
+      while (end < query.length && query[end] !== '"') {
+        value += query[end];
+        end += 1;
+      }
+      if (end >= query.length) {
+        throw new Error("Virgolette non chiuse nella ricerca avanzata.");
+      }
+      tokens.push({type: "TERM", value});
+      index = end + 1;
+      continue;
+    }
+    let end = index;
+    let value = "";
+    while (end < query.length && !/\s|\(|\)/.test(query[end])) {
+      value += query[end];
+      end += 1;
+    }
+    const upper = value.toUpperCase();
+    tokens.push(["AND", "OR", "NOT"].includes(upper)
+      ? {type: upper, value: upper}
+      : {type: "TERM", value});
+    index = end;
+  }
+  return insertImplicitAnd(tokens);
+}
+
+function insertImplicitAnd(tokens) {
+  const result = [];
+  tokens.forEach((token, index) => {
+    const previous = tokens[index - 1];
+    if (previous && canEndExpression(previous) && canStartExpression(token)) {
+      result.push({type: "AND", value: "AND"});
+    }
+    result.push(token);
+  });
+  return result;
+}
+
+function canEndExpression(token) {
+  return token.type === "TERM" || token.type === ")";
+}
+
+function canStartExpression(token) {
+  return token.type === "TERM" || token.type === "(" || token.type === "NOT";
+}
+
+function parseAdvancedQuery(query) {
+  const tokens = tokenizeAdvancedQuery(query);
+  let position = 0;
+
+  function peek() {
+    return tokens[position];
+  }
+
+  function consume(type) {
+    if (peek() && peek().type === type) {
+      position += 1;
+      return true;
+    }
+    return false;
+  }
+
+  function parseExpression() {
+    return parseOr();
+  }
+
+  function parseOr() {
+    let node = parseAnd();
+    while (consume("OR")) {
+      node = {type: "OR", left: node, right: parseAnd()};
+    }
+    return node;
+  }
+
+  function parseAnd() {
+    let node = parseNot();
+    while (consume("AND")) {
+      node = {type: "AND", left: node, right: parseNot()};
+    }
+    return node;
+  }
+
+  function parseNot() {
+    if (consume("NOT")) {
+      return {type: "NOT", child: parseNot()};
+    }
+    return parsePrimary();
+  }
+
+  function parsePrimary() {
+    const token = peek();
+    if (!token) {
+      throw new Error("Query avanzata incompleta.");
+    }
+    if (consume("(")) {
+      const node = parseExpression();
+      if (!consume(")")) {
+        throw new Error("Parentesi non chiusa nella ricerca avanzata.");
+      }
+      return node;
+    }
+    if (token.type === "TERM") {
+      position += 1;
+      return {type: "TERM", value: normalizeSearchText(token.value)};
+    }
+    throw new Error(`Token inatteso nella ricerca avanzata: ${escapeHtml(token.value)}`);
+  }
+
+  if (tokens.length === 0) {
+    return null;
+  }
+  const expression = parseExpression();
+  if (position !== tokens.length) {
+    throw new Error(`Sintassi non valida vicino a ${escapeHtml(tokens[position].value)}.`);
+  }
+  return expression;
+}
+
+function advancedSearchTerms(dictionary) {
+  const mappings = new Map();
+  const addGroup = (items) => {
+    Object.entries(items || {}).forEach(([key, values]) => {
+      const group = [key, ...(values || [])].map(normalizeSearchText).filter(Boolean);
+      group.forEach((value) => mappings.set(value, group));
+    });
+  };
+  addGroup(defaultMonthDictionary());
+  addGroup(dictionary.months || {});
+  addGroup(dictionary.terms || {});
+  return mappings;
+}
+
+function defaultMonthDictionary() {
+  return {
+    gennaio: ["01", "1"],
+    febbraio: ["02", "2"],
+    marzo: ["03", "3"],
+    aprile: ["04", "4"],
+    maggio: ["05", "5"],
+    giugno: ["06", "6"],
+    luglio: ["07", "7"],
+    agosto: ["08", "8"],
+    settembre: ["09", "9"],
+    ottobre: ["10"],
+    novembre: ["11"],
+    dicembre: ["12"],
+  };
+}
+
+function evaluateAdvancedExpression(node, haystack, expansions) {
+  if (node === null) {
+    return true;
+  }
+  if (node.type === "TERM") {
+    const expanded = expansions.get(node.value) || [node.value];
+    return expanded.some((term) => haystack.includes(term));
+  }
+  if (node.type === "AND") {
+    return evaluateAdvancedExpression(node.left, haystack, expansions)
+      && evaluateAdvancedExpression(node.right, haystack, expansions);
+  }
+  if (node.type === "OR") {
+    return evaluateAdvancedExpression(node.left, haystack, expansions)
+      || evaluateAdvancedExpression(node.right, haystack, expansions);
+  }
+  if (node.type === "NOT") {
+    return !evaluateAdvancedExpression(node.child, haystack, expansions);
+  }
+  return false;
+}
+
+function collectPositiveTerms(node) {
+  if (!node) {
+    return [];
+  }
+  if (node.type === "TERM") {
+    return [node.value];
+  }
+  if (node.type === "NOT") {
+    return [];
+  }
+  return [...collectPositiveTerms(node.left), ...collectPositiveTerms(node.right)];
+}
+
+function advancedHaystack(item) {
+  return normalizeSearchText([
+    item.title,
+    item.date,
+    item.category,
+    item.kind,
+    item.path,
+    item.text,
+    ...(item.tags || []),
+  ].join(" "));
+}
+
+function advancedSnippet(item, terms, expansions) {
+  const source = text(item.text).replace(/\s+/g, " ").trim();
+  const normalized = normalizeSearchText(source);
+  const expandedTerms = terms.flatMap((term) => expansions.get(term) || [term]);
+  const matchIndex = expandedTerms
+    .map((term) => normalized.indexOf(term))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0];
+  const start = Math.max(0, (matchIndex || 0) - 90);
+  const excerpt = source.slice(start, start + 240);
+  return `${start > 0 ? "... " : ""}${excerpt}${start + 240 < source.length ? " ..." : ""}`;
+}
+
+function loadAdvancedSearchData() {
+  if (window.SANIKEY_CONTENT_SEARCH) {
+    return Promise.resolve(window.SANIKEY_CONTENT_SEARCH);
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "content-search.js";
+    script.onload = () => resolve(window.SANIKEY_CONTENT_SEARCH);
+    script.onerror = () => reject(new Error("Indice di ricerca avanzata non disponibile."));
+    document.body.appendChild(script);
+  });
+}
+
+function renderAdvancedResults(payload, query) {
+  const target = document.querySelector("#advanced-results");
+  if (!query.trim()) {
+    target.innerHTML = '<p class="muted">Inserisci una query per cercare nel testo estratto e OCR.</p>';
+    return;
+  }
+  let expression;
+  try {
+    expression = parseAdvancedQuery(query);
+  } catch (error) {
+    target.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+    return;
+  }
+  const expansions = advancedSearchTerms(payload.dictionary || {});
+  const terms = collectPositiveTerms(expression);
+  const selected = (payload.documents || []).filter((item) =>
+    evaluateAdvancedExpression(expression, advancedHaystack(item), expansions)
+  );
+  target.innerHTML = `<p class="result-count">${selected.length} risultati nel contenuto</p>` + selected.map((item) =>
+    `<article><h3>${escapeHtml(item.title)} <span class="badge">contenuto</span></h3>
+      <p>${escapeHtml(formatDate(item.date))} ${escapeHtml(item.category)} ${escapeHtml(item.kind)}</p>
+      <p>${escapeHtml(advancedSnippet(item, terms, expansions))}</p>
+      ${item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : `<span class="muted">Origine nel contenitore</span>`}</article>`
+  ).join("");
+}
+
 function main() {
   const data = window.SANIKEY_DATA;
   if (!data) {
@@ -238,12 +535,24 @@ function main() {
   renderSummary(summary);
   renderTimeline(timeline);
   renderDocuments(documents);
+  const advancedInput = document.querySelector("#advanced-search");
+  const advancedResults = document.querySelector("#advanced-results");
+  advancedResults.innerHTML = '<p class="muted">La ricerca avanzata carica il testo estratto al primo uso.</p>';
   window.SaniKeyUi.setupTabs({
     defaultTab: document.querySelector("main").dataset.defaultTab || "documents",
   });
   document.querySelector("#search").addEventListener("input", (event) => {
     renderDocuments(documents, event.target.value);
     window.SaniKeyUi.showTab("documents");
+  });
+  advancedInput.addEventListener("input", (event) => {
+    advancedResults.innerHTML = '<p class="muted">Caricamento indice di ricerca avanzata...</p>';
+    loadAdvancedSearchData()
+      .then((payload) => renderAdvancedResults(payload, event.target.value))
+      .catch((error) => {
+        advancedResults.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+      });
+    window.SaniKeyUi.showTab("advanced");
   });
 }
 
@@ -270,6 +579,7 @@ def _ui_helper_js() -> str:
 
     return r"""window.SaniKeyUi = (() => {
   function showTab(name) {
+    document.body.dataset.activeTab = name;
     document.querySelectorAll("[data-tab-button]").forEach((button) => {
       const selected = button.dataset.tabButton === name;
       button.classList.toggle("is-active", selected);
@@ -307,6 +617,8 @@ def _style_css() -> str:
 
     return """:root {
   --accent: #2563eb;
+  --background-image: none;
+  --background-opacity: 0.1;
   --border: #d8e0ea;
   --surface: #f6f8fb;
   --text: #1f2933;
@@ -322,6 +634,20 @@ body {
   font-family: system-ui, sans-serif;
   line-height: 1.5;
   margin: 0;
+  position: relative;
+}
+
+body.has-background-image::before {
+  background-image: var(--background-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  content: "";
+  inset: 0;
+  opacity: var(--background-opacity);
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
 }
 
 header {
@@ -353,7 +679,7 @@ label {
   background: white;
   border-bottom: 1px solid var(--border);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -421,6 +747,17 @@ article h3 {
   color: var(--muted);
 }
 
+.badge {
+  background: color-mix(in srgb, var(--accent) 14%, white);
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  vertical-align: middle;
+}
+
 .markdown {
   max-width: 64rem;
 }
@@ -472,6 +809,23 @@ body[data-density="compact"] .tabs button {
 
   [data-tab-panel],
   [data-tab-panel].is-active {
+    display: block;
+  }
+
+  #advanced {
+    display: none;
+  }
+
+  body[data-active-tab="advanced"] main {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-active-tab="advanced"] #documents,
+  body[data-active-tab="advanced"] .secondary-pane {
+    display: none;
+  }
+
+  body[data-active-tab="advanced"] #advanced {
     display: block;
   }
 

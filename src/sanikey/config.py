@@ -21,12 +21,14 @@ REQUIRED_PERSON_FIELDS = (
     "usb_uuid",
 )
 UI_DENSITIES = frozenset({"compact", "comfortable"})
-UI_TABS = frozenset({"documents", "timeline", "summary"})
+UI_TABS = frozenset({"advanced", "documents", "timeline", "summary"})
 UI_TIMELINE_ORDERS = frozenset({"asc", "desc"})
 UI_DOCUMENT_LINK_MODES = frozenset({"usb-relative"})
 UI_FIELDS = frozenset(
     {
         "accent_color",
+        "background_image",
+        "background_opacity",
         "density",
         "default_tab",
         "timeline_order",
@@ -34,6 +36,7 @@ UI_FIELDS = frozenset(
         "subtitle",
     }
 )
+SEARCH_FIELDS = frozenset({"advanced_index_warning_mb", "dictionary"})
 
 
 def _fail(message: str) -> None:
@@ -75,6 +78,10 @@ class UiConfig:
         Document link strategy. Currently only ``usb-relative`` is supported.
     subtitle : str
         Optional short subtitle rendered below the patient name.
+    background_image : pathlib.Path | None, optional
+        Optional image copied into the generated frontend background assets.
+    background_opacity : float
+        Background image opacity between 0 and 1.
     """
 
     accent_color: str = "#2563eb"
@@ -83,6 +90,87 @@ class UiConfig:
     timeline_order: str = "desc"
     document_link_mode: str = "usb-relative"
     subtitle: str = "Archivio sanitario personale"
+    background_image: Path | None = None
+    background_opacity: float = 0.1
+
+
+@dataclass(frozen=True)
+class SearchDictionary:
+    """Configurable search term expansions.
+
+    Parameters
+    ----------
+    terms : dict[str, tuple[str, ...]]
+        Search synonyms keyed by canonical term.
+    months : dict[str, tuple[str, ...]]
+        Month expansions keyed by month name or number.
+    """
+
+    terms: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    months: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class SearchConfig:
+    """Advanced search configuration.
+
+    Parameters
+    ----------
+    dictionary : pathlib.Path | None, optional
+        Optional TOML dictionary path.
+    dictionary_data : SearchDictionary
+        Parsed dictionary content.
+    advanced_index_warning_mb : int
+        Warning threshold for the generated advanced-search index.
+    """
+
+    dictionary: Path | None = None
+    dictionary_data: SearchDictionary = field(default_factory=SearchDictionary)
+    advanced_index_warning_mb: int = 25
+
+
+@dataclass(frozen=True)
+class _PathFieldOptions:
+    """Validation options for optional path fields.
+
+    Parameters
+    ----------
+    context : str
+        Diagnostic context.
+    base_dir : pathlib.Path
+        Base directory for relative paths.
+    default : pathlib.Path | None
+        Default path when the field is omitted.
+    must_exist : bool
+        Whether the resolved path must exist.
+    """
+
+    context: str
+    base_dir: Path
+    default: Path | None
+    must_exist: bool
+
+
+@dataclass(frozen=True)
+class _FloatFieldOptions:
+    """Validation options for optional float fields.
+
+    Parameters
+    ----------
+    context : str
+        Diagnostic context.
+    default : float
+        Default value when the field is omitted.
+    minimum : float
+        Inclusive minimum value.
+    maximum : float
+        Inclusive maximum value.
+    """
+
+    context: str
+    default: float
+    minimum: float
+    maximum: float
 
 
 @dataclass(frozen=True)
@@ -107,6 +195,8 @@ class PersonConfig:
         Whether the patient should be included in builds.
     ui : UiConfig
         Resolved frontend UI configuration for this patient.
+    search : SearchConfig
+        Resolved advanced search configuration for this patient.
     """
 
     id: str
@@ -117,6 +207,7 @@ class PersonConfig:
     usb_uuid: str
     enabled: bool = True
     ui: UiConfig = field(default_factory=UiConfig)
+    search: SearchConfig = field(default_factory=SearchConfig)
 
 
 @dataclass(frozen=True)
@@ -133,12 +224,15 @@ class AccountsConfig:
         Path of the loaded configuration file.
     ui : UiConfig
         Global frontend UI defaults.
+    search : SearchConfig
+        Global advanced search defaults.
     """
 
     config_version: int
     people: tuple[PersonConfig, ...]
     path: Path
     ui: UiConfig = field(default_factory=UiConfig)
+    search: SearchConfig = field(default_factory=SearchConfig)
 
     def enabled_people(self) -> tuple[PersonConfig, ...]:
         """Return enabled patient entries.
@@ -243,14 +337,33 @@ def parse_accounts_data(data: dict[str, Any], *, path: Path) -> AccountsConfig:
     people_items = cast("list[Any]", people_data)
 
     base_dir = _path_base(path)
-    global_ui = _parse_ui_config(global_section.get("ui", {}), context="[global.ui]")
+    global_ui = _parse_ui_config(
+        global_section.get("ui", {}),
+        context="[global.ui]",
+        base_dir=base_dir,
+    )
+    global_search = _parse_search_config(
+        global_section.get("search", {}),
+        context="[global.search]",
+        base_dir=base_dir,
+    )
     people = tuple(
-        _parse_person(item, index=index, base_dir=base_dir, global_ui=global_ui)
+        _parse_person(
+            item,
+            index=index,
+            base_dir=base_dir,
+            global_ui=global_ui,
+            global_search=global_search,
+        )
         for index, item in enumerate(people_items)
     )
     _validate_unique_ids(people)
     return AccountsConfig(
-        config_version=version, people=people, path=path, ui=global_ui
+        config_version=version,
+        people=people,
+        path=path,
+        ui=global_ui,
+        search=global_search,
     )
 
 
@@ -260,6 +373,7 @@ def _parse_person(
     index: int,
     base_dir: Path,
     global_ui: UiConfig,
+    global_search: SearchConfig,
 ) -> PersonConfig:
     """Parse one ``[[person]]`` entry.
 
@@ -273,6 +387,8 @@ def _parse_person(
         Base directory for relative paths.
     global_ui : UiConfig
         Global UI defaults to merge with per-person overrides.
+    global_search : SearchConfig
+        Global search defaults to merge with per-person overrides.
 
     Returns
     -------
@@ -304,7 +420,14 @@ def _parse_person(
     ui = _parse_ui_config(
         item.get("ui", {}),
         context=f"[[person]] entry {index} ui",
+        base_dir=base_dir,
         base=global_ui,
+    )
+    search = _parse_search_config(
+        item.get("search", {}),
+        context=f"[[person]] entry {index} search",
+        base_dir=base_dir,
+        base=global_search,
     )
 
     return PersonConfig(
@@ -320,6 +443,7 @@ def _parse_person(
         usb_uuid=_require_string(item, "usb_uuid", index=index),
         enabled=enabled,
         ui=ui,
+        search=search,
     )
 
 
@@ -327,6 +451,7 @@ def _parse_ui_config(
     value: Any,
     *,
     context: str,
+    base_dir: Path,
     base: UiConfig | None = None,
 ) -> UiConfig:
     """Parse and validate a UI configuration table.
@@ -337,6 +462,8 @@ def _parse_ui_config(
         Raw TOML value.
     context : str
         Diagnostic context.
+    base_dir : pathlib.Path
+        Base directory for relative paths.
     base : UiConfig | None, optional
         Base configuration used for override merging.
 
@@ -391,6 +518,89 @@ def _parse_ui_config(
         ),
         subtitle=_optional_short_string(
             value, "subtitle", context=context, default=source.subtitle
+        ),
+        background_image=_optional_path(
+            value,
+            "background_image",
+            _PathFieldOptions(
+                context=context,
+                base_dir=base_dir,
+                default=source.background_image,
+                must_exist=True,
+            ),
+        ),
+        background_opacity=_optional_float(
+            value,
+            "background_opacity",
+            _FloatFieldOptions(
+                context=context,
+                default=source.background_opacity,
+                minimum=0.0,
+                maximum=1.0,
+            ),
+        ),
+    )
+
+
+def _parse_search_config(
+    value: Any,
+    *,
+    context: str,
+    base_dir: Path,
+    base: SearchConfig | None = None,
+) -> SearchConfig:
+    """Parse and validate an advanced search configuration table.
+
+    Parameters
+    ----------
+    value : Any
+        Raw TOML value.
+    context : str
+        Diagnostic context.
+    base_dir : pathlib.Path
+        Base directory for relative paths.
+    base : SearchConfig | None, optional
+        Base configuration used for override merging.
+
+    Returns
+    -------
+    SearchConfig
+        Validated search configuration.
+
+    Raises
+    ------
+    ConfigError
+        If the table or any field is invalid.
+    """
+
+    if not isinstance(value, dict):
+        _fail(f"{context} must be a table")
+    unknown = sorted(set(value) - SEARCH_FIELDS)
+    if unknown:
+        _fail(f"{context} unknown fields: {', '.join(unknown)}")
+    source = SearchConfig() if base is None else base
+    dictionary = _optional_path(
+        value,
+        "dictionary",
+        _PathFieldOptions(
+            context=context,
+            base_dir=base_dir,
+            default=source.dictionary,
+            must_exist=True,
+        ),
+    )
+    return SearchConfig(
+        dictionary=dictionary,
+        dictionary_data=(
+            source.dictionary_data
+            if dictionary == source.dictionary
+            else _load_search_dictionary(dictionary, context=context)
+        ),
+        advanced_index_warning_mb=_optional_positive_int(
+            value,
+            "advanced_index_warning_mb",
+            context=context,
+            default=source.advanced_index_warning_mb,
         ),
     )
 
@@ -511,6 +721,199 @@ def _optional_short_string(
     if len(rendered) > 120:
         _fail(f"{context} field {field_name} must be at most 120 characters")
     return rendered
+
+
+def _optional_path(
+    item: dict[str, Any],
+    field_name: str,
+    options: _PathFieldOptions,
+) -> Path | None:
+    """Return an optional path field resolved against the configuration base.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Configuration table.
+    field_name : str
+        Field to read.
+    options : _PathFieldOptions
+        Validation options.
+
+    Returns
+    -------
+    pathlib.Path | None
+        Resolved optional path.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not a string or the required path is missing.
+    """
+
+    value = item.get(field_name)
+    if value is None:
+        return options.default
+    if not isinstance(value, str) or not value.strip():
+        _fail(f"{options.context} field {field_name} must be a non-empty string")
+    path = Path(cast("str", value).strip()).expanduser()
+    resolved = path if path.is_absolute() else options.base_dir / path
+    if options.must_exist and not resolved.exists():
+        _fail(f"{options.context} field {field_name} path does not exist: {resolved}")
+    return resolved
+
+
+def _optional_float(
+    item: dict[str, Any],
+    field_name: str,
+    options: _FloatFieldOptions,
+) -> float:
+    """Return an optional bounded float field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Configuration table.
+    field_name : str
+        Field to read.
+    options : _FloatFieldOptions
+        Validation options.
+
+    Returns
+    -------
+    float
+        Validated float value.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not numeric or is outside the accepted range.
+    """
+
+    value = item.get(field_name, options.default)
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        _fail(f"{options.context} field {field_name} must be a number")
+    rendered = float(value)
+    if rendered < options.minimum or rendered > options.maximum:
+        _fail(
+            f"{options.context} field {field_name} must be between "
+            f"{options.minimum} and {options.maximum}"
+        )
+    return rendered
+
+
+def _optional_positive_int(
+    item: dict[str, Any],
+    field_name: str,
+    *,
+    context: str,
+    default: int,
+) -> int:
+    """Return an optional positive integer field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Configuration table.
+    field_name : str
+        Field to read.
+    context : str
+        Diagnostic context.
+    default : int
+        Default value when the field is omitted.
+
+    Returns
+    -------
+    int
+        Validated positive integer.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not a positive integer.
+    """
+
+    value = item.get(field_name, default)
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        _fail(f"{context} field {field_name} must be a positive integer")
+    return cast("int", value)
+
+
+def _load_search_dictionary(path: Path | None, *, context: str) -> SearchDictionary:
+    """Load an optional search dictionary TOML file.
+
+    Parameters
+    ----------
+    path : pathlib.Path | None
+        Dictionary path.
+    context : str
+        Diagnostic context.
+
+    Returns
+    -------
+    SearchDictionary
+        Parsed dictionary content.
+
+    Raises
+    ------
+    ConfigError
+        If the file is malformed.
+    """
+
+    if path is None:
+        return SearchDictionary()
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        message = f"invalid TOML in {path}: {exc}"
+        raise ConfigError(message) from exc
+    terms = _parse_dictionary_section(data.get("terms", {}), context=f"{context}.terms")
+    months = _parse_dictionary_section(
+        data.get("months", {}), context=f"{context}.months"
+    )
+    unknown = sorted(set(data) - {"terms", "months"})
+    if unknown:
+        _fail(f"{context} dictionary unknown sections: {', '.join(unknown)}")
+    return SearchDictionary(terms=terms, months=months)
+
+
+def _parse_dictionary_section(
+    value: Any, *, context: str
+) -> dict[str, tuple[str, ...]]:
+    """Parse one search dictionary section.
+
+    Parameters
+    ----------
+    value : Any
+        Raw section value.
+    context : str
+        Diagnostic context.
+
+    Returns
+    -------
+    dict[str, tuple[str, ...]]
+        Validated dictionary section.
+
+    Raises
+    ------
+    ConfigError
+        If the section is malformed.
+    """
+
+    if not isinstance(value, dict):
+        _fail(f"{context} must be a table")
+    parsed: dict[str, tuple[str, ...]] = {}
+    for key, raw_values in value.items():
+        if not isinstance(key, str) or not key.strip():
+            _fail(f"{context} keys must be non-empty strings")
+        if not isinstance(raw_values, list) or not raw_values:
+            _fail(f"{context}.{key} must be a non-empty list of strings")
+        values = []
+        for raw_value in raw_values:
+            if not isinstance(raw_value, str) or not raw_value.strip():
+                _fail(f"{context}.{key} must contain only non-empty strings")
+            values.append(raw_value.strip())
+        parsed[key.strip()] = tuple(values)
+    return parsed
 
 
 def _require_string(item: dict[str, Any], field: str, *, index: int) -> str:

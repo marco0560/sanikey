@@ -286,6 +286,17 @@ Il frontend e' pensato per la consultazione diretta dalla chiavetta USB. I dati
 necessari alla prima schermata sono esportati anche in `web/data.js`, caricato
 come script locale, così Chrome e gli altri browser non devono usare `fetch()`
 su URL `file://`.
+La ricerca rapida nella tab `Documenti` cerca in titolo, data, categoria,
+percorso, tag e tipo file. La tab `Ricerca avanzata` carica al primo uso
+`web/content-search.js` e cerca anche nel testo estratto da PDF, immagini OCR,
+documenti Office e file testuali. I risultati avanzati mostrano un estratto del
+testo trovato e mantengono il link `Apri originale` quando il documento sorgente
+è esportato sulla chiavetta.
+
+La sintassi della ricerca avanzata è case-insensitive e accent-insensitive.
+Supporta parole, frasi tra virgolette, `AND`, `OR`, `NOT` e parentesi. Parole
+adiacenti equivalgono a `AND`, quindi `creatinina 2024` è equivalente a
+`creatinina AND 2024`.
 
 ### Personalizzare la Consultazione
 
@@ -302,6 +313,12 @@ default_tab = "documents"
 timeline_order = "desc"
 document_link_mode = "usb-relative"
 subtitle = "Archivio sanitario personale"
+background_image = "config/assets/background.png"
+background_opacity = 0.10
+
+[global.search]
+dictionary = "config/search-dictionary.toml"
+advanced_index_warning_mb = 25
 
 [[person]]
 id = "patient-a"
@@ -319,11 +336,35 @@ subtitle = "Archivio Patient A"
 I valori ammessi sono:
 
 - `density`: `compact`, `comfortable`;
-- `default_tab`: `documents`, `timeline`, `summary`;
+- `default_tab`: `documents`, `advanced`, `timeline`, `summary`;
 - `timeline_order`: `desc`, `asc`;
 - `document_link_mode`: `usb-relative`;
 - `accent_color`: colore esadecimale `#rrggbb`;
-- `subtitle`: testo libero breve.
+- `subtitle`: testo libero breve;
+- `background_image`: immagine opzionale copiata in `web/assets/` durante la
+  build;
+- `background_opacity`: numero tra `0` e `1`, da mantenere basso per non
+  compromettere leggibilità;
+- `dictionary`: TOML opzionale per sinonimi e normalizzazioni della ricerca
+  avanzata;
+- `advanced_index_warning_mb`: soglia oltre la quale la build segnala che
+  `content-search.js` è grande, senza bloccare l'export.
+
+Il dizionario di ricerca contiene sezioni chiuse:
+
+```toml
+[terms]
+rx = ["radiografia", "raggi x"]
+rmn = ["risonanza magnetica", "rm"]
+tac = ["tc", "tomografia"]
+
+[months]
+gennaio = ["01", "1"]
+febbraio = ["02", "2"]
+```
+
+Le espansioni sono simmetriche: cercare `rx` trova anche `radiografia`, e
+cercare `radiografia` trova anche `rx`.
 
 ## Revisionare le Proposte
 

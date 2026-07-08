@@ -189,12 +189,6 @@ def build_patient(
         for warning in inspection.warning_messages
         if "manual DICOM expansion directory not found" not in warning
     )
-    warning_messages = (
-        *inspection_warnings,
-        *static_document_warning_messages(staging.documents),
-        *extraction_warning_messages(extraction_documents, extracted),
-    )
-    warnings = len(warning_messages)
     counts = BuildCounts(
         documents=len(inspection.documents),
         derived_documents=len(staging.documents),
@@ -206,6 +200,14 @@ def build_patient(
         cached_documents=extracted_result.cached,
     )
     db_result = build_database(person, documents, metadata, dicom_studies, extracted)
+    export_result = generate_exports(person, documents, metadata, extracted)
+    warning_messages = (
+        *inspection_warnings,
+        *static_document_warning_messages(staging.documents),
+        *extraction_warning_messages(extraction_documents, extracted),
+        *export_result.warning_messages,
+    )
+    warnings = len(warning_messages)
     manifest_path = _write_manifest(
         person,
         build_root=build_root,
@@ -220,7 +222,6 @@ def build_patient(
         duplicates=len(inspection.duplicates),
         warning_messages=warning_messages,
     )
-    generate_exports(person, documents, metadata)
     build_frontend(person)
     checksums_path = _write_checksums(build_root)
     return PatientBuildResult(

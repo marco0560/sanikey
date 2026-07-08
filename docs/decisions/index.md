@@ -6,3 +6,4 @@ Le decisioni architetturali iniziali sono raccolte in
 Decisioni successive:
 
 - [Frontend di consultazione offline](adr-frontend-consultation-ui.md)
+- [Ricerca avanzata offline](adr-advanced-offline-search.md)

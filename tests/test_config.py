@@ -121,6 +121,69 @@ subtitle = "Archivio Patient A"
     assert config.people[0].ui.subtitle == "Archivio Patient A"
 
 
+def test_load_accounts_parses_search_and_background_config(
+    tmp_path: Path,
+) -> None:
+    """Verify advanced search and background UI configuration are validated.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    dictionary = tmp_path / "dictionary.toml"
+    dictionary.write_text(
+        """
+[terms]
+rx = ["radiografia", "raggi x"]
+
+[months]
+gennaio = ["01", "1"]
+""",
+        encoding="utf-8",
+    )
+    background = tmp_path / "background.png"
+    background.write_bytes(b"synthetic")
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[global.search]
+dictionary = "{dictionary}"
+advanced_index_warning_mb = 2
+
+[global.ui]
+background_image = "{background}"
+background_opacity = 0.2
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+
+    config = load_accounts(config_path)
+
+    assert config.search.dictionary == dictionary
+    assert config.search.dictionary_data.terms["rx"] == ("radiografia", "raggi x")
+    assert config.search.dictionary_data.months["gennaio"] == ("01", "1")
+    assert config.people[0].search.advanced_index_warning_mb == 2
+    assert config.people[0].ui.background_image == background
+    assert config.people[0].ui.background_opacity == 0.2
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
@@ -129,6 +192,7 @@ subtitle = "Archivio Patient A"
         ("default_tab", '"search"', "must be one of"),
         ("timeline_order", '"newest"', "must be one of"),
         ("document_link_mode", '"absolute"', "must be one of"),
+        ("background_opacity", "1.5", "must be between"),
     ],
 )
 def test_load_accounts_rejects_invalid_ui_values(

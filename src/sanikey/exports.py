@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .config import PersonConfig
+    from .documents import ExtractedText
     from .models import CuratedMetadata, DocumentRecord, Medication, TherapyEpisode
 
 
@@ -34,6 +35,10 @@ class ExportResult:
         Summary JSON path.
     data_script : pathlib.Path
         Frontend data JavaScript path for ``file://`` loading.
+    content_search_script : pathlib.Path
+        Advanced search data JavaScript path for ``file://`` loading.
+    warning_messages : tuple[str, ...]
+        Export warnings.
     """
 
     data_dir: Path
@@ -42,12 +47,15 @@ class ExportResult:
     timeline: Path
     summary: Path
     data_script: Path
+    content_search_script: Path
+    warning_messages: tuple[str, ...] = ()
 
 
 def generate_exports(
     person: PersonConfig,
     documents: tuple[DocumentRecord, ...],
     metadata: CuratedMetadata,
+    extracted_text: tuple[ExtractedText, ...] = (),
 ) -> ExportResult:
     """Generate static JSON exports for one patient.
 
@@ -59,6 +67,8 @@ def generate_exports(
         Document records.
     metadata : CuratedMetadata
         Curated metadata.
+    extracted_text : tuple[ExtractedText, ...], optional
+        Extracted/OCR text records used by advanced frontend search.
 
     Returns
     -------
@@ -68,9 +78,9 @@ def generate_exports(
 
     data_dir = person.local_build / "web" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
+    ordered_documents = _ordered_documents(documents)
     documents_payload = [
-        _document_payload(person, document, metadata)
-        for document in _ordered_documents(documents)
+        _document_payload(person, document, metadata) for document in ordered_documents
     ]
     search_payload = [
         *(_document_search_payload(document, metadata) for document in documents),
@@ -85,7 +95,7 @@ def generate_exports(
     summary_payload = {
         "patient_id": person.id,
         "display_name": person.display_name,
-        "ui": asdict(person.ui),
+        "ui": _ui_payload(person),
         "document_count": len(documents),
         "problem_count": len(metadata.problems),
         "therapy_count": len(metadata.therapies),
@@ -119,6 +129,20 @@ def generate_exports(
             "summary": summary_payload,
         },
     )
+    content_search_payload = _content_search_payload(
+        person,
+        ordered_documents,
+        metadata,
+        extracted_text,
+    )
+    content_search_script = _write_content_search_script(
+        person.local_build / "web" / "content-search.js",
+        content_search_payload,
+    )
+    warning_messages = _content_search_warning_messages(
+        person,
+        content_search_script,
+    )
     _write_json(
         person.local_build / "search" / "search.json",
         json.loads(search_path.read_text(encoding="utf-8")),
@@ -134,7 +158,40 @@ def generate_exports(
         timeline=timeline_path,
         summary=summary_path,
         data_script=data_script_path,
+        content_search_script=content_search_script,
+        warning_messages=warning_messages,
     )
+
+
+def _ui_payload(person: PersonConfig) -> dict[str, Any]:
+    """Build the frontend-safe UI configuration payload.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable UI configuration.
+    """
+
+    background_href = None
+    if person.ui.background_image is not None:
+        background_href = (
+            f"assets/background{person.ui.background_image.suffix.lower()}"
+        )
+    return {
+        "accent_color": person.ui.accent_color,
+        "density": person.ui.density,
+        "default_tab": person.ui.default_tab,
+        "timeline_order": person.ui.timeline_order,
+        "document_link_mode": person.ui.document_link_mode,
+        "subtitle": person.ui.subtitle,
+        "background_image": background_href,
+        "background_opacity": person.ui.background_opacity,
+    }
 
 
 def _write_data_script(target: Path, payload: dict[str, Any]) -> Path:
@@ -160,6 +217,153 @@ def _write_data_script(target: Path, payload: dict[str, Any]) -> Path:
         encoding="utf-8",
     )
     return target
+
+
+def _write_content_search_script(target: Path, payload: dict[str, Any]) -> Path:
+    """Write advanced search data as JavaScript for direct ``file://`` loading.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        JavaScript output path.
+    payload : dict[str, Any]
+        Advanced search payload.
+
+    Returns
+    -------
+    pathlib.Path
+        Written JavaScript path.
+    """
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    target.write_text(
+        f"window.SANIKEY_CONTENT_SEARCH = {encoded};\n",
+        encoding="utf-8",
+    )
+    return target
+
+
+def _content_search_payload(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+    metadata: CuratedMetadata,
+    extracted_text: tuple[ExtractedText, ...],
+) -> dict[str, Any]:
+    """Build the advanced offline search payload.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    documents : tuple[DocumentRecord, ...]
+        Ordered document records.
+    metadata : CuratedMetadata
+        Curated metadata.
+    extracted_text : tuple[ExtractedText, ...]
+        Extracted/OCR text records.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable advanced search payload.
+    """
+
+    text_by_document = {
+        item.document_id: item.text for item in extracted_text if item.text
+    }
+    return {
+        "schema_version": 1,
+        "dictionary": _search_dictionary_payload(person),
+        "documents": [
+            _content_search_document_payload(
+                person, document, metadata, text_by_document
+            )
+            for document in documents
+            if document.document_id in text_by_document
+        ],
+    }
+
+
+def _search_dictionary_payload(person: PersonConfig) -> dict[str, Any]:
+    """Build the frontend search dictionary payload.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable dictionary payload.
+    """
+
+    dictionary = person.search.dictionary_data
+    return {
+        "terms": {key: list(values) for key, values in dictionary.terms.items()},
+        "months": {key: list(values) for key, values in dictionary.months.items()},
+    }
+
+
+def _content_search_document_payload(
+    person: PersonConfig,
+    document: DocumentRecord,
+    metadata: CuratedMetadata,
+    text: dict[str, str],
+) -> dict[str, Any]:
+    """Build one advanced-search document payload.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    document : DocumentRecord
+        Document record.
+    metadata : CuratedMetadata
+        Curated metadata.
+    text : dict[str, str]
+        Extracted text keyed by document id.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable document search payload.
+    """
+
+    return {
+        **_document_payload(person, document, metadata),
+        "text": text[document.document_id],
+    }
+
+
+def _content_search_warning_messages(
+    person: PersonConfig,
+    content_search_script: Path,
+) -> tuple[str, ...]:
+    """Return content-search export warnings.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    content_search_script : pathlib.Path
+        Generated advanced search script.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Warning messages.
+    """
+
+    size_mb = content_search_script.stat().st_size / (1024 * 1024)
+    threshold = person.search.advanced_index_warning_mb
+    if size_mb <= threshold:
+        return ()
+    return (
+        "advanced search index is large: "
+        f"{size_mb:.1f} MiB exceeds configured warning threshold {threshold} MiB",
+    )
 
 
 def _document_payload(

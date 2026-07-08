@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from sanikey.config import PersonConfig, UiConfig
-from sanikey.documents import scan_documents
+from sanikey.config import PersonConfig, SearchConfig, SearchDictionary, UiConfig
+from sanikey.documents import ExtractedText, scan_documents
 from sanikey.exports import generate_exports
 from sanikey.metadata import load_curated_metadata
 from sanikey.proposals import generate_manual_proposals
@@ -101,6 +101,12 @@ links = ["therapy-a"]
         person,
         scan_documents(person),
         load_curated_metadata(person.metadata_directory),
+        (
+            ExtractedText(
+                document_id=scan_documents(person)[0].document_id,
+                text="Creatinina nel testo OCR",
+            ),
+        ),
     )
 
     documents = json.loads(result.documents.read_text(encoding="utf-8"))
@@ -108,6 +114,7 @@ links = ["therapy-a"]
     timeline = json.loads(result.timeline.read_text(encoding="utf-8"))
     summary = json.loads(result.summary.read_text(encoding="utf-8"))
     data_script = result.data_script.read_text(encoding="utf-8")
+    content_search_script = result.content_search_script.read_text(encoding="utf-8")
     document_by_title = {item["title"]: item for item in documents}
     assert [item["title"] for item in documents] == ["Summary", "Report"]
     assert document_by_title["Report"]["tags"] == ["report"]
@@ -138,6 +145,66 @@ links = ["therapy-a"]
     assert '"documents":' in data_script
     assert '"summary":' in data_script
     assert "/home/" not in data_script
+    assert content_search_script.startswith("window.SANIKEY_CONTENT_SEARCH = ")
+    assert "Creatinina nel testo OCR" in content_search_script
+    assert "../documents/" in content_search_script
+    assert "/home/" not in content_search_script
+
+
+def test_generate_exports_writes_advanced_search_dictionary_and_warning(
+    tmp_path: Path,
+) -> None:
+    """Verify advanced search export includes dictionary data and size warnings.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    base = _person(tmp_path)
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        search=SearchConfig(
+            dictionary_data=SearchDictionary(
+                terms={"rx": ("radiografia",)},
+                months={"marzo": ("03", "3")},
+            ),
+            advanced_index_warning_mb=1,
+        ),
+    )
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    document = scan_documents(person)[0]
+
+    result = generate_exports(
+        person,
+        (document,),
+        load_curated_metadata(person.metadata_directory),
+        (
+            ExtractedText(
+                document_id=document.document_id,
+                text="Creatinina e radiografia torace",
+            ),
+        ),
+    )
+
+    payload_text = result.content_search_script.read_text(encoding="utf-8")
+    assert '"rx": ["radiografia"]' in payload_text
+    assert '"marzo": ["03", "3"]' in payload_text
+    assert result.warning_messages == ()
 
 
 def test_generate_exports_excludes_unapproved_proposals(tmp_path: Path) -> None:

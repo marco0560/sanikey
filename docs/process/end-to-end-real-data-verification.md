@@ -427,8 +427,10 @@ Interrogare anche il target USB locale simulato, non solo `local-data/generated`
 test -f local-data/usb-target/SANIKEY-MANIFEST.json
 test -f local-data/usb-target/patients/marco/medical_archive.db
 test -f local-data/usb-target/patients/marco/web/data.js
+test -f local-data/usb-target/patients/marco/web/content-search.js
 test -f local-data/usb-target/patients/irene/medical_archive.db
 test -f local-data/usb-target/patients/irene/web/data.js
+test -f local-data/usb-target/patients/irene/web/content-search.js
 sqlite3 local-data/usb-target/patients/marco/medical_archive.db 'SELECT count(*) FROM documents;'
 sqlite3 local-data/usb-target/patients/irene/medical_archive.db 'SELECT count(*) FROM documents;'
 ```
@@ -476,8 +478,10 @@ test -f "$USB_MOUNT/START-HERE-Marco-Coppola.html"
 test -f "$USB_MOUNT/START-HERE-Irene-Corazzesi.html"
 test -f "$USB_MOUNT/patients/marco/medical_archive.db"
 test -f "$USB_MOUNT/patients/marco/web/data.js"
+test -f "$USB_MOUNT/patients/marco/web/content-search.js"
 test -f "$USB_MOUNT/patients/irene/medical_archive.db"
 test -f "$USB_MOUNT/patients/irene/web/data.js"
+test -f "$USB_MOUNT/patients/irene/web/content-search.js"
 sqlite3 "$USB_MOUNT/patients/marco/medical_archive.db" 'SELECT count(*) FROM documents;'
 sqlite3 "$USB_MOUNT/patients/irene/medical_archive.db" 'SELECT count(*) FROM documents;'
 xdg-open "$USB_MOUNT/START-HERE-Marco-Coppola.html"
@@ -492,6 +496,10 @@ Verificare anche il comportamento della UI di consultazione:
 
 - la pagina mostra il paziente corretto e l'eventuale sottotitolo configurato;
 - la ricerca porta immediatamente ai risultati documentali;
+- la tab `Ricerca avanzata` permette una query su testo estratto/OCR, per
+  esempio un valore di laboratorio realmente presente come `Creatinina`;
+- una query booleana reale, per esempio `creatinina AND (2024 OR 2025) NOT urine`,
+  mostra risultati comprensibili o un messaggio di sintassi leggibile;
 - la timeline e' consultabile in ordine cronologico inverso salvo diversa
   configurazione;
 - su schermo largo i risultati e la timeline non si coprono;
@@ -504,6 +512,7 @@ path sorgente assoluti:
 
 ```bash
 ! rg '/home/|file://' "$USB_MOUNT"/patients/*/web/data.js
+! rg '/home/|file://' "$USB_MOUNT"/patients/*/web/content-search.js
 ```
 
 Verificare anche che almeno un link `Apri originale` risolva realmente a un
@@ -547,6 +556,7 @@ test -f local-data/generated/marco/web/data/documents.json
 test -f local-data/generated/marco/web/data/search.json
 test -f local-data/generated/marco/web/data/timeline.json
 test -f local-data/generated/marco/web/data.js
+test -f local-data/generated/marco/web/content-search.js
 test -f local-data/generated/marco/checksums.sha256
 test -f local-data/generated/irene/database/medical_archive.db
 test -f local-data/generated/irene/web/index.html
@@ -554,6 +564,7 @@ test -f local-data/generated/irene/web/data/documents.json
 test -f local-data/generated/irene/web/data/search.json
 test -f local-data/generated/irene/web/data/timeline.json
 test -f local-data/generated/irene/web/data.js
+test -f local-data/generated/irene/web/content-search.js
 test -f local-data/generated/irene/checksums.sha256
 test -f exports/usb-image/SANIKEY-MANIFEST.json
 test -f local-data/usb-target/SANIKEY-MANIFEST.json
@@ -604,12 +615,34 @@ Controllare manualmente che:
 - `documents.json` contenga i documenti attesi, le categorie derivate dalle
   directory e i tag curati;
 - `search.json` contenga sia documenti sia metadati curati;
+- `content-search.js` contenga il payload `SANIKEY_CONTENT_SEARCH` con documenti
+  dotati di testo estratto quando l'estrazione/OCR e' riuscita;
 - `timeline.json` contenga eventi datati e terapie come intervalli, se i dati
   curati li includono;
 - `summary.json` contenga `clinical_summary_html` quando
   `clinical_summary.toml` usa `summary`;
 - i documenti `.md` in `documents.json` contengano `markdown_html`;
 - proposte AI non approvate non compaiano negli export standard.
+
+Verificare che il payload avanzato sia JSON valido all'interno dello script
+locale:
+
+```bash
+python - <<'PY'
+import json
+import re
+from pathlib import Path
+
+for patient in ("marco", "irene"):
+    script = Path("local-data/generated") / patient / "web" / "content-search.js"
+    payload = script.read_text(encoding="utf-8")
+    match = re.fullmatch(r"window[.]SANIKEY_CONTENT_SEARCH = (.*);\n", payload, re.S)
+    if match is None:
+        raise SystemExit(f"{script} non contiene SANIKEY_CONTENT_SEARCH")
+    data = json.loads(match.group(1))
+    print(patient, "advanced_documents", len(data["documents"]))
+PY
+```
 
 Verificare il rendering Markdown senza esporre HTML grezzo:
 
