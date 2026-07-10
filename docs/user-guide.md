@@ -74,23 +74,144 @@ local_build = "local-data/generated/marco"
 usb_uuid = "MANUAL-TEST-USB"
 ```
 
-Le opzioni globali principali sono:
+### Sintassi completa di `accounts.toml`
 
-- `[global.ui]`: colore, densita', tab iniziale, ordine timeline, sottotitolo e
-  immagine di sfondo opzionale. Il file di sfondo viene copiato nel frontend
-  generato; `background_opacity` controlla la trasparenza.
-- `[global.search]`: dizionario TOML di sinonimi e conversioni usato dalla
-  ricerca avanzata. Il file contiene sezioni `[terms]` e `[months]`, per
-  esempio `rx = ["radiografia", "raggi x"]`.
-- `[global.ingestion]`: pattern glob esclusi prima di hashing, staging e
-  indicizzazione. I pattern sorgente sono relativi a `source_documents`; dentro
-  i container sono relativi alla root estratta del container.
-- `[global.usb]`: controlli per export fisico, inclusi UUID filesystem reale,
-  richiesta exFAT, spazio libero minimo e strategia copia.
+`accounts.toml` usa solo sezioni e campi chiusi: un campo non elencato qui viene
+rifiutato da `validate-config`.
 
-Ogni `[[person]]` puo' aggiungere override `[person.ui]`, `[person.search]` e
-`[person.ingestion]`. I pattern di ingestion per paziente si sommano a quelli
-globali.
+#### `[global]`
+
+| Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
+| --- | --- | --- | --- | --- |
+| `config_version` | intero | si | nessuno | `1` |
+
+#### `[global.ui]` e `[person.ui]`
+
+`[global.ui]` definisce i default per tutti i pazienti. `[person.ui]`, scritto
+dopo una specifica voce `[[person]]`, sovrascrive solo i campi indicati per
+quel paziente.
+
+| Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
+| --- | --- | --- | --- | --- |
+| `accent_color` | stringa | no | `"#2563eb"` | colore esadecimale `#rrggbb` |
+| `density` | stringa | no | `"comfortable"` | `"compact"`, `"comfortable"` |
+| `default_tab` | stringa | no | `"documents"` | `"documents"`, `"advanced"`, `"timeline"`, `"summary"` |
+| `timeline_order` | stringa | no | `"desc"` | `"desc"`, `"asc"` |
+| `document_link_mode` | stringa | no | `"usb-relative"` | `"usb-relative"` |
+| `subtitle` | stringa | no | `"Archivio sanitario personale"` | testo fino a 120 caratteri |
+| `background_image` | stringa path | no | assente | file esistente, relativo alla root repo o assoluto |
+| `background_opacity` | numero | no | `0.1` | da `0.0` a `1.0` |
+
+Esempio:
+
+```toml
+[global.ui]
+accent_color = "#1d4ed8"
+density = "compact"
+default_tab = "documents"
+timeline_order = "desc"
+document_link_mode = "usb-relative"
+subtitle = "Archivio sanitario personale"
+background_image = "config/assets/background.png"
+background_opacity = 0.10
+
+[[person]]
+id = "marco"
+# ...
+
+[person.ui]
+default_tab = "timeline"
+subtitle = "Archivio Marco"
+```
+
+#### `[global.search]` e `[person.search]`
+
+`[person.search]` sovrascrive i campi indicati per il singolo paziente. Se
+`dictionary` cambia, viene caricato il nuovo file TOML.
+
+| Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
+| --- | --- | --- | --- | --- |
+| `dictionary` | stringa path | no | assente | file TOML esistente |
+| `advanced_index_warning_mb` | intero | no | `25` | intero positivo |
+
+Il file indicato da `dictionary` ha solo due sezioni ammesse, entrambe
+opzionali. Le chiavi sono stringhe TOML; i valori sono liste non vuote di
+stringhe non vuote.
+
+```toml
+[terms]
+rx = ["radiografia", "raggi x"]
+rmn = ["risonanza magnetica", "rm"]
+tac = ["tc", "tomografia"]
+
+[months]
+gennaio = ["01", "1"]
+febbraio = ["02", "2"]
+```
+
+#### `[global.ingestion]` e `[person.ingestion]`
+
+I pattern di `[person.ingestion]` si sommano a quelli globali; non li
+sostituiscono. I pattern sorgente sono relativi a `source_documents`; dentro un
+container sono relativi alla root estratta del container. Ogni pattern viene
+confrontato sia con il path relativo sia con il solo nome file.
+
+| Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
+| --- | --- | --- | --- | --- |
+| `exclude_patterns` | lista di stringhe | no | `[]` | glob non vuoti, per esempio `"**/Help/**"` o `"*.tmp"` |
+
+Esempio:
+
+```toml
+[global.ingestion]
+exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
+
+[[person]]
+id = "irene"
+# ...
+
+[person.ingestion]
+exclude_patterns = ["**/documentazione-non-clinica/**"]
+```
+
+#### `[global.usb]`
+
+Questa sezione regola l'export verso target fisici. I target locali simulati
+restano supportati; i controlli UUID/fstype sono applicati ai mount fisici o
+quando il campo globale lo richiede.
+
+| Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
+| --- | --- | --- | --- | --- |
+| `required_filesystem_uuid` | stringa o assente | no | assente | UUID filesystem reale, per esempio `"757F-7873"` |
+| `require_exfat` | booleano | no | `false` | `true`, `false` |
+| `min_free_space_mb` | intero | no | `256` | intero positivo |
+| `copy_strategy` | stringa | no | `"rsync-preferred"` | `"rsync-preferred"`, `"python"` |
+
+Esempio:
+
+```toml
+[global.usb]
+required_filesystem_uuid = "757F-7873"
+require_exfat = true
+min_free_space_mb = 512
+copy_strategy = "rsync-preferred"
+```
+
+Se `required_filesystem_uuid` non e' impostato, i pazienti abilitati devono
+avere lo stesso `usb_uuid`; quel valore viene usato come UUID atteso quando il
+target sembra una chiavetta fisica montata sotto `/run/media` o `/media`.
+
+#### `[[person]]`
+
+| Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
+| --- | --- | --- | --- | --- |
+| `id` | stringa | si | nessuno | minuscole, numeri e trattini, per esempio `"patient-a"` |
+| `display_name` | stringa | si | nessuno | stringa non vuota |
+| `source_documents` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
+| `metadata_directory` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
+| `local_build` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
+| `usb_uuid` | stringa | si | nessuno | UUID filesystem o identificativo coerente con `[global.usb]` |
+| `enabled` | booleano | no | `true` | `true`, `false` |
 
 I percorsi dentro `local-data/` sono accettati perché la directory è ignorata da
 Git. Percorsi dentro directory versionate del repository, per esempio `docs/` o

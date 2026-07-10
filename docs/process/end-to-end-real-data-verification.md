@@ -91,16 +91,41 @@ local_build = "local-data/generated/irene"
 usb_uuid = "MANUAL-TEST-USB"
 ```
 
-Le nuove sezioni configurabili da verificare sono:
+Prima di continuare, confrontare `config/accounts.toml` con la sintassi completa
+descritta nella sezione “Sintassi completa di `accounts.toml`” della user guide.
+In particolare verificare questi campi, perché influenzano direttamente la
+prova end-to-end:
 
-- `[global.search]`: file dizionario con sezioni `[terms]` e `[months]` per
-  sinonimi e conversioni usate dalla ricerca avanzata.
-- `[global.ui]`: personalizzazione frontend, inclusi sfondo opzionale e
-  opacita'.
-- `[global.ingestion]` e `[person.ingestion]`: pattern glob di esclusione,
-  globali e aggiuntivi per paziente.
-- `[global.usb]`: UUID filesystem reale, richiesta exFAT, spazio libero minimo
-  e strategia di copia.
+| Sezione | Campo | Sintassi attesa | Valore da verificare nella prova |
+| --- | --- | --- | --- |
+| `[global]` | `config_version` | intero | `1` |
+| `[global.ui]` | `background_image` | stringa path a file esistente | assente oppure path privato non versionato |
+| `[global.ui]` | `background_opacity` | numero `0.0`-`1.0` | valore basso, per esempio `0.10` |
+| `[global.search]` | `dictionary` | stringa path a TOML esistente | file privato con sezioni `[terms]` e/o `[months]` |
+| `[global.search]` | `advanced_index_warning_mb` | intero positivo | soglia coerente con il dataset reale |
+| `[global.ingestion]` | `exclude_patterns` | lista di stringhe glob | esclusioni tecniche comuni, per esempio `["**/Help/**"]` |
+| `[person.ingestion]` | `exclude_patterns` | lista di stringhe glob | esclusioni aggiuntive del singolo paziente |
+| `[global.usb]` | `required_filesystem_uuid` | stringa UUID o assente | UUID reale mostrato da `lsblk -f` per la chiavetta fisica |
+| `[global.usb]` | `require_exfat` | booleano | `true` per la prova fisica exFAT |
+| `[global.usb]` | `min_free_space_mb` | intero positivo | margine, per esempio `512` |
+| `[global.usb]` | `copy_strategy` | stringa | `"rsync-preferred"` oppure `"python"` |
+| `[[person]]` | `enabled` | booleano opzionale | assente o `true` per i pazienti inclusi |
+
+Il file dizionario indicato da `[global.search].dictionary` deve avere questa
+forma:
+
+```toml
+[terms]
+rx = ["radiografia", "raggi x"]
+tac = ["tc", "tomografia"]
+
+[months]
+gennaio = ["01", "1"]
+febbraio = ["02", "2"]
+```
+
+`validate-config` deve fallire se trova campi non documentati, valori fuori set
+chiuso, path richiesti inesistenti o tipi TOML errati.
 
 Verificare che Git non veda dati privati:
 
