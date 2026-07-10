@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 import sanikey.containers as containers_module
-from sanikey.config import PersonConfig
+from sanikey.config import IngestionConfig, PersonConfig
 from sanikey.containers import (
     _extract_container,
     _extract_with_7z,
@@ -152,6 +152,51 @@ def test_stage_container_documents_skips_zip_directories(tmp_path: Path) -> None
     assert [document.internal_path for document in result.documents] == [
         "folder/inner.txt"
     ]
+
+
+def test_stage_container_documents_applies_case_insensitive_exclusions(
+    tmp_path: Path,
+) -> None:
+    """Verify container member exclusion patterns ignore casing.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    base = _person(tmp_path)
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        ingestion=IngestionConfig(exclude_patterns=("**/Help/**",)),
+    )
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Archive.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("help/manual.txt", "exclude")
+        archive.writestr("Clinical/report.txt", "include")
+
+    result = stage_container_documents(
+        person,
+        (_document(path, person.source_documents),),
+    )
+
+    assert [document.internal_path for document in result.documents] == [
+        "Clinical/report.txt"
+    ]
+    assert {member.internal_path for member in result.members} == {
+        "Clinical/report.txt",
+        "help/manual.txt",
+    }
 
 
 def test_stage_container_documents_filters_technical_members(

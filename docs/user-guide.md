@@ -154,7 +154,13 @@ febbraio = ["02", "2"]
 I pattern di `[person.ingestion]` si sommano a quelli globali; non li
 sostituiscono. I pattern sorgente sono relativi a `source_documents`; dentro un
 container sono relativi alla root estratta del container. Ogni pattern viene
-confrontato sia con il path relativo sia con il solo nome file.
+confrontato sia con il path relativo sia con il solo nome file. Il confronto e'
+case-insensitive, quindi `"**/Help/**"` esclude anche `help`, `HELP` o
+combinazioni miste.
+
+In TOML la chiave `exclude_patterns` puo' comparire una sola volta nella stessa
+tabella. Per indicare piu' esclusioni bisogna usare una lista nello stesso
+campo.
 
 | Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
 | --- | --- | --- | --- | --- |

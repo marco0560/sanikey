@@ -103,8 +103,8 @@ prova end-to-end:
 | `[global.ui]` | `background_opacity` | numero `0.0`-`1.0` | valore basso, per esempio `0.10` |
 | `[global.search]` | `dictionary` | stringa path a TOML esistente | file privato con sezioni `[terms]` e/o `[months]` |
 | `[global.search]` | `advanced_index_warning_mb` | intero positivo | soglia coerente con il dataset reale |
-| `[global.ingestion]` | `exclude_patterns` | lista di stringhe glob | esclusioni tecniche comuni, per esempio `["**/Help/**"]` |
-| `[person.ingestion]` | `exclude_patterns` | lista di stringhe glob | esclusioni aggiuntive del singolo paziente |
+| `[global.ingestion]` | `exclude_patterns` | una sola lista di stringhe glob, case-insensitive | esclusioni tecniche comuni, per esempio `["**/Help/**"]` |
+| `[person.ingestion]` | `exclude_patterns` | una sola lista di stringhe glob, case-insensitive | esclusioni aggiuntive del singolo paziente |
 | `[global.usb]` | `required_filesystem_uuid` | stringa UUID o assente | UUID reale mostrato da `lsblk -f` per la chiavetta fisica |
 | `[global.usb]` | `require_exfat` | booleano | `true` per la prova fisica exFAT |
 | `[global.usb]` | `min_free_space_mb` | intero positivo | margine, per esempio `512` |

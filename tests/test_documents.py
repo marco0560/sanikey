@@ -100,7 +100,7 @@ def test_scan_documents_applies_ingestion_exclusions(tmp_path: Path) -> None:
         "include",
         encoding="utf-8",
     )
-    help_dir = person.source_documents / "Viewer" / "Help"
+    help_dir = person.source_documents / "Viewer" / "help"
     help_dir.mkdir(parents=True)
     (help_dir / "manual.txt").write_text("exclude", encoding="utf-8")
     (person.source_documents / "scratch.tmp").write_text("exclude", encoding="utf-8")

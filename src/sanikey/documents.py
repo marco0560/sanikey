@@ -193,13 +193,16 @@ def _matches_exclusion(relative_path: str, patterns: tuple[str, ...]) -> bool:
     Returns
     -------
     bool
-        ``True`` when any pattern matches the path or filename.
+        ``True`` when any pattern matches the path or filename. Matching is
+        case-insensitive to tolerate inconsistent directory names from clinical
+        media.
     """
 
-    name = PurePath(relative_path).name
+    normalized_path = relative_path.casefold()
+    name = PurePath(normalized_path).name
     return any(
-        fnmatch.fnmatchcase(relative_path, pattern)
-        or fnmatch.fnmatchcase(name, pattern)
+        fnmatch.fnmatchcase(normalized_path, pattern.casefold())
+        or fnmatch.fnmatchcase(name, pattern.casefold())
         for pattern in patterns
     )
 
