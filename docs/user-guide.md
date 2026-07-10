@@ -56,6 +56,15 @@ Esempio locale:
 [global]
 config_version = 1
 
+[global.ingestion]
+exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
+
+[global.usb]
+required_filesystem_uuid = "MANUAL-TEST-USB"
+require_exfat = true
+min_free_space_mb = 512
+copy_strategy = "rsync-preferred"
+
 [[person]]
 id = "marco"
 display_name = "Marco Coppola"
@@ -64,6 +73,24 @@ metadata_directory = "local-data/marco/metadata"
 local_build = "local-data/generated/marco"
 usb_uuid = "MANUAL-TEST-USB"
 ```
+
+Le opzioni globali principali sono:
+
+- `[global.ui]`: colore, densita', tab iniziale, ordine timeline, sottotitolo e
+  immagine di sfondo opzionale. Il file di sfondo viene copiato nel frontend
+  generato; `background_opacity` controlla la trasparenza.
+- `[global.search]`: dizionario TOML di sinonimi e conversioni usato dalla
+  ricerca avanzata. Il file contiene sezioni `[terms]` e `[months]`, per
+  esempio `rx = ["radiografia", "raggi x"]`.
+- `[global.ingestion]`: pattern glob esclusi prima di hashing, staging e
+  indicizzazione. I pattern sorgente sono relativi a `source_documents`; dentro
+  i container sono relativi alla root estratta del container.
+- `[global.usb]`: controlli per export fisico, inclusi UUID filesystem reale,
+  richiesta exFAT, spazio libero minimo e strategia copia.
+
+Ogni `[[person]]` puo' aggiungere override `[person.ui]`, `[person.search]` e
+`[person.ingestion]`. I pattern di ingestion per paziente si sommano a quelli
+globali.
 
 I percorsi dentro `local-data/` sono accettati perché la directory è ignorata da
 Git. Percorsi dentro directory versionate del repository, per esempio `docs/` o
@@ -104,7 +131,9 @@ estrae anche i container supportati in
 `local_build/staging/containers/`, cosi' il contenuto degli archivi puo' essere
 verificato manualmente prima della build completa. Il riepilogo include
 `staged_containers=`, `staged_members=` e `derived_documents=` quando lo staging
-e' attivo. Prima della scansione viene ripetuto il controllo dei metadati curati
+e' attivo e `excluded=` quando pattern di ingestion hanno saltato file
+deliberatamente. I file esclusi non sono warning. Prima della scansione viene
+ripetuto il controllo dei metadati curati
 dei pazienti selezionati, cosi' un errore in `therapies.toml` blocca subito il
 comando invece di emergere dopo una build lunga.
 
@@ -198,6 +227,10 @@ con contenuto DICOM o file con magic bytes DICOM. Quando vengono estratti in
 staging, eventuali immagini disco `.iso` o `.img` annidate vengono espanse a
 loro volta. I file DICOM interni sono catalogati come DICOM e non passano
 dall'OCR o dall'estrazione testo ordinaria.
+Nel frontend non vengono mostrati i singoli file DICOM: la consultazione mostra
+schede aggregate per studio, con numero istanze, UID quando disponibile e link
+al supporto esportato se il supporto e' un documento sorgente copiato sulla
+chiavetta.
 Per le immagini disco SaniKey prova prima il comando `7z`; se il file è un ISO
 valido ma `7z` non riesce ad aprirlo, ritenta con `bsdtar` quando disponibile.
 Quando le istanze DICOM sono leggibili, SaniKey usa `pydicom` per raggrupparle
@@ -412,6 +445,12 @@ uv run sanikey export-usb --config config/accounts.toml /path/to/usb-root
 terminale e' interattivo. Le fasi principali sono generazione immagine,
 manifest/checksum e copia verso il target. Usare `--no-progress` per un output
 strettamente testuale o facilmente copiabile.
+Quando il target e' una chiavetta fisica montata sotto `/run/media` o `/media`,
+`export-usb` verifica l'UUID atteso se configurato, controlla exFAT quando
+`require_exfat = true`, controlla lo spazio libero e preferisce `rsync` quando
+`copy_strategy = "rsync-preferred"`. Se `rsync` non e' installato, usa la copia
+Python; se `rsync` parte e fallisce, il comando fallisce senza fallback
+silenzioso.
 
 Valida la struttura esportata:
 

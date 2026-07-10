@@ -65,6 +65,15 @@ mkdir -p config
 [global]
 config_version = 1
 
+[global.ingestion]
+exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
+
+[global.usb]
+required_filesystem_uuid = "MANUAL-TEST-USB"
+require_exfat = true
+min_free_space_mb = 512
+copy_strategy = "rsync-preferred"
+
 [[person]]
 id = "marco"
 display_name = "Marco Coppola"
@@ -81,6 +90,17 @@ metadata_directory = "local-data/irene/metadata"
 local_build = "local-data/generated/irene"
 usb_uuid = "MANUAL-TEST-USB"
 ```
+
+Le nuove sezioni configurabili da verificare sono:
+
+- `[global.search]`: file dizionario con sezioni `[terms]` e `[months]` per
+  sinonimi e conversioni usate dalla ricerca avanzata.
+- `[global.ui]`: personalizzazione frontend, inclusi sfondo opzionale e
+  opacita'.
+- `[global.ingestion]` e `[person.ingestion]`: pattern glob di esclusione,
+  globali e aggiuntivi per paziente.
+- `[global.usb]`: UUID filesystem reale, richiesta exFAT, spazio libero minimo
+  e strategia di copia.
 
 Verificare che Git non veda dati privati:
 
@@ -445,6 +465,22 @@ lsblk -f
 findmnt
 ```
 
+Se la chiavetta non e' ancora preparata, formattarla e assegnare label con
+comandi di sistema, dopo aver identificato con certezza la partizione corretta.
+Questi comandi sono distruttivi: sostituire `/dev/sdX1` solo dopo verifica con
+`lsblk -f`.
+
+```bash
+lsblk -f
+sudo mkfs.exfat -n SANIKEY /dev/sdX1
+sudo exfatlabel /dev/sdX1 SANIKEY
+sync
+```
+
+Smontare e rimontare la chiavetta, poi aggiornare
+`[global.usb].required_filesystem_uuid` con l'UUID reale mostrato da `lsblk -f`
+o `findmnt`.
+
 Impostare una variabile con il mountpoint reale. Esempio:
 
 ```bash
@@ -516,6 +552,8 @@ Verificare anche il comportamento della UI di consultazione:
 - su schermo stretto o riducendo la finestra sono presenti tab navigabili;
 - i link `Apri originale` puntano a file sotto la chiavetta e non a percorsi
   assoluti del computer di build.
+- gli studi DICOM appaiono come schede aggregate e non come migliaia di file
+  interni non cliccabili.
 
 Controllare automaticamente che il payload frontend della chiavetta non contenga
 path sorgente assoluti:

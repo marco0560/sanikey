@@ -10,7 +10,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from .documents import DocumentRecordOrigin, document_record_for_path
+from .documents import (
+    DocumentRecordOrigin,
+    _matches_exclusion,
+    document_record_for_path,
+)
 
 if TYPE_CHECKING:
     from .config import PersonConfig
@@ -211,7 +215,7 @@ def _stage_one_container(
     documents = tuple(
         document
         for document in extracted_documents
-        if _should_ingest_staged_document(document)
+        if _should_ingest_staged_document(person, document)
     )
     members = tuple(
         _member_record(container, document) for document in extracted_documents
@@ -224,11 +228,15 @@ def _stage_one_container(
     )
 
 
-def _should_ingest_staged_document(document: DocumentRecord) -> bool:
+def _should_ingest_staged_document(
+    person: PersonConfig, document: DocumentRecord
+) -> bool:
     """Return whether a staged member should enter the document pipeline.
 
     Parameters
     ----------
+    person : PersonConfig
+        Patient configuration.
     document : DocumentRecord
         Staged member document candidate.
 
@@ -238,6 +246,11 @@ def _should_ingest_staged_document(document: DocumentRecord) -> bool:
         ``True`` for clinically relevant document-like members.
     """
 
+    if document.internal_path is not None and _matches_exclusion(
+        document.internal_path,
+        person.ingestion.exclude_patterns,
+    ):
+        return False
     if _is_technical_container_path(document.internal_path):
         return False
     return document.kind in {

@@ -368,7 +368,8 @@ def run_scan_documents(args: argparse.Namespace) -> int:
         summary = (
             f"patient={person.id} files={len(inspection.inventory)} "
             f"documents={len(inspection.documents)} "
-            f"duplicates={len(inspection.duplicates)} warnings={len(warning_messages)}"
+            f"duplicates={len(inspection.duplicates)} warnings={len(warning_messages)} "
+            f"excluded={len(inspection.excluded_files)}"
         )
         if inspection.container_staging is not None:
             staged_container_ids = {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import re
 import shutil
@@ -10,7 +11,7 @@ import tempfile
 import warnings
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import TYPE_CHECKING
 
 from .models import DocumentRecord
@@ -113,7 +114,11 @@ def scan_document_inventory(
     root = person.source_documents
     if not root.exists():
         return ()
-    files = sorted(path for path in root.rglob("*") if path.is_file())
+    files = sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file() and not _is_excluded_source_path(person, path)
+    )
     if progress is not None and progress_label is not None:
         progress.begin(progress_label, total=len(files), interval=20)
     records = []
@@ -124,6 +129,79 @@ def scan_document_inventory(
     if progress is not None and progress_label is not None:
         progress.done(f"done files={len(files)}")
     return tuple(records)
+
+
+def excluded_source_files(person: PersonConfig) -> tuple[Path, ...]:
+    """Return source files excluded by ingestion configuration.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+
+    Returns
+    -------
+    tuple[pathlib.Path, ...]
+        Deterministically sorted excluded source files.
+    """
+
+    root = person.source_documents
+    if not root.exists():
+        return ()
+    return tuple(
+        sorted(
+            path
+            for path in root.rglob("*")
+            if path.is_file() and _is_excluded_source_path(person, path)
+        )
+    )
+
+
+def _is_excluded_source_path(person: PersonConfig, path: Path) -> bool:
+    """Return whether a source path matches ingestion exclusions.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    path : pathlib.Path
+        Candidate source file.
+
+    Returns
+    -------
+    bool
+        ``True`` when the path should be skipped by ingestion.
+    """
+
+    try:
+        relative = path.relative_to(person.source_documents).as_posix()
+    except ValueError:
+        relative = path.name
+    return _matches_exclusion(relative, person.ingestion.exclude_patterns)
+
+
+def _matches_exclusion(relative_path: str, patterns: tuple[str, ...]) -> bool:
+    """Return whether a relative path matches any configured pattern.
+
+    Parameters
+    ----------
+    relative_path : str
+        POSIX-style path relative to a source or container root.
+    patterns : tuple[str, ...]
+        Glob patterns to evaluate.
+
+    Returns
+    -------
+    bool
+        ``True`` when any pattern matches the path or filename.
+    """
+
+    name = PurePath(relative_path).name
+    return any(
+        fnmatch.fnmatchcase(relative_path, pattern)
+        or fnmatch.fnmatchcase(name, pattern)
+        for pattern in patterns
+    )
 
 
 def find_duplicate_documents(

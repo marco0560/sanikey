@@ -5,10 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from urllib.parse import unquote, urlparse
 
 from .database import database_path
+from .errors import UsbError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -101,7 +104,13 @@ def export_usb(
         progress.done(f"done patients={len(patients)}")
     _write_manifest(patients, image_root, progress=progress)
     if image_root.resolve() != target.resolve():
-        _replace_tree(image_root, target, progress=progress)
+        _validate_physical_target(config, image_root, target)
+        _replace_tree(
+            image_root,
+            target,
+            progress=progress,
+            copy_strategy=config.usb.copy_strategy,
+        )
     manifest = target / "SANIKEY-MANIFEST.json"
     return UsbExportResult(
         root=target,
@@ -137,6 +146,8 @@ def validate_usb(target: Path) -> bool:
         if not (patient_root / "medical_archive.db").is_file():
             return False
         if not (patient_root / "web" / "index.html").is_file():
+            return False
+        if not _validate_frontend_links(patient_root / "web"):
             return False
     checksums = payload.get("checksums", {})
     for relative, expected in checksums.items():
@@ -222,6 +233,7 @@ def _replace_tree(
     target: Path,
     *,
     progress: ProgressReporter | None = None,
+    copy_strategy: str = "python",
 ) -> None:
     """Replace target contents with a copied tree.
 
@@ -233,6 +245,8 @@ def _replace_tree(
         Target directory whose contents are replaced.
     progress : ProgressReporter | None, optional
         Optional interactive progress reporter.
+    copy_strategy : str, optional
+        Copy strategy, either ``python`` or ``rsync-preferred``.
 
     Returns
     -------
@@ -247,7 +261,60 @@ def _replace_tree(
         _clear_directory_contents(target)
     else:
         target.mkdir(parents=True)
+    if copy_strategy == "rsync-preferred" and shutil.which("rsync") is not None:
+        _rsync_directory_contents(source, target, progress=progress)
+        return
     _copy_directory_contents(source, target, progress=progress)
+
+
+def _rsync_directory_contents(
+    source: Path,
+    target: Path,
+    *,
+    progress: ProgressReporter | None = None,
+) -> None:
+    """Mirror directory contents with rsync.
+
+    Parameters
+    ----------
+    source : pathlib.Path
+        Source directory to copy.
+    target : pathlib.Path
+        Existing target directory.
+    progress : ProgressReporter | None, optional
+        Optional interactive progress reporter.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    UsbError
+        If rsync returns a non-zero exit status.
+    """
+
+    files = sorted(path for path in source.rglob("*") if path.is_file())
+    if progress is not None:
+        progress.begin("export-usb target", total=len(files), interval=20)
+    rsync = shutil.which("rsync")
+    if rsync is None:
+        _copy_directory_contents(source, target, progress=progress)
+        return
+    completed = subprocess.run(
+        [rsync, "-a", "--delete", f"{source}/", f"{target}/"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=3600,
+    )
+    if completed.returncode != 0:
+        message = (completed.stderr or completed.stdout or "rsync failed").strip()
+        error = f"rsync USB copy failed: {message}"
+        raise UsbError(error)
+    if progress is not None:
+        progress.advance(len(files), total=len(files))
+        progress.done(f"done files={len(files)}")
 
 
 def _copy_tree_with_progress(
@@ -332,6 +399,257 @@ def _clear_directory_contents(target: Path) -> None:
             shutil.rmtree(item)
         else:
             item.unlink()
+
+
+def _validate_physical_target(
+    config: AccountsConfig,
+    image_root: Path,
+    target: Path,
+) -> None:
+    """Validate a USB target before mirroring the image.
+
+    Parameters
+    ----------
+    config : AccountsConfig
+        Loaded accounts configuration.
+    image_root : pathlib.Path
+        Prepared USB image directory.
+    target : pathlib.Path
+        Target directory.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    UsbError
+        If the target does not satisfy configured deployment constraints.
+    """
+
+    target.mkdir(parents=True, exist_ok=True)
+    required_bytes = _tree_size(image_root) + config.usb.min_free_space_mb * 1024 * 1024
+    available = shutil.disk_usage(target).free
+    if available < required_bytes:
+        error = (
+            "USB target has insufficient free space: "
+            f"available={available} required={required_bytes}"
+        )
+        raise UsbError(error)
+    mount_info = _find_mount_info(target)
+    if mount_info is None:
+        if config.usb.required_filesystem_uuid or config.usb.require_exfat:
+            error = f"cannot determine filesystem information for {target}"
+            raise UsbError(error)
+        return
+    expected_uuid = _expected_usb_uuid(
+        config,
+        enforce_person_uuid=_is_likely_physical_target(target),
+    )
+    actual_uuid = mount_info.get("uuid")
+    if expected_uuid is not None and actual_uuid != expected_uuid:
+        error = (
+            f"USB filesystem UUID mismatch: expected={expected_uuid} "
+            f"actual={actual_uuid}"
+        )
+        raise UsbError(error)
+    fstype = mount_info.get("fstype")
+    if config.usb.require_exfat and fstype != "exfat":
+        error = f"USB filesystem must be exFAT: actual={fstype or 'unknown'}"
+        raise UsbError(error)
+
+
+def _expected_usb_uuid(
+    config: AccountsConfig,
+    *,
+    enforce_person_uuid: bool,
+) -> str | None:
+    """Return the configured expected USB filesystem UUID.
+
+    Parameters
+    ----------
+    config : AccountsConfig
+        Loaded accounts configuration.
+    enforce_person_uuid : bool
+        Whether shared per-patient UUID values should be enforced.
+
+    Returns
+    -------
+    str | None
+        Explicit global UUID or the shared enabled-patient UUID.
+    """
+
+    if config.usb.required_filesystem_uuid is not None:
+        return config.usb.required_filesystem_uuid
+    if not enforce_person_uuid:
+        return None
+    enabled_uuids = {
+        person.usb_uuid for person in config.enabled_people() if person.usb_uuid
+    }
+    if len(enabled_uuids) == 1:
+        return next(iter(enabled_uuids))
+    return None
+
+
+def _is_likely_physical_target(target: Path) -> bool:
+    """Return whether a target path looks like a mounted removable device.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        Export target.
+
+    Returns
+    -------
+    bool
+        ``True`` for common Linux removable-media mount roots.
+    """
+
+    resolved = target.expanduser().resolve(strict=False)
+    return resolved.is_relative_to("/run/media") or resolved.is_relative_to("/media")
+
+
+def _find_mount_info(target: Path) -> dict[str, str] | None:
+    """Return filesystem metadata for a mounted target.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        Target path.
+
+    Returns
+    -------
+    dict[str, str] | None
+        ``findmnt`` metadata or ``None`` when unavailable.
+    """
+
+    if shutil.which("findmnt") is None:
+        return None
+    findmnt = shutil.which("findmnt")
+    if findmnt is None:
+        return None
+    completed = subprocess.run(
+        [findmnt, "--json", "--output", "TARGET,FSTYPE,UUID", "--target", str(target)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if completed.returncode != 0:
+        return None
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return None
+    filesystems = payload.get("filesystems", [])
+    if not filesystems:
+        return None
+    selected = filesystems[0]
+    return {
+        "fstype": str(selected.get("fstype") or ""),
+        "uuid": str(selected.get("uuid") or ""),
+        "target": str(selected.get("target") or ""),
+    }
+
+
+def _tree_size(root: Path) -> int:
+    """Return total file size for a directory tree.
+
+    Parameters
+    ----------
+    root : pathlib.Path
+        Directory to measure.
+
+    Returns
+    -------
+    int
+        Sum of file sizes in bytes.
+    """
+
+    return sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
+
+
+def _validate_frontend_links(web_dir: Path) -> bool:
+    """Validate generated frontend document links.
+
+    Parameters
+    ----------
+    web_dir : pathlib.Path
+        Patient web directory in a USB export.
+
+    Returns
+    -------
+    bool
+        ``True`` when all frontend hrefs are relative and resolve locally.
+    """
+
+    data_script = web_dir / "data.js"
+    if not data_script.is_file():
+        return False
+    payload = data_script.read_text(encoding="utf-8")
+    prefix = "window.SANIKEY_DATA = "
+    if not payload.startswith(prefix) or not payload.endswith(";\n"):
+        return False
+    try:
+        data = json.loads(payload.removeprefix(prefix).removesuffix(";\n"))
+    except json.JSONDecodeError:
+        return False
+    return all(_validate_relative_href(web_dir, href) for href in _frontend_hrefs(data))
+
+
+def _frontend_hrefs(value: object) -> tuple[str, ...]:
+    """Collect href string values from a frontend payload.
+
+    Parameters
+    ----------
+    value : object
+        Decoded JSON payload fragment.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Href values found recursively.
+    """
+
+    if isinstance(value, dict):
+        hrefs = [value["href"]] if isinstance(value.get("href"), str) else []
+        for child in value.values():
+            hrefs.extend(_frontend_hrefs(child))
+        return tuple(hrefs)
+    if isinstance(value, list):
+        list_hrefs: list[str] = []
+        for child in value:
+            list_hrefs.extend(_frontend_hrefs(child))
+        return tuple(list_hrefs)
+    return ()
+
+
+def _validate_relative_href(web_dir: Path, href: str) -> bool:
+    """Return whether an href is relative and points inside the patient export.
+
+    Parameters
+    ----------
+    web_dir : pathlib.Path
+        Patient web directory in a USB export.
+    href : str
+        Href value to validate.
+
+    Returns
+    -------
+    bool
+        ``True`` when the href resolves to an existing exported file.
+    """
+
+    parsed = urlparse(href)
+    if parsed.scheme or href.startswith(("/", "\\")):
+        return False
+    target = (web_dir / unquote(parsed.path)).resolve(strict=False)
+    patient_root = web_dir.parent.resolve(strict=False)
+    try:
+        target.relative_to(patient_root)
+    except ValueError:
+        return False
+    return target.is_file()
 
 
 def _write_manifest(

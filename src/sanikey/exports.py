@@ -90,20 +90,21 @@ def generate_exports(
 
     data_dir = person.local_build / "web" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    ordered_documents = _ordered_documents(documents)
+    consultation_documents = _consultation_documents(documents)
+    ordered_documents = _ordered_documents(consultation_documents)
     documents_payload = [
         _document_payload(person, document, metadata) for document in ordered_documents
     ]
-    clinical_payload = _clinical_payload(metadata, dicom_studies)
+    clinical_payload = _clinical_payload(person, metadata, dicom_studies)
     search_payload = [
         *(
             _document_search_payload(person, document, metadata)
-            for document in documents
+            for document in consultation_documents
         ),
         *_metadata_search_payloads(clinical_payload),
     ]
     timeline_events = _timeline_events(
-        documents,
+        consultation_documents,
         metadata,
         order=person.ui.timeline_order,
     )
@@ -112,7 +113,7 @@ def generate_exports(
         "patient_id": person.id,
         "display_name": person.display_name,
         "ui": _ui_payload(person),
-        "document_count": len(documents),
+        "document_count": len(consultation_documents),
         "problem_count": len(metadata.problems),
         "therapy_count": len(metadata.therapies),
         "procedure_count": len(metadata.procedures),
@@ -421,6 +422,27 @@ def _document_payload(
     }
 
 
+def _consultation_documents(
+    documents: tuple[DocumentRecord, ...],
+) -> tuple[DocumentRecord, ...]:
+    """Return document records suitable for human consultation lists.
+
+    Parameters
+    ----------
+    documents : tuple[DocumentRecord, ...]
+        Source and derived document records.
+
+    Returns
+    -------
+    tuple[DocumentRecord, ...]
+        Records excluding technical DICOM instance files.
+    """
+
+    return tuple(
+        document for document in documents if not document.kind.startswith("dicom_")
+    )
+
+
 def _ordered_documents(
     documents: tuple[DocumentRecord, ...],
 ) -> tuple[DocumentRecord, ...]:
@@ -638,6 +660,7 @@ def _timeline_events(
 
 
 def _clinical_payload(
+    person: PersonConfig,
     metadata: CuratedMetadata,
     dicom_studies: tuple[DicomStudy, ...],
 ) -> dict[str, Any]:
@@ -645,6 +668,8 @@ def _clinical_payload(
 
     Parameters
     ----------
+    person : PersonConfig
+        Patient configuration.
     metadata : CuratedMetadata
         Curated metadata.
     dicom_studies : tuple[DicomStudy, ...]
@@ -672,7 +697,9 @@ def _clinical_payload(
         "observations": [
             _observation_payload(observation) for observation in metadata.observations
         ],
-        "dicom_studies": [_dicom_study_payload(study) for study in dicom_studies],
+        "dicom_studies": [
+            _dicom_study_payload(person, study) for study in dicom_studies
+        ],
     }
 
 
@@ -877,11 +904,13 @@ def _observation_payload(observation: Observation) -> dict[str, Any]:
     }
 
 
-def _dicom_study_payload(study: DicomStudy) -> dict[str, Any]:
+def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, Any]:
     """Build one DICOM study frontend payload.
 
     Parameters
     ----------
+    person : PersonConfig
+        Patient configuration.
     study : DicomStudy
         Cataloged DICOM study.
 
@@ -892,6 +921,7 @@ def _dicom_study_payload(study: DicomStudy) -> dict[str, Any]:
     """
 
     title = study.study_description or study.support_path.name
+    href = _document_href_from_path(person, study.support_path)
     fields: list[dict[str, Any]] = [
         {"label": "Supporto", "value": study.support_path.name},
         {"label": "Tipo", "value": study.support_kind},
@@ -909,6 +939,7 @@ def _dicom_study_payload(study: DicomStudy) -> dict[str, Any]:
         "study_instance_uid": study.study_instance_uid,
         "study_description": study.study_description,
         "instance_count": study.instance_count,
+        "href": href,
         "text": " ".join(
             item
             for item in (
@@ -923,6 +954,29 @@ def _dicom_study_payload(study: DicomStudy) -> dict[str, Any]:
         ).strip(),
         "fields": _visible_fields(fields),
     }
+
+
+def _document_href_from_path(person: PersonConfig, path: Path) -> str | None:
+    """Build an exported document href from a source path.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    path : pathlib.Path
+        Candidate source path.
+
+    Returns
+    -------
+    str | None
+        Relative USB href or ``None`` when the path is not a source document.
+    """
+
+    try:
+        relative = path.relative_to(person.source_documents)
+    except ValueError:
+        return None
+    return f"../documents/{relative.as_posix()}"
 
 
 def _visible_fields(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:

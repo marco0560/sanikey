@@ -13,3 +13,7 @@ class ConfigError(SaniKeyError):
 
 class PrivacyError(SaniKeyError):
     """Raised when real-data paths violate repository privacy rules."""
+
+
+class UsbError(SaniKeyError):
+    """Raised when USB deployment validation fails."""

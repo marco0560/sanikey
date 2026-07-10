@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 import sanikey.documents as documents_module
-from sanikey.config import PersonConfig
+from sanikey.config import IngestionConfig, PersonConfig
 from sanikey.documents import (
     duplicate_document_warnings,
     extract_text,
@@ -75,6 +75,39 @@ def test_scan_documents_builds_stable_records(tmp_path: Path) -> None:
     assert documents[0].title == "Blood Test"
     assert documents[0].kind == "text"
     assert len(documents[0].sha256) == 64
+
+
+def test_scan_documents_applies_ingestion_exclusions(tmp_path: Path) -> None:
+    """Verify configured source exclusions run before inventory creation.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    base = _person(tmp_path)
+    person = replace(
+        base,
+        ingestion=IngestionConfig(exclude_patterns=("**/Help/**", "*.tmp")),
+    )
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "include",
+        encoding="utf-8",
+    )
+    help_dir = person.source_documents / "Viewer" / "Help"
+    help_dir.mkdir(parents=True)
+    (help_dir / "manual.txt").write_text("exclude", encoding="utf-8")
+    (person.source_documents / "scratch.tmp").write_text("exclude", encoding="utf-8")
+
+    inventory = scan_document_inventory(person)
+
+    assert [document.path.name for document in inventory] == ["20260102 Report.txt"]
 
 
 def test_scan_documents_classifies_archive_and_office_kinds(

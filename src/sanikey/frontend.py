@@ -104,18 +104,21 @@ def _index_html(person: PersonConfig) -> str:
 </head>
 <body>
   <header>
-    <div>
+    <div class="header-title">
       <h1>{title}</h1>
       <p>{subtitle}</p>
     </div>
-    <label for="search">Cerca nell'archivio</label>
-    <input id="search" type="search" placeholder="Cerca documenti, categorie o tag">
+    <div class="search-control">
+      <label for="search">Cerca nell'archivio</label>
+      <input id="search" type="search" placeholder="Cerca documenti, categorie o tag">
+    </div>
     <details class="search-help">
       <summary>Aiuto ricerca</summary>
       <p>Scrivi una o piu' parole presenti in titolo, categoria, tag, tipo,
       percorso o data. Esempi: <code>cardiologo 2024</code>,
       <code>analisi pdf</code>, <code>risonanza</code>.</p>
     </details>
+    <nav id="section-jumps" class="section-jumps" aria-label="Vai alla sezione"></nav>
   </header>
   <nav class="tabs" aria-label="Sezioni archivio">
     <button type="button" data-tab-button="documents">Documenti</button>
@@ -173,6 +176,7 @@ def _app_js() -> str:
   observations: "Osservazioni",
   dicom: "Studi DICOM",
   timeline: "Timeline",
+  summary: "Riepilogo",
 };
 
 const SECTION_ORDER = ["documents", "therapies", "medications", "problems", "procedures", "observations", "dicom", "timeline"];
@@ -239,6 +243,18 @@ function renderTimeline(timeline) {
   ).join("");
 }
 
+function updateSectionJumps(sections) {
+  const target = document.querySelector("#section-jumps");
+  const selected = sections.filter((section) => section && SECTION_LABELS[section.label]);
+  if (!selected.length) {
+    target.innerHTML = "";
+    return;
+  }
+  target.innerHTML = selected.map((section) =>
+    `<a href="#${attr(section.id)}">${escapeHtml(SECTION_LABELS[section.label])}${section.count === undefined ? "" : ` ${escapeHtml(section.count)}`}</a>`
+  ).join("");
+}
+
 function renderTimelineLinks(item) {
   const links = item.links || [];
   if (!links.length) {
@@ -261,6 +277,11 @@ function renderDocuments(documents, query = "") {
       ${item.markdown_html ? `<div class="markdown">${html(item.markdown_html)}</div>` : ""}
       ${item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : `<span class="muted">Origine nel contenitore</span>`}</article>`
   ).join("");
+  updateSectionJumps([
+    {id: "documents", label: "documents", count: selected.length},
+    {id: "timeline", label: "timeline"},
+    {id: "summary", label: "summary"},
+  ]);
 }
 
 function renderClinicalDashboard(clinical) {
@@ -287,7 +308,7 @@ function renderEntityCard(item, section) {
   return `<article id="entity-${attr(item.id)}"><h4>${escapeHtml(item.title)}</h4>
     ${item.date || item.start_date ? `<p>${escapeHtml(formatDate(item.date || item.start_date))}</p>` : ""}
     ${renderFields(item.fields || [])}
-    ${section === "documents" && item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : ""}</article>`;
+    ${item.href ? `<a href="${attr(item.href)}">${section === "dicom" ? "Apri supporto DICOM" : "Apri originale"}</a>` : ""}</article>`;
 }
 
 function renderFields(fields) {
@@ -307,6 +328,7 @@ function renderSearchResults(target, records, heading, emptyMessage) {
     .map((section) => [section, grouped[section]]);
   if (!sections.length) {
     target.innerHTML = `<h2>${escapeHtml(heading)}</h2><p class="muted">${escapeHtml(emptyMessage)}</p>`;
+    updateSectionJumps([]);
     return;
   }
   const total = records.length;
@@ -317,6 +339,11 @@ function renderSearchResults(target, records, heading, emptyMessage) {
       `<section id="results-${attr(section)}"><h3>${escapeHtml(SECTION_LABELS[section])}</h3>
         ${items.map((item) => renderResultCard(item, section)).join("")}</section>`
     ).join("");
+  updateSectionJumps(sections.map(([section, items]) => ({
+    id: `results-${section}`,
+    label: section,
+    count: items.length,
+  })));
 }
 
 function renderResultCard(item, section) {
@@ -804,6 +831,9 @@ header {
   gap: 0.75rem;
   grid-template-columns: 1fr minmax(16rem, 28rem);
   padding: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 h1 {
@@ -817,6 +847,11 @@ header p {
   margin: 0.25rem 0 0;
 }
 
+.search-control {
+  display: grid;
+  gap: 0.35rem;
+}
+
 label {
   font-weight: 600;
 }
@@ -827,7 +862,7 @@ label {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   position: sticky;
-  top: 0;
+  top: 8.25rem;
   z-index: 1;
 }
 
@@ -879,19 +914,26 @@ input {
   margin: 0.35rem 0 0;
 }
 
-.section-links {
+.section-links,
+.section-jumps {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin: 0.75rem 0;
 }
 
-.section-links a {
+.section-links a,
+.section-jumps a {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--accent);
   padding: 0.25rem 0.6rem;
   text-decoration: none;
+}
+
+.section-jumps {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 article {
@@ -979,10 +1021,6 @@ body[data-density="compact"] .tabs button {
 }
 
 @media (min-width: 56rem) {
-  .tabs {
-    display: none;
-  }
-
   main {
     grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.65fr);
   }
@@ -990,11 +1028,6 @@ body[data-density="compact"] .tabs button {
   .secondary-pane {
     border-left: 1px solid var(--border);
     padding-left: 1rem;
-  }
-
-  [data-tab-panel],
-  [data-tab-panel].is-active {
-    display: block;
   }
 
   #advanced {

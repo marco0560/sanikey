@@ -37,6 +37,16 @@ UI_FIELDS = frozenset(
     }
 )
 SEARCH_FIELDS = frozenset({"advanced_index_warning_mb", "dictionary"})
+INGESTION_FIELDS = frozenset({"exclude_patterns"})
+USB_COPY_STRATEGIES = frozenset({"python", "rsync-preferred"})
+USB_FIELDS = frozenset(
+    {
+        "copy_strategy",
+        "min_free_space_mb",
+        "required_filesystem_uuid",
+        "require_exfat",
+    }
+)
 
 
 def _fail(message: str) -> None:
@@ -130,6 +140,41 @@ class SearchConfig:
 
 
 @dataclass(frozen=True)
+class IngestionConfig:
+    """Document ingestion configuration.
+
+    Parameters
+    ----------
+    exclude_patterns : tuple[str, ...]
+        Glob patterns excluded before hashing, staging, and extraction.
+    """
+
+    exclude_patterns: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class UsbConfig:
+    """USB deployment configuration.
+
+    Parameters
+    ----------
+    required_filesystem_uuid : str | None, optional
+        Expected filesystem UUID for physical targets.
+    require_exfat : bool
+        Whether physical targets must be mounted as exFAT.
+    min_free_space_mb : int
+        Extra free-space margin required before copying.
+    copy_strategy : str
+        Copy strategy, either ``python`` or ``rsync-preferred``.
+    """
+
+    required_filesystem_uuid: str | None = None
+    require_exfat: bool = False
+    min_free_space_mb: int = 256
+    copy_strategy: str = "rsync-preferred"
+
+
+@dataclass(frozen=True)
 class _PathFieldOptions:
     """Validation options for optional path fields.
 
@@ -197,6 +242,8 @@ class PersonConfig:
         Resolved frontend UI configuration for this patient.
     search : SearchConfig
         Resolved advanced search configuration for this patient.
+    ingestion : IngestionConfig
+        Resolved ingestion filtering configuration for this patient.
     """
 
     id: str
@@ -208,6 +255,7 @@ class PersonConfig:
     enabled: bool = True
     ui: UiConfig = field(default_factory=UiConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
+    ingestion: IngestionConfig = field(default_factory=IngestionConfig)
 
 
 @dataclass(frozen=True)
@@ -226,6 +274,10 @@ class AccountsConfig:
         Global frontend UI defaults.
     search : SearchConfig
         Global advanced search defaults.
+    ingestion : IngestionConfig
+        Global ingestion defaults.
+    usb : UsbConfig
+        Global USB deployment defaults.
     """
 
     config_version: int
@@ -233,6 +285,8 @@ class AccountsConfig:
     path: Path
     ui: UiConfig = field(default_factory=UiConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
+    ingestion: IngestionConfig = field(default_factory=IngestionConfig)
+    usb: UsbConfig = field(default_factory=UsbConfig)
 
     def enabled_people(self) -> tuple[PersonConfig, ...]:
         """Return enabled patient entries.
@@ -347,6 +401,14 @@ def parse_accounts_data(data: dict[str, Any], *, path: Path) -> AccountsConfig:
         context="[global.search]",
         base_dir=base_dir,
     )
+    global_ingestion = _parse_ingestion_config(
+        global_section.get("ingestion", {}),
+        context="[global.ingestion]",
+    )
+    global_usb = _parse_usb_config(
+        global_section.get("usb", {}),
+        context="[global.usb]",
+    )
     people = tuple(
         _parse_person(
             item,
@@ -354,26 +416,31 @@ def parse_accounts_data(data: dict[str, Any], *, path: Path) -> AccountsConfig:
             base_dir=base_dir,
             global_ui=global_ui,
             global_search=global_search,
+            global_ingestion=global_ingestion,
         )
         for index, item in enumerate(people_items)
     )
     _validate_unique_ids(people)
+    _validate_enabled_usb_uuid(people, global_usb)
     return AccountsConfig(
         config_version=version,
         people=people,
         path=path,
         ui=global_ui,
         search=global_search,
+        ingestion=global_ingestion,
+        usb=global_usb,
     )
 
 
-def _parse_person(
+def _parse_person(  # noqa: PLR0913
     item: Any,
     *,
     index: int,
     base_dir: Path,
     global_ui: UiConfig,
     global_search: SearchConfig,
+    global_ingestion: IngestionConfig,
 ) -> PersonConfig:
     """Parse one ``[[person]]`` entry.
 
@@ -389,6 +456,8 @@ def _parse_person(
         Global UI defaults to merge with per-person overrides.
     global_search : SearchConfig
         Global search defaults to merge with per-person overrides.
+    global_ingestion : IngestionConfig
+        Global ingestion defaults to merge with per-person overrides.
 
     Returns
     -------
@@ -429,6 +498,11 @@ def _parse_person(
         base_dir=base_dir,
         base=global_search,
     )
+    ingestion = _parse_ingestion_config(
+        item.get("ingestion", {}),
+        context=f"[[person]] entry {index} ingestion",
+        base=global_ingestion,
+    )
 
     return PersonConfig(
         id=person_id,
@@ -444,6 +518,7 @@ def _parse_person(
         enabled=enabled,
         ui=ui,
         search=search,
+        ingestion=ingestion,
     )
 
 
@@ -603,6 +678,229 @@ def _parse_search_config(
             default=source.advanced_index_warning_mb,
         ),
     )
+
+
+def _parse_ingestion_config(
+    value: Any,
+    *,
+    context: str,
+    base: IngestionConfig | None = None,
+) -> IngestionConfig:
+    """Parse and validate an ingestion configuration table.
+
+    Parameters
+    ----------
+    value : Any
+        Raw TOML value.
+    context : str
+        Diagnostic context.
+    base : IngestionConfig | None, optional
+        Base configuration used for additive per-person overrides.
+
+    Returns
+    -------
+    IngestionConfig
+        Validated ingestion configuration.
+
+    Raises
+    ------
+    ConfigError
+        If the table or any field is invalid.
+    """
+
+    if not isinstance(value, dict):
+        _fail(f"{context} must be a table")
+    unknown = sorted(set(value) - INGESTION_FIELDS)
+    if unknown:
+        _fail(f"{context} unknown fields: {', '.join(unknown)}")
+    source = IngestionConfig() if base is None else base
+    return IngestionConfig(
+        exclude_patterns=(
+            *source.exclude_patterns,
+            *_optional_string_list(
+                value,
+                "exclude_patterns",
+                context=context,
+                default=(),
+            ),
+        ),
+    )
+
+
+def _parse_usb_config(value: Any, *, context: str) -> UsbConfig:
+    """Parse and validate a USB deployment configuration table.
+
+    Parameters
+    ----------
+    value : Any
+        Raw TOML value.
+    context : str
+        Diagnostic context.
+
+    Returns
+    -------
+    UsbConfig
+        Validated USB configuration.
+
+    Raises
+    ------
+    ConfigError
+        If the table or any field is invalid.
+    """
+
+    if not isinstance(value, dict):
+        _fail(f"{context} must be a table")
+    unknown = sorted(set(value) - USB_FIELDS)
+    if unknown:
+        _fail(f"{context} unknown fields: {', '.join(unknown)}")
+    source = UsbConfig()
+    return UsbConfig(
+        required_filesystem_uuid=_optional_nullable_string(
+            value,
+            "required_filesystem_uuid",
+            context=context,
+            default=source.required_filesystem_uuid,
+        ),
+        require_exfat=_optional_bool(
+            value,
+            "require_exfat",
+            context=context,
+            default=source.require_exfat,
+        ),
+        min_free_space_mb=_optional_positive_int(
+            value,
+            "min_free_space_mb",
+            context=context,
+            default=source.min_free_space_mb,
+        ),
+        copy_strategy=_optional_choice(
+            value,
+            "copy_strategy",
+            context=context,
+            choices=USB_COPY_STRATEGIES,
+            default=source.copy_strategy,
+        ),
+    )
+
+
+def _optional_string_list(
+    item: dict[str, Any],
+    field_name: str,
+    *,
+    context: str,
+    default: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return an optional list of non-empty strings.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Configuration table.
+    field_name : str
+        Field to read.
+    context : str
+        Diagnostic context.
+    default : tuple[str, ...]
+        Default value when the field is omitted.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Validated string tuple.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not a list of non-empty strings.
+    """
+
+    value = item.get(field_name)
+    if value is None:
+        return default
+    if not isinstance(value, list):
+        _fail(f"{context} field {field_name} must be a list of strings")
+    parsed = []
+    for raw_value in value:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            _fail(f"{context} field {field_name} must contain only non-empty strings")
+        parsed.append(raw_value.strip())
+    return tuple(parsed)
+
+
+def _optional_nullable_string(
+    item: dict[str, Any],
+    field_name: str,
+    *,
+    context: str,
+    default: str | None,
+) -> str | None:
+    """Return an optional nullable string field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Configuration table.
+    field_name : str
+        Field to read.
+    context : str
+        Diagnostic context.
+    default : str | None
+        Default value when the field is omitted.
+
+    Returns
+    -------
+    str | None
+        Stripped string or ``None``.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not null or a non-empty string.
+    """
+
+    value = item.get(field_name, default)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        _fail(f"{context} field {field_name} must be a non-empty string")
+    return value.strip()
+
+
+def _optional_bool(
+    item: dict[str, Any],
+    field_name: str,
+    *,
+    context: str,
+    default: bool,
+) -> bool:
+    """Return an optional boolean field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Configuration table.
+    field_name : str
+        Field to read.
+    context : str
+        Diagnostic context.
+    default : bool
+        Default value when the field is omitted.
+
+    Returns
+    -------
+    bool
+        Validated boolean.
+
+    Raises
+    ------
+    ConfigError
+        If the value is not boolean.
+    """
+
+    value = item.get(field_name, default)
+    if not isinstance(value, bool):
+        _fail(f"{context} field {field_name} must be boolean")
+    return cast("bool", value)
 
 
 def _optional_color(
@@ -1024,3 +1322,48 @@ def _validate_unique_ids(people: tuple[PersonConfig, ...]) -> None:
         if person.id in seen:
             _fail(f"duplicate patient id: {person.id}")
         seen.add(person.id)
+
+
+def _validate_enabled_usb_uuid(
+    people: tuple[PersonConfig, ...],
+    usb: UsbConfig,
+) -> None:
+    """Validate enabled patient USB UUID declarations.
+
+    Parameters
+    ----------
+    people : tuple[PersonConfig, ...]
+        Parsed patient entries.
+    usb : UsbConfig
+        Global USB configuration.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ConfigError
+        If enabled patients require incompatible USB filesystems.
+    """
+
+    enabled_uuids = {
+        person.usb_uuid.strip()
+        for person in people
+        if person.enabled and person.usb_uuid
+    }
+    if usb.required_filesystem_uuid is not None:
+        mismatches = sorted(
+            uuid for uuid in enabled_uuids if uuid != usb.required_filesystem_uuid
+        )
+        if mismatches:
+            _fail(
+                "[global.usb].required_filesystem_uuid conflicts with enabled "
+                f"patient usb_uuid values: {', '.join(mismatches)}"
+            )
+        return
+    if len(enabled_uuids) > 1:
+        _fail(
+            "enabled patients use different usb_uuid values; set one shared "
+            "[global.usb].required_filesystem_uuid or align [[person]].usb_uuid"
+        )

@@ -184,6 +184,62 @@ usb_uuid = "1A2B-3C4D"
     assert config.people[0].ui.background_opacity == 0.2
 
 
+def test_load_accounts_parses_ingestion_and_usb_config(tmp_path: Path) -> None:
+    """Verify ingestion exclusions and USB deployment config are validated.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[global.ingestion]
+exclude_patterns = ["**/Help/**", "*.tmp"]
+
+[global.usb]
+required_filesystem_uuid = "1A2B-3C4D"
+require_exfat = true
+min_free_space_mb = 512
+copy_strategy = "python"
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+
+[person.ingestion]
+exclude_patterns = ["**/Viewer-Windows/**"]
+""",
+        encoding="utf-8",
+    )
+
+    config = load_accounts(config_path)
+
+    assert config.ingestion.exclude_patterns == ("**/Help/**", "*.tmp")
+    assert config.usb.required_filesystem_uuid == "1A2B-3C4D"
+    assert config.usb.require_exfat
+    assert config.usb.min_free_space_mb == 512
+    assert config.usb.copy_strategy == "python"
+    assert config.people[0].ingestion.exclude_patterns == (
+        "**/Help/**",
+        "*.tmp",
+        "**/Viewer-Windows/**",
+    )
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

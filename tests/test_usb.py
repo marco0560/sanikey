@@ -298,6 +298,80 @@ def test_validate_usb_rejects_tampered_checksum(tmp_path: Path) -> None:
     assert not validate_usb(result.root)
 
 
+def test_export_usb_keeps_office_hrefs_relative_and_resolvable(
+    tmp_path: Path,
+) -> None:
+    """Verify Office original links point to exported USB files.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path, "patient-a", "Patient A")
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Workbook.xlsx").write_bytes(b"xlsx")
+    (person.source_documents / "20260103 Letter.doc").write_bytes(b"doc")
+    build_patient(person, mode="full")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+
+    result = export_usb(config, tmp_path / "usb")
+    data_script = (
+        result.root / "patients" / "patient-a" / "web" / "data.js"
+    ).read_text(encoding="utf-8")
+
+    assert '"href": "../documents/20260102 Workbook.xlsx"' in data_script
+    assert '"href": "../documents/20260103 Letter.doc"' in data_script
+    assert (
+        result.root / "patients" / "patient-a" / "documents" / "20260102 Workbook.xlsx"
+    ).is_file()
+    assert (
+        result.root / "patients" / "patient-a" / "documents" / "20260103 Letter.doc"
+    ).is_file()
+    assert "/home/" not in data_script
+    assert "file://" not in data_script
+    assert validate_usb(result.root)
+
+
+def test_validate_usb_rejects_absolute_frontend_hrefs(tmp_path: Path) -> None:
+    """Verify USB validation fails on host-local frontend links.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path, "patient-a", "Patient A")
+    _write_document(person, "20260102 Report.txt", "synthetic")
+    build_patient(person, mode="full")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+    result = export_usb(config, tmp_path / "usb")
+    data_script = result.root / "patients" / "patient-a" / "web" / "data.js"
+    data_script.write_text(
+        data_script.read_text(encoding="utf-8").replace(
+            "../documents/20260102 Report.txt",
+            "/home/marco/private/20260102 Report.txt",
+        ),
+        encoding="utf-8",
+    )
+
+    assert not validate_usb(result.root)
+
+
 def test_export_usb_excludes_generated_cache_logs_and_temp(tmp_path: Path) -> None:
     """Verify non-exportable generated artefacts stay off the USB image.
 

@@ -10,6 +10,7 @@ from .dicom import DicomStudy, catalog_dicom_studies
 from .documents import (
     ExtractedText,
     duplicate_document_warnings,
+    excluded_source_files,
     extract_text,
     find_duplicate_documents,
     scan_document_inventory,
@@ -17,6 +18,8 @@ from .documents import (
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from .config import PersonConfig
     from .models import DocumentRecord
     from .progress import ProgressReporter
@@ -42,6 +45,8 @@ class PatientDocumentInspection:
         Optional deeper preflight warnings.
     container_staging : ContainerStagingResult | None
         Optional container staging result produced during inspection.
+    excluded_files : tuple[pathlib.Path, ...]
+        Source files skipped by configured ingestion exclusions.
     """
 
     inventory: tuple[DocumentRecord, ...]
@@ -51,6 +56,7 @@ class PatientDocumentInspection:
     warning_messages: tuple[str, ...]
     preflight_warning_messages: tuple[str, ...] = ()
     container_staging: ContainerStagingResult | None = None
+    excluded_files: tuple[Path, ...] = ()
 
 
 def inspect_patient_documents(
@@ -85,6 +91,7 @@ def inspect_patient_documents(
         progress=progress,
         progress_label=f"scan-documents {person.id}",
     )
+    excluded_files = excluded_source_files(person)
     duplicates = find_duplicate_documents(inventory)
     documents = scan_documents(person)
     container_staging = None
@@ -128,6 +135,7 @@ def inspect_patient_documents(
         warning_messages=warning_messages,
         preflight_warning_messages=preflight_warning_messages,
         container_staging=container_staging,
+        excluded_files=excluded_files,
     )
 
 

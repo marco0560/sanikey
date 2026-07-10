@@ -13,6 +13,15 @@ config_version = 1
 # [global.search]
 # dictionary = "config/search-dictionary.toml"
 # advanced_index_warning_mb = 25
+#
+# [global.ingestion]
+# exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
+#
+# [global.usb]
+# required_filesystem_uuid = "1A2B-3C4D"
+# require_exfat = true
+# min_free_space_mb = 512
+# copy_strategy = "rsync-preferred"
 
 [[person]]
 id = "patient-a"

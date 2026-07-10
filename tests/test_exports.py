@@ -415,7 +415,49 @@ def test_generate_exports_includes_synthetic_dicom_study_cards(
     assert dicom_search["title"] == "TAC torace"
     assert "1.2.3" in dicom_search["text"]
     assert dicom_card["instance_count"] == 42
+    assert dicom_card["href"] == "../documents/20260102 TAC.zip"
     assert {"label": "Istanze", "value": "42"} in dicom_card["fields"]
+
+
+def test_generate_exports_hides_technical_dicom_documents(tmp_path: Path) -> None:
+    """Verify DICOM instance files are not listed as consultation documents.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    (person.source_documents / "image.dcm").write_bytes(b"DICM")
+
+    result = generate_exports(
+        person,
+        scan_documents(person),
+        load_curated_metadata(person.metadata_directory),
+    )
+
+    documents = json.loads(result.documents.read_text(encoding="utf-8"))
+    search = json.loads(result.search.read_text(encoding="utf-8"))
+    data = json.loads(
+        result.data_script.read_text(encoding="utf-8")
+        .removeprefix("window.SANIKEY_DATA = ")
+        .removesuffix(";\n")
+    )
+
+    assert [item["title"] for item in documents] == ["Report"]
+    assert all(item["kind"] != "dicom_file" for item in documents)
+    assert all(item.get("kind") != "dicom_file" for item in data["documents"])
+    assert all(item["title"] != "image" for item in search)
 
 
 def test_generate_exports_honors_ascending_timeline_order(tmp_path: Path) -> None:

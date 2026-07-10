@@ -93,6 +93,14 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert ".badge" in stylesheet
     assert "has-background-image" in stylesheet
     assert "@media (min-width: 56rem)" in stylesheet
+    assert "section-jumps" in index
+    assert "function updatesectionjumps(sections)" in script
+    assert ".section-jumps" in stylesheet
+    desktop_css = stylesheet.split("@media (min-width: 56rem)", 1)[1].split(
+        "@media (max-width: 44rem)",
+        1,
+    )[0]
+    assert ".tabs" not in desktop_css
     assert "[data-tab-panel].is-active" in stylesheet
 
 

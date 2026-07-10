@@ -34,7 +34,8 @@ La pipeline implementata è:
 1. Caricare e validare `config/accounts.toml`.
 2. Applicare gli invarianti di privacy per percorsi privati e file paziente
    ignorati.
-3. Eseguire la scansione dei documenti sorgente configurati.
+3. Eseguire la scansione dei documenti sorgente configurati, applicando gli
+   eventuali pattern di esclusione.
 4. Caricare i metadati curati.
 5. Catalogare supporti DICOM e directory di espansione manuale.
 6. Estrarre il testo supportato.
@@ -52,7 +53,7 @@ struttura USB.
 - `privacy.py`: controlla i confini di privacy del repository e i percorsi
   ignorati.
 - `documents.py`: scansiona i documenti, calcola digest, estrae testo
-  supportato e rileva duplicati.
+  supportato, applica esclusioni configurate e rileva duplicati.
 - `metadata.py`: carica metadati curati da file TOML.
 - `markdown.py`: converte contenuti Markdown curati o documentali in HTML
   statico con HTML grezzo disabilitato.
@@ -67,6 +68,8 @@ struttura USB.
 - `build.py`: coordina la pipeline locale di build paziente e la cache
   incrementale dell'estrazione testo.
 - `usb.py`: esporta e valida la struttura USB.
+  Controlla anche link frontend relativi, UUID/fstype/spazio dei target fisici
+  configurati e copia con `rsync` quando disponibile.
 - `proposals.py`: salva proposte deterministiche da revisione manuale.
 - `cli.py`: espone l'interfaccia a riga di comando.
 
@@ -119,6 +122,9 @@ patients/
 
 `web` è il frontend statico generato sulla chiavetta USB. Nel repository
 corrisponde agli artefatti frontend generati da `frontend.py`.
+I link ai documenti originali sono relativi a `patients/<id>/web/index.html` e
+puntano a `../documents/...`; `validate-usb` rifiuta payload con path assoluti,
+URL `file://` o link rotti.
 
 ## Frontend di Consultazione
 
@@ -134,9 +140,15 @@ La UI e' progettata per PC non noti in anticipo:
   nell'export;
 - su schermi larghi separa risultati/documenti da timeline e riepilogo;
 - su schermi stretti usa tab per evitare pagine troppo lunghe;
+- mantiene la maschera di ricerca e i link alle sezioni in alto durante la
+  consultazione;
 - mostra i risultati di ricerca senza lasciare la timeline davanti;
 - genera link ai documenti originali relativi al frontend USB, non ai percorsi
   sorgente del computer di build.
+
+I file DICOM sono artefatti tecnici. Il database può conservarli come record,
+ma il frontend mostra schede aggregate per studio DICOM invece delle singole
+istanze, che non sono leggibili da un medico senza viewer dedicato.
 
 La personalizzazione UI e' export-time e viene validata dalla configurazione:
 `[global.ui]` definisce i default dell'export, mentre `[[person]].ui` puo'
