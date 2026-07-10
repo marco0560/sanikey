@@ -117,7 +117,7 @@ def scan_document_inventory(
     files = sorted(
         path
         for path in root.rglob("*")
-        if path.is_file() and not _is_excluded_source_path(person, path)
+        if path.is_file() and not is_excluded_source_path(person, path)
     )
     if progress is not None and progress_label is not None:
         progress.begin(progress_label, total=len(files), interval=20)
@@ -152,12 +152,12 @@ def excluded_source_files(person: PersonConfig) -> tuple[Path, ...]:
         sorted(
             path
             for path in root.rglob("*")
-            if path.is_file() and _is_excluded_source_path(person, path)
+            if path.is_file() and is_excluded_source_path(person, path)
         )
     )
 
 
-def _is_excluded_source_path(person: PersonConfig, path: Path) -> bool:
+def is_excluded_source_path(person: PersonConfig, path: Path) -> bool:
     """Return whether a source path matches ingestion exclusions.
 
     Parameters

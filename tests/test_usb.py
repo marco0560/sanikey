@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import zipfile
 from pathlib import Path
 
 import pytest
 
 from sanikey.build import build_patient
-from sanikey.config import AccountsConfig, PersonConfig
+from sanikey.config import AccountsConfig, IngestionConfig, PersonConfig
 from sanikey.usb import export_usb, usb_image_root, validate_usb
 
 
@@ -208,6 +209,96 @@ def test_export_usb_reports_progress_phases(tmp_path: Path) -> None:
         "export-usb manifest",
         "export-usb target",
     ]
+
+
+def test_export_usb_applies_source_document_exclusions(tmp_path: Path) -> None:
+    """Verify USB export does not copy source files excluded from ingestion.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    base = _person(tmp_path, "patient-a", "Patient A")
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        ingestion=IngestionConfig(exclude_patterns=("Help/**", "*.tmp")),
+    )
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    help_dir = person.source_documents / "Help"
+    help_dir.mkdir()
+    (help_dir / "manual.txt").write_text("exclude", encoding="utf-8")
+    (person.source_documents / "scratch.tmp").write_text("exclude", encoding="utf-8")
+    build_patient(person, mode="full")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+
+    result = export_usb(config, tmp_path / "usb")
+    documents = result.root / "patients" / "patient-a" / "documents"
+
+    assert (documents / "20260102 Report.txt").is_file()
+    assert not (documents / "Help" / "manual.txt").exists()
+    assert not (documents / "scratch.tmp").exists()
+    assert validate_usb(result.root)
+
+
+def test_export_usb_copies_dicom_html_viewer_and_validates_link(
+    tmp_path: Path,
+) -> None:
+    """Verify USB export links staged DICOM HTML viewers with relative hrefs.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path, "patient-a", "Patient A")
+    person.source_documents.mkdir(parents=True)
+    archive = person.source_documents / "20260102 TAC.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("DICOMDIR", b"")
+        bundle.writestr("IHE_PDI/PAGES/STUDIES/STUDY1.HTM", "<html>viewer</html>")
+        bundle.writestr("IHE_PDI/PAGES/IMAGES/IMG1.jpeg", b"jpeg")
+    build_patient(person, mode="full")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+
+    result = export_usb(config, tmp_path / "usb")
+    data_script = (
+        result.root / "patients" / "patient-a" / "web" / "data.js"
+    ).read_text(encoding="utf-8")
+    payload = json.loads(
+        data_script.removeprefix("window.SANIKEY_DATA = ").removesuffix(";\n")
+    )
+    viewer_href = payload["clinical"]["dicom_studies"][0]["viewer_href"]
+
+    assert "../dicom-viewers/" in data_script
+    assert "IHE_PDI/PAGES/STUDIES/STUDY1.HTM" in data_script
+    assert (result.root / "patients" / "patient-a" / "web" / viewer_href).is_file()
+    assert "/home/" not in data_script
+    assert "file://" not in data_script
+    assert validate_usb(result.root)
 
 
 def test_export_usb_isolates_enabled_patients(tmp_path: Path) -> None:

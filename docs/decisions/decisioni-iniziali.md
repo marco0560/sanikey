@@ -161,7 +161,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-144 | La semplicità operativa rimane un criterio prioritario nella valutazione delle nuove funzionalità. | 21 |  |
 | DA-145 | I DICOM sono catalogati e non inviati alla pipeline OCR/testo ordinaria. | 8 |  |
 | DA-146 | Le immagini sorgente sono documenti OCR tramite Tesseract durante l'ingestione Linux. | 8 |  |
-| DA-147 | I path tecnici dei viewer nei contenitori restano manifest-only. | 8 |  |
+| DA-147 | I path tecnici generici dei viewer restano manifest-only; gli entrypoint HTML DICOM consultabili vengono esportati come subtree relative dedicate. | 8 |  |
 | DA-148 | Il riepilogo build distingue documenti sorgente, derivati, istanze DICOM e record totali. | 15 |  |
 | DA-149 | L'OCR immagini preferisce `ita+eng` quando disponibile e ricade sul default Tesseract. | 20 |  |
 | DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. | 8 |  |
@@ -253,7 +253,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-040 | Ogni informazione derivata deve conservare la propria provenienza. |  |
 | DA-145 | I DICOM sono catalogati e non inviati alla pipeline OCR/testo ordinaria. |  |
 | DA-146 | Le immagini sorgente sono documenti OCR tramite Tesseract durante l'ingestione Linux. |  |
-| DA-147 | I path tecnici dei viewer nei contenitori restano manifest-only. |  |
+| DA-147 | I path tecnici generici dei viewer restano manifest-only; gli entrypoint HTML DICOM consultabili vengono esportati come subtree relative dedicate. |  |
 | DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. |  |
 | DA-152 | I supporti DICOM annidati nei contenitori vengono espansi ricorsivamente in staging. |  |
 | DA-155 | Le istanze DICOM leggibili vengono raggruppate per StudyInstanceUID o DICOMDIR e coalescono record duplicati dello stesso studio. |  |

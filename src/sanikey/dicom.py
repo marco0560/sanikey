@@ -36,6 +36,8 @@ class DicomStudy:
         Manually expanded directory when available.
     viewer_paths : tuple[pathlib.Path, ...]
         Detected viewer executables or launch files.
+    html_viewer_path : pathlib.Path | None
+        Preferred browser-openable viewer entrypoint when available.
     warnings : tuple[str, ...]
         Non-fatal cataloging warnings.
     study_instance_uid : str | None
@@ -54,6 +56,7 @@ class DicomStudy:
     support_kind: str
     extracted_path: Path | None = None
     viewer_paths: tuple[Path, ...] = ()
+    html_viewer_path: Path | None = None
     warnings: tuple[str, ...] = ()
     study_instance_uid: str | None = None
     study_date: str | None = None
@@ -157,6 +160,7 @@ def _studies_from_document(
             return studies
     extracted = _manual_extracted_path(person, document)
     viewers = _viewer_paths(extracted) if extracted is not None else ()
+    html_viewer = _html_viewer_path(extracted) if extracted is not None else None
     warnings: tuple[str, ...] = ()
     support_kind = _dicom_support_kind(document)
     if extracted is None and support_kind in {
@@ -175,6 +179,7 @@ def _studies_from_document(
             support_kind=support_kind,
             extracted_path=extracted,
             viewer_paths=viewers,
+            html_viewer_path=html_viewer,
             warnings=warnings,
         ),
     )
@@ -370,6 +375,7 @@ def _coalesce_dicom_studies(studies: tuple[DicomStudy, ...]) -> tuple[DicomStudy
             viewer_paths=_deduplicate_paths(
                 (*existing.viewer_paths, *study.viewer_paths)
             ),
+            html_viewer_path=existing.html_viewer_path or study.html_viewer_path,
             warnings=_deduplicate_text((*existing.warnings, *study.warnings)),
             study_instance_uid=existing.study_instance_uid or study.study_instance_uid,
             study_date=existing.study_date or study.study_date,
@@ -770,6 +776,95 @@ def _viewer_paths(extracted_path: Path) -> tuple[Path, ...]:
             "start.exe",
             "autorun.inf",
             "index.html",
+            "index.htm",
         }:
             candidates.append(path)
     return tuple(sorted(candidates))
+
+
+def _html_viewer_path(extracted_path: Path) -> Path | None:
+    """Return the preferred HTML viewer entrypoint in an extracted support.
+
+    Parameters
+    ----------
+    extracted_path : pathlib.Path
+        Manually expanded or staged DICOM support directory.
+
+    Returns
+    -------
+    pathlib.Path | None
+        Browser-openable entrypoint, preferring IHE PDI study pages when
+        available.
+    """
+
+    candidates = tuple(path for path in extracted_path.rglob("*") if path.is_file())
+    ihe_studies = _html_candidates_under(candidates, ("ihe_pdi", "pages", "studies"))
+    if ihe_studies:
+        return ihe_studies[0]
+    ihe_pages = _html_candidates_under(candidates, ("ihe_pdi", "pages"))
+    if ihe_pages:
+        return ihe_pages[0]
+    named = [
+        path
+        for path in candidates
+        if path.name.lower() in {"index.html", "index.htm", "default.htm", "start.htm"}
+    ]
+    if named:
+        return tuple(sorted(named))[0]
+    return None
+
+
+def _html_candidates_under(
+    paths: tuple[Path, ...],
+    segments: tuple[str, ...],
+) -> tuple[Path, ...]:
+    """Return HTML files whose path contains an ordered segment sequence.
+
+    Parameters
+    ----------
+    paths : tuple[pathlib.Path, ...]
+        Candidate files.
+    segments : tuple[str, ...]
+        Lowercase path segment sequence to match.
+
+    Returns
+    -------
+    tuple[pathlib.Path, ...]
+        Matching HTML files in deterministic order.
+    """
+
+    matches = []
+    for path in paths:
+        if path.suffix.lower() not in {".html", ".htm"}:
+            continue
+        parts = tuple(part.lower() for part in path.parts)
+        if _contains_ordered_segments(parts, segments):
+            matches.append(path)
+    return tuple(sorted(matches))
+
+
+def _contains_ordered_segments(
+    parts: tuple[str, ...],
+    segments: tuple[str, ...],
+) -> bool:
+    """Return whether path parts contain a contiguous segment sequence.
+
+    Parameters
+    ----------
+    parts : tuple[str, ...]
+        Lowercase path parts.
+    segments : tuple[str, ...]
+        Segment sequence to find.
+
+    Returns
+    -------
+    bool
+        ``True`` when the sequence is present.
+    """
+
+    if len(parts) < len(segments):
+        return False
+    return any(
+        parts[index : index + len(segments)] == segments
+        for index in range(len(parts) - len(segments) + 1)
+    )

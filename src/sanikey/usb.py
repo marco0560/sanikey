@@ -7,15 +7,15 @@ import json
 import shutil
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
 from .database import database_path
+from .documents import is_excluded_source_path
 from .errors import UsbError
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .config import AccountsConfig, PersonConfig
     from .progress import ProgressReporter
 
@@ -183,7 +183,8 @@ def _export_patient(person: PersonConfig, target: Path) -> None:
     if db_source.is_file():
         shutil.copy2(db_source, patient_root / "medical_archive.db")
     _copy_tree(person.local_build / "web", patient_root / "web")
-    _copy_tree(person.source_documents, patient_root / "documents")
+    _copy_source_documents(person, patient_root / "documents")
+    _copy_dicom_html_viewers(person.local_build, patient_root / "dicom-viewers")
 
 
 def _copy_tree(source: Path, target: Path) -> None:
@@ -205,6 +206,79 @@ def _copy_tree(source: Path, target: Path) -> None:
         shutil.rmtree(target)
     if source.is_dir():
         shutil.copytree(source, target)
+
+
+def _copy_source_documents(person: PersonConfig, target: Path) -> None:
+    """Copy source documents that are not excluded from ingestion.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    target : pathlib.Path
+        Exported documents directory.
+
+    Returns
+    -------
+    None
+    """
+
+    if target.exists():
+        shutil.rmtree(target)
+    if not person.source_documents.is_dir():
+        return
+    target.mkdir(parents=True, exist_ok=True)
+    files = sorted(
+        path
+        for path in person.source_documents.rglob("*")
+        if path.is_file() and not is_excluded_source_path(person, path)
+    )
+    for path in files:
+        destination = target / path.relative_to(person.source_documents)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+
+
+def _copy_dicom_html_viewers(local_build: Path, target: Path) -> None:
+    """Copy generated DICOM HTML viewer subtrees into a patient USB area.
+
+    Parameters
+    ----------
+    local_build : pathlib.Path
+        Patient generated build root.
+    target : pathlib.Path
+        USB viewer root for the patient.
+
+    Returns
+    -------
+    None
+    """
+
+    if target.exists():
+        shutil.rmtree(target)
+    manifest = local_build / "manifests" / "dicom_html_viewers.json"
+    if not manifest.is_file():
+        return
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    for entry in payload.get("viewers", []):
+        if not isinstance(entry, dict):
+            continue
+        study_id = entry.get("study_id")
+        source_root = entry.get("source_root")
+        relative_root = entry.get("relative_root")
+        if not isinstance(study_id, str):
+            continue
+        if not isinstance(source_root, str):
+            continue
+        if not isinstance(relative_root, str):
+            continue
+        source = Path(source_root)
+        if not source.is_dir():
+            continue
+        destination = target / study_id / relative_root
+        if destination.exists():
+            shutil.rmtree(destination)
+        shutil.copytree(source, destination)
 
 
 def _reset_directory(target: Path) -> None:
@@ -612,7 +686,11 @@ def _frontend_hrefs(value: object) -> tuple[str, ...]:
     """
 
     if isinstance(value, dict):
-        hrefs = [value["href"]] if isinstance(value.get("href"), str) else []
+        hrefs = [
+            item
+            for key, item in value.items()
+            if key.endswith("href") and isinstance(item, str)
+        ]
         for child in value.values():
             hrefs.extend(_frontend_hrefs(child))
         return tuple(hrefs)

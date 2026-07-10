@@ -114,6 +114,7 @@ SANIKEY-MANIFEST.json
 START-HERE-Patient-A.html
 patients/
   patient-a/
+    dicom-viewers/
     documents/
     medical_archive.db
     web/
@@ -125,6 +126,9 @@ corrisponde agli artefatti frontend generati da `frontend.py`.
 I link ai documenti originali sono relativi a `patients/<id>/web/index.html` e
 puntano a `../documents/...`; `validate-usb` rifiuta payload con path assoluti,
 URL `file://` o link rotti.
+I viewer HTML DICOM riconosciuti durante lo staging vengono copiati sotto
+`patients/<id>/dicom-viewers/` e linkati dal frontend con `viewer_href`
+relativi.
 
 ## Frontend di Consultazione
 
@@ -149,6 +153,9 @@ La UI e' progettata per PC non noti in anticipo:
 I file DICOM sono artefatti tecnici. Il database può conservarli come record,
 ma il frontend mostra schede aggregate per studio DICOM invece delle singole
 istanze, che non sono leggibili da un medico senza viewer dedicato.
+Quando un supporto contiene un viewer HTML statico, per esempio IHE PDI,
+l'export copia la subtree necessaria al viewer e la scheda dello studio espone
+un link `Apri viewer HTML` in un tab separato.
 
 La personalizzazione UI e' export-time e viene validata dalla configurazione:
 `[global.ui]` definisce i default dell'export, mentre `[[person]].ui` puo'

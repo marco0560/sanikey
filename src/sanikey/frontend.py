@@ -308,7 +308,8 @@ function renderEntityCard(item, section) {
   return `<article id="entity-${attr(item.id)}"><h4>${escapeHtml(item.title)}</h4>
     ${item.date || item.start_date ? `<p>${escapeHtml(formatDate(item.date || item.start_date))}</p>` : ""}
     ${renderFields(item.fields || [])}
-    ${item.href ? `<a href="${attr(item.href)}">${section === "dicom" ? "Apri supporto DICOM" : "Apri originale"}</a>` : ""}</article>`;
+    ${item.href ? `<a href="${attr(item.href)}">${section === "dicom" ? "Apri supporto DICOM" : "Apri originale"}</a>` : ""}
+    ${item.viewer_href ? `<a href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri viewer HTML</a>` : ""}</article>`;
 }
 
 function renderFields(fields) {

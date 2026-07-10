@@ -209,6 +209,65 @@ def test_generate_exports_writes_advanced_search_dictionary_and_warning(
     assert result.warning_messages == ()
 
 
+def test_generate_exports_writes_dicom_html_viewer_payload(
+    tmp_path: Path,
+) -> None:
+    """Verify DICOM HTML viewers are linked and recorded for USB export.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    support = person.source_documents / "20260102 TAC.zip"
+    support.write_bytes(b"zip")
+    extracted = person.local_build / "staging" / "containers" / "container-a"
+    viewer = extracted / "IHE_PDI" / "PAGES" / "STUDIES" / "STUDY1.HTM"
+    viewer.parent.mkdir(parents=True)
+    viewer.write_text("<html>viewer</html>", encoding="utf-8")
+    study = DicomStudy(
+        study_id="study-a",
+        patient_id=person.id,
+        support_path=support,
+        support_kind="dicom_zip",
+        extracted_path=extracted,
+        html_viewer_path=viewer,
+    )
+
+    result = generate_exports(
+        person,
+        scan_documents(person),
+        load_curated_metadata(person.metadata_directory),
+        dicom_studies=(study,),
+    )
+
+    data_script = result.data_script.read_text(encoding="utf-8")
+    manifest = json.loads(
+        (person.local_build / "manifests" / "dicom_html_viewers.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert (
+        '"viewer_href": "../dicom-viewers/study-a/IHE_PDI/PAGES/STUDIES/STUDY1.HTM"'
+        in data_script
+    )
+    assert manifest["viewers"] == [
+        {
+            "entrypoint": "IHE_PDI/PAGES/STUDIES/STUDY1.HTM",
+            "relative_root": "IHE_PDI",
+            "source_root": str(extracted / "IHE_PDI"),
+            "study_id": "study-a",
+        }
+    ]
+
+
 def test_generate_exports_excludes_unapproved_proposals(tmp_path: Path) -> None:
     """Verify standard exports ignore non-authoritative proposals.
 

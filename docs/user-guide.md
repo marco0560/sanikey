@@ -156,7 +156,9 @@ sostituiscono. I pattern sorgente sono relativi a `source_documents`; dentro un
 container sono relativi alla root estratta del container. Ogni pattern viene
 confrontato sia con il path relativo sia con il solo nome file. Il confronto e'
 case-insensitive, quindi `"**/Help/**"` esclude anche `help`, `HELP` o
-combinazioni miste.
+combinazioni miste. Gli stessi pattern filtrano anche la copia dei documenti
+originali in `export-usb`: un file escluso dall'ingestione non viene copiato
+nella directory `patients/<id>/documents` della chiavetta.
 
 In TOML la chiave `exclude_patterns` puo' comparire una sola volta nella stessa
 tabella. Per indicare piu' esclusioni bisogna usare una lista nello stesso
@@ -369,7 +371,12 @@ scrittura nel database. I file DICOM privi di metadati leggibili restano
 catalogati singolarmente come fallback diagnostico.
 I file tecnici dei viewer inclusi nei supporti, per esempio runtime Java, DLL,
 manuali, HTML di help o asset applicativi, restano tracciati nel manifest di
-staging ma non entrano nella pipeline documentale ordinaria. Il manifest di
+staging ma non entrano nella pipeline documentale ordinaria. Se lo staging
+contiene un viewer HTML consultabile, SaniKey preferisce entrypoint IHE PDI
+come `IHE_PDI/PAGES/STUDIES/*.HTM`, poi altre pagine HTML note come
+`index.html`, `index.htm`, `default.htm` o `start.htm`. In export USB questi
+viewer vengono copiati sotto `patients/<id>/dicom-viewers/` e aperti dal
+frontend con un link relativo in un nuovo tab del browser. Il manifest di
 staging può essere molto grande perché registra ogni membro estratto dai
 contenitori per audit e verifica manuale; non è un report compatto da leggere
 integralmente in terminale.

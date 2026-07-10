@@ -169,6 +169,7 @@ def generate_exports(
         person.local_build / "timeline" / "timeline.json",
         json.loads(timeline_path.read_text(encoding="utf-8")),
     )
+    _write_dicom_html_viewer_manifest(person, dicom_studies)
     return ExportResult(
         data_dir=data_dir,
         documents=documents_path,
@@ -922,12 +923,14 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
 
     title = study.study_description or study.support_path.name
     href = _document_href_from_path(person, study.support_path)
+    viewer_href = _dicom_html_viewer_href(study)
     fields: list[dict[str, Any]] = [
         {"label": "Supporto", "value": study.support_path.name},
         {"label": "Tipo", "value": study.support_kind},
         {"label": "Data", "value": study.study_date},
         {"label": "UID", "value": study.study_instance_uid},
         {"label": "Istanze", "value": str(study.instance_count)},
+        {"label": "Viewer HTML", "value": "disponibile" if viewer_href else None},
     ]
     return {
         "id": study.study_id,
@@ -940,6 +943,7 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
         "study_description": study.study_description,
         "instance_count": study.instance_count,
         "href": href,
+        "viewer_href": viewer_href,
         "text": " ".join(
             item
             for item in (
@@ -948,12 +952,112 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
                 study.support_kind,
                 study.study_date,
                 study.study_instance_uid,
+                "viewer html" if viewer_href else None,
                 str(study.instance_count),
             )
             if item
         ).strip(),
         "fields": _visible_fields(fields),
     }
+
+
+def _dicom_html_viewer_href(study: DicomStudy) -> str | None:
+    """Build the frontend link to an exported DICOM HTML viewer.
+
+    Parameters
+    ----------
+    study : DicomStudy
+        Cataloged DICOM study.
+
+    Returns
+    -------
+    str | None
+        Relative URL from ``web/index.html`` to the copied viewer entrypoint.
+    """
+
+    if study.html_viewer_path is None or study.extracted_path is None:
+        return None
+    try:
+        root = _dicom_html_viewer_root(study.html_viewer_path, study.extracted_path)
+        relative = study.html_viewer_path.relative_to(root.parent)
+    except ValueError:
+        return None
+    return f"../dicom-viewers/{study.study_id}/{relative.as_posix()}"
+
+
+def _dicom_html_viewer_root(viewer_path: Path, extracted_path: Path) -> Path:
+    """Return the copied subtree root for one HTML DICOM viewer.
+
+    Parameters
+    ----------
+    viewer_path : pathlib.Path
+        Viewer entrypoint path.
+    extracted_path : pathlib.Path
+        Extracted support root.
+
+    Returns
+    -------
+    pathlib.Path
+        Directory copied to the USB viewer area.
+    """
+
+    relative_parts = viewer_path.relative_to(extracted_path).parts
+    lowered = tuple(part.lower() for part in relative_parts)
+    if "ihe_pdi" in lowered:
+        index = lowered.index("ihe_pdi")
+        return extracted_path.joinpath(*relative_parts[: index + 1])
+    return viewer_path.parent
+
+
+def _write_dicom_html_viewer_manifest(
+    person: PersonConfig,
+    dicom_studies: tuple[DicomStudy, ...],
+) -> Path:
+    """Write DICOM HTML viewer copy instructions for USB export.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    dicom_studies : tuple[DicomStudy, ...]
+        Cataloged DICOM studies.
+
+    Returns
+    -------
+    pathlib.Path
+        Written manifest path.
+    """
+
+    entries = []
+    for study in dicom_studies:
+        if study.html_viewer_path is None or study.extracted_path is None:
+            continue
+        try:
+            root = _dicom_html_viewer_root(study.html_viewer_path, study.extracted_path)
+            relative_root = root.relative_to(root.parent)
+            entrypoint = study.html_viewer_path.relative_to(root.parent)
+        except ValueError:
+            continue
+        entries.append(
+            {
+                "study_id": study.study_id,
+                "source_root": str(root),
+                "relative_root": relative_root.as_posix(),
+                "entrypoint": entrypoint.as_posix(),
+            }
+        )
+    target = person.local_build / "manifests" / "dicom_html_viewers.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(
+            {"schema_version": 1, "viewers": entries},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return target
 
 
 def _document_href_from_path(person: PersonConfig, path: Path) -> str | None:

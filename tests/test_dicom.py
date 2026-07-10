@@ -514,3 +514,38 @@ def test_catalog_dicom_studies_suppresses_pydicom_value_warnings(
 
     assert len(studies) == 1
     assert list(recwarn) == []
+
+
+def test_catalog_dicom_studies_prefers_ihe_pdi_html_viewer(
+    tmp_path: Path,
+) -> None:
+    """Verify DICOM cataloging exposes a browser-openable IHE PDI viewer.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    archive = person.source_documents / "20260102 TAC.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("DICOMDIR", b"")
+    document = scan_documents(person)[0]
+    extracted = person.local_build / "staging" / "containers" / document.document_id
+    viewer = extracted / "IHE_PDI" / "PAGES" / "STUDIES" / "STUDY1.HTM"
+    viewer.parent.mkdir(parents=True)
+    viewer.write_text("<html>viewer</html>", encoding="utf-8")
+    fallback = extracted / "index.html"
+    fallback.write_text("<html>fallback</html>", encoding="utf-8")
+
+    studies = catalog_dicom_studies(person, (document,))
+
+    assert len(studies) == 1
+    assert studies[0].html_viewer_path == viewer
+    assert fallback in studies[0].viewer_paths

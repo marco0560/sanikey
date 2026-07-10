@@ -579,6 +579,9 @@ Verificare anche il comportamento della UI di consultazione:
   assoluti del computer di build.
 - gli studi DICOM appaiono come schede aggregate e non come migliaia di file
   interni non cliccabili.
+- se uno studio DICOM contiene un viewer HTML, la scheda mostra `Apri viewer
+  HTML` e il link si apre in un nuovo tab da un path relativo sotto
+  `patients/<id>/dicom-viewers/`.
 
 Controllare automaticamente che il payload frontend della chiavetta non contenga
 path sorgente assoluti:
@@ -610,6 +613,38 @@ href = next(item["href"] for item in data["documents"] if item.get("href"))
 target = (web / href).resolve()
 if not target.is_file():
     raise SystemExit(f"Apri originale non risolve a un file: {target}")
+print(target)
+PY
+```
+
+Verificare allo stesso modo gli eventuali link ai viewer HTML DICOM. Se un
+paziente non ha viewer HTML, il comando stampa `no viewer href` ed e' comunque
+accettabile.
+
+```bash
+python - "$USB_MOUNT/patients/marco/web" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+web = Path(sys.argv[1])
+payload = web.joinpath("data.js").read_text(encoding="utf-8")
+match = re.fullmatch(r"window[.]SANIKEY_DATA = (.*);\n", payload, re.S)
+if match is None:
+    raise SystemExit("data.js non contiene il payload SANIKEY_DATA atteso")
+data = json.loads(match.group(1))
+hrefs = [
+    item.get("viewer_href")
+    for item in data.get("clinical", {}).get("dicom_studies", [])
+    if item.get("viewer_href")
+]
+if not hrefs:
+    print("no viewer href")
+    raise SystemExit(0)
+target = (web / hrefs[0]).resolve()
+if not target.is_file():
+    raise SystemExit(f"Apri viewer HTML non risolve a un file: {target}")
 print(target)
 PY
 ```
@@ -790,6 +825,8 @@ indica uno studio raggruppato; `instance_count` deve essere maggiore di 1 quando
 più slice appartengono allo stesso `StudyInstanceUID`. Record `dicom_file`
 singoli indicano file DICOM senza metadati studio leggibili. Le query con
 `GROUP BY id HAVING count(*) > 1` non devono stampare righe.
+Se il supporto contiene un viewer HTML riconosciuto, `data.js` contiene un
+`viewer_href` relativo; `validate-usb` lo controlla come gli altri href.
 
 ## Consultazione offline
 
