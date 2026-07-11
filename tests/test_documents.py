@@ -1357,7 +1357,17 @@ def test_extract_text_retries_ocrmypdf_without_optimization(
 
     assert extracted.text == "retried OCR text"
     assert extracted.warnings == ()
-    assert calls[1][1:4] == ["--skip-text", "--optimize", "0"]
+    assert calls[0][1:3] == [
+        "--skip-text",
+        "--continue-on-soft-render-error",
+    ]
+    assert "--optimize" not in calls[0]
+    assert calls[1][1:5] == [
+        "--skip-text",
+        "--continue-on-soft-render-error",
+        "--optimize",
+        "0",
+    ]
 
 
 def test_extract_text_summarizes_ocrmypdf_retry_failures(
@@ -1414,3 +1424,71 @@ def test_extract_text_summarizes_ocrmypdf_retry_failures(
         "OSError: image file is truncated (4 bytes not processed); "
         "retry with --optimize 0 failed: Error: retry failed",
     )
+
+
+def test_extract_text_locates_ocrmypdf_failure_page_with_bisection(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify OCRmyPDF failure diagnostics bisect source page ranges.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Report.pdf"
+    path.write_bytes(b"%PDF synthetic")
+    document = scan_documents(person)[0]
+    diagnostic_ranges = []
+
+    def fake_run(command, **_kwargs):
+        if "--pages" not in command:
+            if "--optimize" in command:
+                return subprocess.CompletedProcess(
+                    command,
+                    2,
+                    "",
+                    "Error: retry failed",
+                )
+            return subprocess.CompletedProcess(
+                command,
+                2,
+                "",
+                "OSError: image file is truncated (4 bytes not processed)",
+            )
+        page_range = command[command.index("--pages") + 1]
+        diagnostic_ranges.append(page_range)
+        start_text, _, end_text = page_range.partition("-")
+        start = int(start_text)
+        end = int(end_text or start_text)
+        returncode = 2 if start <= 6 <= end else 0
+        return subprocess.CompletedProcess(command, returncode, "", "")
+
+    monkeypatch.setattr(
+        documents_module, "_extract_pdf_text_with_pymupdf", lambda _: None
+    )
+    monkeypatch.setattr(documents_module, "_pdf_page_count", lambda _: 8)
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: "/usr/bin/ocrmypdf")
+    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == ""
+    assert extracted.warnings == (
+        "OCRmyPDF failed; PDF text extraction skipped: "
+        "OSError: image file is truncated (4 bytes not processed); "
+        "retry with --optimize 0 failed: Error: retry failed; "
+        "failing source page: 6",
+    )
+    assert diagnostic_ranges == ["1-4", "5-6", "5", "6"]

@@ -1035,8 +1035,7 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
         completed = _run_ocrmypdf(
             executable,
             document.path,
-            sidecar,
-            output_pdf,
+            (sidecar, output_pdf),
         )
         if completed.returncode != 0 and _should_retry_ocrmypdf_without_optimize(
             completed
@@ -1046,8 +1045,7 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
             retry = _run_ocrmypdf(
                 executable,
                 document.path,
-                sidecar,
-                output_pdf,
+                (sidecar, output_pdf),
                 optimize=False,
             )
             if retry.returncode == 0:
@@ -1055,20 +1053,34 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
             else:
                 detail = _summarize_command_failure(completed)
                 retry_detail = _summarize_command_failure(retry)
+                page_detail = _ocrmypdf_failure_page_detail(
+                    executable,
+                    document.path,
+                    optimize=False,
+                )
                 return ExtractedText(
                     document_id=document.document_id,
                     text="",
                     warnings=(
                         "OCRmyPDF failed; PDF text extraction skipped: "
-                        f"{detail}; retry with --optimize 0 failed: {retry_detail}",
+                        f"{detail}; retry with --optimize 0 failed: "
+                        f"{retry_detail}{page_detail}",
                     ),
                 )
         if completed.returncode != 0:
             detail = _summarize_command_failure(completed)
+            page_detail = _ocrmypdf_failure_page_detail(
+                executable,
+                document.path,
+                optimize=True,
+            )
             return ExtractedText(
                 document_id=document.document_id,
                 text="",
-                warnings=(f"OCRmyPDF failed; PDF text extraction skipped: {detail}",),
+                warnings=(
+                    "OCRmyPDF failed; PDF text extraction skipped: "
+                    f"{detail}{page_detail}",
+                ),
             )
         if not sidecar.is_file():
             return ExtractedText(
@@ -1085,10 +1097,10 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
 def _run_ocrmypdf(
     executable: str,
     source: Path,
-    sidecar: Path,
-    output_pdf: Path,
+    outputs: tuple[Path, Path],
     *,
     optimize: bool = True,
+    pages: tuple[int, int] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run OCRmyPDF for one PDF document.
 
@@ -1098,12 +1110,12 @@ def _run_ocrmypdf(
         OCRmyPDF executable path.
     source : pathlib.Path
         Source PDF.
-    sidecar : pathlib.Path
-        Text sidecar output path.
-    output_pdf : pathlib.Path
-        Temporary OCR PDF output path.
+    outputs : tuple[pathlib.Path, pathlib.Path]
+        Text sidecar and temporary OCR PDF output paths.
     optimize : bool, optional
         Whether OCRmyPDF should run its PDF optimization phase.
+    pages : tuple[int, int] | None, optional
+        Inclusive one-based page range to process, or ``None`` for all pages.
 
     Returns
     -------
@@ -1111,9 +1123,18 @@ def _run_ocrmypdf(
         Completed OCRmyPDF process.
     """
 
-    command = [executable, "--skip-text"]
+    command = [
+        executable,
+        "--skip-text",
+        "--continue-on-soft-render-error",
+    ]
     if not optimize:
         command.extend(("--optimize", "0"))
+    if pages is not None:
+        start, end = pages
+        page_range = str(start) if start == end else f"{start}-{end}"
+        command.extend(("--pages", page_range))
+    sidecar, output_pdf = outputs
     command.extend(("--sidecar", str(sidecar), str(source), str(output_pdf)))
     return subprocess.run(
         command,
@@ -1121,6 +1142,167 @@ def _run_ocrmypdf(
         capture_output=True,
         text=True,
     )
+
+
+def _ocrmypdf_failure_page_detail(
+    executable: str,
+    source: Path,
+    *,
+    optimize: bool,
+) -> str:
+    """Return a warning suffix that identifies a failing source PDF page.
+
+    Parameters
+    ----------
+    executable : str
+        OCRmyPDF executable path.
+    source : pathlib.Path
+        Source PDF.
+    optimize : bool
+        Whether diagnostic OCRmyPDF runs should use optimization.
+
+    Returns
+    -------
+    str
+        Warning suffix containing a one-based source page number, or an empty
+        string when the page cannot be determined.
+    """
+
+    page_count = _pdf_page_count(source)
+    if page_count is None:
+        return ""
+    page_number = _find_ocrmypdf_failure_page(
+        executable,
+        source,
+        page_count,
+        optimize=optimize,
+    )
+    if page_number is None:
+        return ""
+    return f"; failing source page: {page_number}"
+
+
+def _pdf_page_count(source: Path) -> int | None:
+    """Return the number of pages in a PDF.
+
+    Parameters
+    ----------
+    source : pathlib.Path
+        Source PDF.
+
+    Returns
+    -------
+    int | None
+        Page count, or ``None`` when the PDF cannot be opened.
+    """
+
+    try:
+        import fitz
+
+        with fitz.open(source) as pdf:
+            return len(pdf)
+    except (ImportError, RuntimeError, ValueError):
+        return None
+
+
+def _find_ocrmypdf_failure_page(
+    executable: str,
+    source: Path,
+    page_count: int,
+    *,
+    optimize: bool,
+) -> int | None:
+    """Find the first OCRmyPDF-failing source page with bisection.
+
+    Parameters
+    ----------
+    executable : str
+        OCRmyPDF executable path.
+    source : pathlib.Path
+        Source PDF.
+    page_count : int
+        Number of source PDF pages.
+    optimize : bool
+        Whether diagnostic OCRmyPDF runs should use optimization.
+
+    Returns
+    -------
+    int | None
+        One-based failing source page, or ``None`` when no failing page can be
+        isolated.
+    """
+
+    if page_count < 1:
+        return None
+    start = 1
+    end = page_count
+    with tempfile.TemporaryDirectory(prefix="sanikey-ocr-diagnose-") as directory:
+        temp_root = Path(directory)
+        while start < end:
+            midpoint = (start + end) // 2
+            if _ocrmypdf_page_range_fails(
+                executable,
+                source,
+                temp_root,
+                pages=(start, midpoint),
+                optimize=optimize,
+            ):
+                end = midpoint
+            else:
+                start = midpoint + 1
+        if _ocrmypdf_page_range_fails(
+            executable,
+            source,
+            temp_root,
+            pages=(start, start),
+            optimize=optimize,
+        ):
+            return start
+    return None
+
+
+def _ocrmypdf_page_range_fails(
+    executable: str,
+    source: Path,
+    temp_root: Path,
+    *,
+    pages: tuple[int, int],
+    optimize: bool,
+) -> bool:
+    """Return whether OCRmyPDF fails for an inclusive source page range.
+
+    Parameters
+    ----------
+    executable : str
+        OCRmyPDF executable path.
+    source : pathlib.Path
+        Source PDF.
+    temp_root : pathlib.Path
+        Temporary directory for diagnostic outputs.
+    pages : tuple[int, int]
+        Inclusive one-based page range.
+    optimize : bool
+        Whether OCRmyPDF should run its PDF optimization phase.
+
+    Returns
+    -------
+    bool
+        ``True`` when OCRmyPDF exits with a non-zero status.
+    """
+
+    start, end = pages
+    sidecar = temp_root / f"pages-{start}-{end}.txt"
+    output_pdf = temp_root / f"pages-{start}-{end}.pdf"
+    sidecar.unlink(missing_ok=True)
+    output_pdf.unlink(missing_ok=True)
+    completed = _run_ocrmypdf(
+        executable,
+        source,
+        (sidecar, output_pdf),
+        optimize=optimize,
+        pages=pages,
+    )
+    return completed.returncode != 0
 
 
 def _should_retry_ocrmypdf_without_optimize(
