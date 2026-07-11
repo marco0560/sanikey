@@ -12,6 +12,7 @@ generated/
 exports/
 logs/
 local-data/
+scripts/reload.sh
 
 # -------------------------------
 # Virtual environments
