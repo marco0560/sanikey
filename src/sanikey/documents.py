@@ -1126,6 +1126,8 @@ def _run_ocrmypdf(
     command = [
         executable,
         "--skip-text",
+        "--output-type",
+        "pdf",
         "--continue-on-soft-render-error",
     ]
     if not optimize:

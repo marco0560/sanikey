@@ -13,6 +13,7 @@ exports/
 logs/
 local-data/
 scripts/reload.sh
+immagini/*.png
 
 # -------------------------------
 # Virtual environments

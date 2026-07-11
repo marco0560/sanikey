@@ -1357,13 +1357,17 @@ def test_extract_text_retries_ocrmypdf_without_optimization(
 
     assert extracted.text == "retried OCR text"
     assert extracted.warnings == ()
-    assert calls[0][1:3] == [
+    assert calls[0][1:5] == [
         "--skip-text",
+        "--output-type",
+        "pdf",
         "--continue-on-soft-render-error",
     ]
     assert "--optimize" not in calls[0]
-    assert calls[1][1:5] == [
+    assert calls[1][1:7] == [
         "--skip-text",
+        "--output-type",
+        "pdf",
         "--continue-on-soft-render-error",
         "--optimize",
         "0",

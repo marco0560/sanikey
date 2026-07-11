@@ -390,12 +390,13 @@ Per i PDF, SaniKey sceglie automaticamente il provider:
 `OCRmyPDF` è quindi una dipendenza di sistema supportata. Se nessun provider è
 disponibile, il PDF resta catalogato ma l'estrazione testo viene saltata con un
 warning esplicito sui provider mancanti o insufficienti.
-Se OCRmyPDF fallisce durante l'ottimizzazione del PDF temporaneo, SaniKey ritenta
-senza ottimizzazione perché usa solo il sidecar testuale. I warning registrati
-nel report sono sintetici e non includono il log completo del tool esterno. Se
-anche il retry fallisce e il numero di pagine è disponibile, SaniKey ritenta su
-intervalli di pagine con una ricerca dicotomica per indicare la prima pagina del
-PDF originale che riproduce il problema.
+SaniKey configura OCRmyPDF per produrre un PDF temporaneo normale invece di un
+PDF/A, perché conserva solo il sidecar testuale. Se OCRmyPDF fallisce durante
+l'ottimizzazione del PDF temporaneo, SaniKey ritenta senza ottimizzazione. I
+warning registrati nel report sono sintetici e non includono il log completo del
+tool esterno. Se anche il retry fallisce e il numero di pagine è disponibile,
+SaniKey ritenta su intervalli di pagine con una ricerca dicotomica per indicare
+la prima pagina del PDF originale che riproduce il problema.
 
 Il testo estratto con successo viene salvato nella tabella SQLite
 `document_text` e indicizzato in `document_fts` insieme a titolo, categoria e
