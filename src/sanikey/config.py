@@ -42,7 +42,7 @@ USB_FIELDS = frozenset(
     {
         "copy_strategy",
         "min_free_space_mb",
-        "required_filesystem_uuid",
+        "usb_uuid",
         "require_exfat",
     }
 )
@@ -157,7 +157,7 @@ class UsbConfig:
 
     Parameters
     ----------
-    required_filesystem_uuid : str | None, optional
+    usb_uuid : str | None, optional
         Expected filesystem UUID for physical targets.
     require_exfat : bool
         Whether physical targets must be mounted as exFAT.
@@ -167,7 +167,7 @@ class UsbConfig:
         Copy strategy, either ``python`` or ``rsync-preferred``.
     """
 
-    required_filesystem_uuid: str | None = None
+    usb_uuid: str | None = None
     require_exfat: bool = False
     min_free_space_mb: int = 256
     copy_strategy: str = "rsync-preferred"
@@ -235,7 +235,7 @@ class PersonConfig:
         Directory for generated artefacts.
     usb_uuid : str
         Expected filesystem UUID for deployment, resolved from the per-patient
-        value or ``[global.usb].required_filesystem_uuid``.
+        value or ``[global.usb].usb_uuid``.
     enabled : bool
         Whether the patient should be included in builds.
     ui : UiConfig
@@ -514,11 +514,11 @@ def _parse_person(  # noqa: PLR0913
         default=None,
     )
     if usb_uuid is None:
-        global_usb_uuid = global_usb.required_filesystem_uuid
+        global_usb_uuid = global_usb.usb_uuid
         if global_usb_uuid is None:
             _fail(
                 f"[[person]] entry {index} missing fields: usb_uuid "
-                "or [global.usb].required_filesystem_uuid",
+                "or [global.usb].usb_uuid",
             )
         usb_uuid = global_usb_uuid
     assert usb_uuid is not None
@@ -774,11 +774,11 @@ def _parse_usb_config(value: Any, *, context: str) -> UsbConfig:
         _fail(f"{context} unknown fields: {', '.join(unknown)}")
     source = UsbConfig()
     return UsbConfig(
-        required_filesystem_uuid=_optional_nullable_string(
+        usb_uuid=_optional_nullable_string(
             value,
-            "required_filesystem_uuid",
+            "usb_uuid",
             context=context,
-            default=source.required_filesystem_uuid,
+            default=source.usb_uuid,
         ),
         require_exfat=_optional_bool(
             value,
@@ -1371,18 +1371,16 @@ def _validate_enabled_usb_uuid(
         for person in people
         if person.enabled and person.usb_uuid
     }
-    if usb.required_filesystem_uuid is not None:
-        mismatches = sorted(
-            uuid for uuid in enabled_uuids if uuid != usb.required_filesystem_uuid
-        )
+    if usb.usb_uuid is not None:
+        mismatches = sorted(uuid for uuid in enabled_uuids if uuid != usb.usb_uuid)
         if mismatches:
             _fail(
-                "[global.usb].required_filesystem_uuid conflicts with enabled "
+                "[global.usb].usb_uuid conflicts with enabled "
                 f"patient usb_uuid values: {', '.join(mismatches)}"
             )
         return
     if len(enabled_uuids) > 1:
         _fail(
             "enabled patients use different usb_uuid values; set one shared "
-            "[global.usb].required_filesystem_uuid or align [[person]].usb_uuid"
+            "[global.usb].usb_uuid or align [[person]].usb_uuid"
         )

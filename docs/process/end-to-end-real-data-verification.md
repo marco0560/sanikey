@@ -69,7 +69,7 @@ config_version = 1
 exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
 
 [global.usb]
-required_filesystem_uuid = "MANUAL-TEST-USB"
+usb_uuid = "MANUAL-TEST-USB"
 require_exfat = true
 min_free_space_mb = 512
 copy_strategy = "rsync-preferred"
@@ -103,7 +103,7 @@ prova end-to-end:
 | `[global.search]` | `advanced_index_warning_mb` | intero positivo | soglia coerente con il dataset reale |
 | `[global.ingestion]` | `exclude_patterns` | una sola lista di stringhe glob, case-insensitive | esclusioni tecniche comuni, per esempio `["**/Help/**"]` |
 | `[person.ingestion]` | `exclude_patterns` | una sola lista di stringhe glob, case-insensitive | esclusioni aggiuntive del singolo paziente |
-| `[global.usb]` | `required_filesystem_uuid` | stringa UUID o assente | UUID reale mostrato da `lsblk -f` per la chiavetta fisica |
+| `[global.usb]` | `usb_uuid` | stringa UUID o assente | UUID reale mostrato da `lsblk -f` per la chiavetta fisica |
 | `[global.usb]` | `require_exfat` | booleano | `true` per la prova fisica exFAT |
 | `[global.usb]` | `min_free_space_mb` | intero positivo | margine, per esempio `512` |
 | `[global.usb]` | `copy_strategy` | stringa | `"rsync-preferred"` oppure `"python"` |
@@ -448,7 +448,7 @@ run precedenti:
 
 Prima di usare un target locale diverso da `exports/usb-image`, verificare
 l'UUID del filesystem che contiene quel target. Se
-`[global.usb].required_filesystem_uuid` è impostato, SaniKey confronta quel
+`[global.usb].usb_uuid` è impostato, SaniKey confronta quel
 valore anche per `local-data/usb-target`; un valore pensato per una chiavetta
 fisica farà fallire l'export locale se il filesystem del checkout ha UUID
 diverso.
@@ -475,11 +475,10 @@ path = Path("local-data/accounts.local-usb.toml")
 uuid = os.environ["LOCAL_USB_UUID"]
 text = path.read_text(encoding="utf-8")
 text = re.sub(
-    r'required_filesystem_uuid = "[^"]*"',
-    f'required_filesystem_uuid = "{uuid}"',
+    r'usb_uuid = "[^"]*"',
+    f'usb_uuid = "{uuid}"',
     text,
 )
-text = re.sub(r'usb_uuid = "[^"]*"', f'usb_uuid = "{uuid}"', text)
 path.write_text(text, encoding="utf-8")
 PY
 uv run sanikey validate-config --config local-data/accounts.local-usb.toml
@@ -540,7 +539,7 @@ printf 'device=%s uuid=%s\n' "$USB_DEVICE" "$USB_UUID"
 ```
 
 Se la chiavetta è quella corretta, aggiornare la configurazione con l'UUID reale
-del filesystem USB. Aggiornare `[global.usb].required_filesystem_uuid`; i campi
+del filesystem USB. Aggiornare `[global.usb].usb_uuid`; i campi
 `usb_uuid` dei pazienti sono opzionali e devono essere aggiornati solo se sono
 presenti come override espliciti.
 
@@ -557,11 +556,10 @@ path = Path("config/accounts.toml")
 uuid = os.environ["USB_UUID"]
 text = path.read_text(encoding="utf-8")
 text = re.sub(
-    r'required_filesystem_uuid = "[^"]*"',
-    f'required_filesystem_uuid = "{uuid}"',
+    r'usb_uuid = "[^"]*"',
+    f'usb_uuid = "{uuid}"',
     text,
 )
-text = re.sub(r'usb_uuid = "[^"]*"', f'usb_uuid = "{uuid}"', text)
 path.write_text(text, encoding="utf-8")
 PY
 uv run sanikey validate-config --config config/accounts.toml
@@ -578,7 +576,7 @@ import tomllib
 from pathlib import Path
 
 config = tomllib.loads(Path("config/accounts.toml").read_text(encoding="utf-8"))
-print(config["global"]["usb"]["required_filesystem_uuid"])
+print(config["global"]["usb"]["usb_uuid"])
 PY
 )"
 test -n "$EXPECTED_USB_UUID"
@@ -603,7 +601,7 @@ sync
 ```
 
 Smontare e rimontare la chiavetta, poi aggiornare
-`[global.usb].required_filesystem_uuid` con l'UUID reale mostrato da `lsblk -f`
+`[global.usb].usb_uuid` con l'UUID reale mostrato da `lsblk -f`
 o `findmnt`.
 
 Impostare una variabile con il mountpoint reale. Esempio:

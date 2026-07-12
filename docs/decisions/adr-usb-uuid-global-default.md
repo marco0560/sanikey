@@ -8,7 +8,7 @@ Accettata.
 
 La configurazione USB espone due campi con lo stesso significato operativo:
 
-- `[global.usb].required_filesystem_uuid`, che identifica il filesystem USB
+- `[global.usb].usb_uuid`, che identifica il filesystem USB
   autorizzato per l'export fisico;
 - `[[person]].usb_uuid`, nato come identificatore di deploy per singolo
   paziente.
@@ -20,7 +20,7 @@ per definire l'UUID atteso della chiavetta.
 
 ## Decisione
 
-`[global.usb].required_filesystem_uuid` è il default autorevole per
+`[global.usb].usb_uuid` è il default autorevole per
 `[[person]].usb_uuid`.
 
 `[[person]].usb_uuid` diventa opzionale quando il valore globale è impostato. Se
@@ -32,7 +32,7 @@ stesso valore.
 ## Conseguenze
 
 La configurazione canonica per una singola chiavetta contiene l'UUID una sola
-volta in `[global.usb].required_filesystem_uuid`. La sostituzione della
+volta in `[global.usb].usb_uuid`. La sostituzione della
 chiavetta richiede l'aggiornamento del valore globale e solo degli eventuali
 override per paziente presenti.
 

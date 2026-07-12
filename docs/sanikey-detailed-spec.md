@@ -1987,16 +1987,16 @@ Può essere eliminata e rigenerata.
 
 ---
 
-### 5.13 required_filesystem_uuid e usb_uuid
+### 5.13 usb_uuid e usb_uuid
 
-`[global.usb].required_filesystem_uuid` è l'UUID della chiavetta autorizzata e
+`[global.usb].usb_uuid` è l'UUID della chiavetta autorizzata e
 funge da default per i pazienti.
 
 Esempio:
 
 ```toml
 [global.usb]
-required_filesystem_uuid = "1A2B-3C4D"
+usb_uuid = "1A2B-3C4D"
 ```
 
 `[[person]].usb_uuid` è opzionale quando il valore globale è impostato. Se
@@ -8456,7 +8456,7 @@ Esempio:
 
 ```toml
 [global.usb]
-required_filesystem_uuid = "1A2B-3C4D"
+usb_uuid = "1A2B-3C4D"
 
 [[person]]
 id = "patient-a"

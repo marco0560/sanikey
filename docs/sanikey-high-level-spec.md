@@ -83,7 +83,7 @@ Esempio:
 repository_version = "1"
 
 [global.usb]
-required_filesystem_uuid = "1A2B-3C4D"
+usb_uuid = "1A2B-3C4D"
 
 [[person]]
 id = "patient-a"
@@ -99,7 +99,7 @@ source_documents = "/percorso/assoluto/patient-b/documents"
 metadata_directory = "/percorso/assoluto/patient-b/metadata"
 local_build = "/percorso/assoluto/patient-b/generated"
 
-Il campo globale `required_filesystem_uuid` identifica la chiavetta autorizzata.
+Il campo globale `usb_uuid` identifica la chiavetta autorizzata.
 Il campo `usb_uuid` per paziente è un override opzionale quando serve
 documentare una destinazione diversa.
 

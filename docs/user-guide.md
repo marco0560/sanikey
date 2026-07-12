@@ -48,7 +48,7 @@ repository quando il file si trova in `config/accounts.toml`:
 - `source_documents`: documenti originali ricevuti da ospedali o operatori.
 - `metadata_directory`: file di metadati curati per il paziente.
 - `local_build`: artefatti generati per il paziente.
-- `required_filesystem_uuid`: UUID atteso del filesystem USB.
+- `usb_uuid`: UUID atteso del filesystem USB.
 
 Esempio locale:
 
@@ -60,7 +60,7 @@ config_version = 1
 exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
 
 [global.usb]
-required_filesystem_uuid = "MANUAL-TEST-USB"
+usb_uuid = "MANUAL-TEST-USB"
 require_exfat = true
 min_free_space_mb = 512
 copy_strategy = "rsync-preferred"
@@ -189,7 +189,7 @@ quando il campo globale lo richiede.
 
 | Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
 | --- | --- | --- | --- | --- |
-| `required_filesystem_uuid` | stringa o assente | no | assente | UUID filesystem reale, per esempio `"757F-7873"` |
+| `usb_uuid` | stringa o assente | no | assente | UUID filesystem reale, per esempio `"757F-7873"` |
 | `require_exfat` | booleano | no | `false` | `true`, `false` |
 | `min_free_space_mb` | intero | no | `256` | intero positivo |
 | `copy_strategy` | stringa | no | `"rsync-preferred"` | `"rsync-preferred"`, `"python"` |
@@ -198,13 +198,13 @@ Esempio:
 
 ```toml
 [global.usb]
-required_filesystem_uuid = "757F-7873"
+usb_uuid = "757F-7873"
 require_exfat = true
 min_free_space_mb = 512
 copy_strategy = "rsync-preferred"
 ```
 
-`required_filesystem_uuid` è il default per i campi `usb_uuid` dei pazienti. Se
+`usb_uuid` è il default per i campi `usb_uuid` dei pazienti. Se
 non è impostato, ogni paziente deve dichiarare `usb_uuid`; i pazienti abilitati
 devono condividere lo stesso valore, che viene usato come UUID atteso quando il
 target sembra una chiavetta fisica montata sotto `/run/media` o `/media`.
@@ -218,7 +218,7 @@ target sembra una chiavetta fisica montata sotto `/run/media` o `/media`.
 | `source_documents` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
 | `metadata_directory` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
 | `local_build` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
-| `usb_uuid` | stringa | no se `[global.usb].required_filesystem_uuid` è impostato | valore globale | Override UUID filesystem coerente con `[global.usb]` |
+| `usb_uuid` | stringa | no se `[global.usb].usb_uuid` è impostato | valore globale | Override UUID filesystem coerente con `[global.usb]` |
 | `enabled` | booleano | no | `true` | `true`, `false` |
 
 I percorsi dentro `local-data/` sono accettati perché la directory è ignorata da
@@ -500,7 +500,7 @@ dictionary = "config/search-dictionary.toml"
 advanced_index_warning_mb = 25
 
 [global.usb]
-required_filesystem_uuid = "MANUAL-TEST-USB"
+usb_uuid = "MANUAL-TEST-USB"
 
 [[person]]
 id = "patient-a"

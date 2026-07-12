@@ -512,7 +512,7 @@ def _validate_physical_target(
         raise UsbError(error)
     mount_info = _find_mount_info(target)
     if mount_info is None:
-        if config.usb.required_filesystem_uuid or config.usb.require_exfat:
+        if config.usb.usb_uuid or config.usb.require_exfat:
             error = f"cannot determine filesystem information for {target}"
             raise UsbError(error)
         return
@@ -553,8 +553,8 @@ def _expected_usb_uuid(
         Explicit global UUID or the shared enabled-patient UUID.
     """
 
-    if config.usb.required_filesystem_uuid is not None:
-        return config.usb.required_filesystem_uuid
+    if config.usb.usb_uuid is not None:
+        return config.usb.usb_uuid
     if not enforce_person_uuid:
         return None
     enabled_uuids = {

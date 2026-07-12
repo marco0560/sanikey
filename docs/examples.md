@@ -13,7 +13,7 @@ configurazione locale:
 config_version = 1
 
 [global.usb]
-required_filesystem_uuid = "1A2B-3C4D"
+usb_uuid = "1A2B-3C4D"
 
 [[person]]
 id = "patient-a"

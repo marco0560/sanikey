@@ -207,7 +207,7 @@ config_version = 1
 exclude_patterns = ["**/Help/**", "*.tmp"]
 
 [global.usb]
-required_filesystem_uuid = "1A2B-3C4D"
+usb_uuid = "1A2B-3C4D"
 require_exfat = true
 min_free_space_mb = 512
 copy_strategy = "python"
@@ -229,7 +229,7 @@ exclude_patterns = ["**/Viewer-Windows/**"]
     config = load_accounts(config_path)
 
     assert config.ingestion.exclude_patterns == ("**/Help/**", "*.tmp")
-    assert config.usb.required_filesystem_uuid == "1A2B-3C4D"
+    assert config.usb.usb_uuid == "1A2B-3C4D"
     assert config.usb.require_exfat
     assert config.usb.min_free_space_mb == 512
     assert config.usb.copy_strategy == "python"
@@ -257,7 +257,7 @@ def test_parse_accounts_uses_global_usb_uuid_default(tmp_path: Path) -> None:
         {
             "global": {
                 "config_version": 1,
-                "usb": {"required_filesystem_uuid": "757F-7873"},
+                "usb": {"usb_uuid": "757F-7873"},
             },
             "person": [
                 {
@@ -292,7 +292,7 @@ def test_parse_accounts_rejects_missing_usb_uuid_without_global(
 
     with pytest.raises(
         ConfigError,
-        match=r"usb_uuid or \[global\.usb\]\.required_filesystem_uuid",
+        match=r"usb_uuid or \[global\.usb\]\.usb_uuid",
     ):
         parse_accounts_data(
             {
