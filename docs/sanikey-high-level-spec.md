@@ -82,13 +82,15 @@ Esempio:
 [global]
 repository_version = "1"
 
+[global.usb]
+required_filesystem_uuid = "1A2B-3C4D"
+
 [[person]]
 id = "patient-a"
 display_name = "Paziente A"
 source_documents = "/percorso/assoluto/patient-a/documents"
 metadata_directory = "/percorso/assoluto/patient-a/metadata"
 local_build = "/percorso/assoluto/patient-a/generated"
-usb_uuid = "1A2B-3C4D"
 
 [[person]]
 id = "patient-b"
@@ -96,9 +98,10 @@ display_name = "Paziente B"
 source_documents = "/percorso/assoluto/patient-b/documents"
 metadata_directory = "/percorso/assoluto/patient-b/metadata"
 local_build = "/percorso/assoluto/patient-b/generated"
-usb_uuid = "1A2B-3C4D"
 
-Il campo usb_uuid identifica la chiavetta autorizzata.
+Il campo globale `required_filesystem_uuid` identifica la chiavetta autorizzata.
+Il campo `usb_uuid` per paziente è un override opzionale quando serve
+documentare una destinazione diversa.
 
 I percorsi possono essere assoluti oppure relativi alla root del repository
 quando la configurazione e' `config/accounts.toml`. Per dati locali non

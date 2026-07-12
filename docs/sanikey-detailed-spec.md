@@ -1987,18 +1987,22 @@ Può essere eliminata e rigenerata.
 
 ---
 
-### 5.13 usb_uuid
+### 5.13 required_filesystem_uuid e usb_uuid
 
-UUID della chiavetta autorizzata.
+`[global.usb].required_filesystem_uuid` è l'UUID della chiavetta autorizzata e
+funge da default per i pazienti.
 
 Esempio:
 
 ```toml
-usb_uuid =
-"1A2B-3C4D"
+[global.usb]
+required_filesystem_uuid = "1A2B-3C4D"
 ```
 
-Viene utilizzato durante il deploy.
+`[[person]].usb_uuid` è opzionale quando il valore globale è impostato. Se
+presente, è un override esplicito e deve restare coerente con il valore globale
+per i pazienti abilitati. Se il valore globale manca, ogni paziente deve
+dichiarare `usb_uuid`.
 
 ---
 
@@ -8445,16 +8449,17 @@ L'identificazione tramite lettera di unità o mountpoint non è considerata affi
 
 ### 17.5 Associazione Chiavetta-Paziente
 
-Ogni paziente può essere associato a una specifica chiavetta.
+Ogni paziente eredita la chiavetta globale. Solo gli override espliciti usano
+`usb_uuid`.
 
 Esempio:
 
 ```toml
+[global.usb]
+required_filesystem_uuid = "1A2B-3C4D"
+
 [[person]]
-
 id = "patient-a"
-
-usb_uuid = "1A2B-3C4D"
 ```
 
 ---

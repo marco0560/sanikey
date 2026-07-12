@@ -12,13 +12,15 @@ configurazione locale:
 [global]
 config_version = 1
 
+[global.usb]
+required_filesystem_uuid = "1A2B-3C4D"
+
 [[person]]
 id = "patient-a"
 display_name = "Paziente A"
 source_documents = "local-data/patient-a/documents"
 metadata_directory = "local-data/patient-a/metadata"
 local_build = "local-data/generated/patient-a"
-usb_uuid = "1A2B-3C4D"
 enabled = true
 ```
 

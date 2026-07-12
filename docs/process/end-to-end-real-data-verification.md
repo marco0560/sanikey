@@ -80,7 +80,6 @@ display_name = "Marco Coppola"
 source_documents = "local-data/marco/documents"
 metadata_directory = "local-data/marco/metadata"
 local_build = "local-data/generated/marco"
-usb_uuid = "MANUAL-TEST-USB"
 
 [[person]]
 id = "irene"
@@ -88,7 +87,6 @@ display_name = "Irene Corazzesi"
 source_documents = "local-data/irene/documents"
 metadata_directory = "local-data/irene/metadata"
 local_build = "local-data/generated/irene"
-usb_uuid = "MANUAL-TEST-USB"
 ```
 
 Prima di continuare, confrontare `config/accounts.toml` con la sintassi completa
@@ -448,10 +446,49 @@ Generare l'export USB verso un target locale di verifica e rigenerare anche
 l'immagine canonica prima di validarla, in modo da non controllare un residuo di
 run precedenti:
 
+Prima di usare un target locale diverso da `exports/usb-image`, verificare
+l'UUID del filesystem che contiene quel target. Se
+`[global.usb].required_filesystem_uuid` è impostato, SaniKey confronta quel
+valore anche per `local-data/usb-target`; un valore pensato per una chiavetta
+fisica farà fallire l'export locale se il filesystem del checkout ha UUID
+diverso.
+
+```bash
+mkdir -p local-data/usb-target
+findmnt --json --output TARGET,FSTYPE,UUID --target local-data/usb-target
+```
+
+Per eseguire il solo smoke test locale, usare una copia temporanea della
+configurazione con l'UUID del filesystem locale. Non registrare questo UUID come
+UUID definitivo della chiavetta.
+
+```bash
+export LOCAL_USB_UUID="$(findmnt -no UUID --target local-data/usb-target)"
+test -n "$LOCAL_USB_UUID"
+cp config/accounts.toml local-data/accounts.local-usb.toml
+python - <<'PY'
+from pathlib import Path
+import os
+import re
+
+path = Path("local-data/accounts.local-usb.toml")
+uuid = os.environ["LOCAL_USB_UUID"]
+text = path.read_text(encoding="utf-8")
+text = re.sub(
+    r'required_filesystem_uuid = "[^"]*"',
+    f'required_filesystem_uuid = "{uuid}"',
+    text,
+)
+text = re.sub(r'usb_uuid = "[^"]*"', f'usb_uuid = "{uuid}"', text)
+path.write_text(text, encoding="utf-8")
+PY
+uv run sanikey validate-config --config local-data/accounts.local-usb.toml
+```
+
 ```bash
 rm -rf exports/usb-image local-data/usb-target
 uv run sanikey export-usb --config config/accounts.toml exports/usb-image
-uv run sanikey export-usb --config config/accounts.toml local-data/usb-target
+uv run sanikey export-usb --config local-data/accounts.local-usb.toml local-data/usb-target
 uv run sanikey validate-usb exports/usb-image
 uv run sanikey validate-usb local-data/usb-target
 ```
@@ -489,6 +526,69 @@ identificare il mountpoint. Su Linux:
 lsblk -f
 findmnt
 ```
+
+Verificare subito UUID e filesystem del mountpoint della chiavetta:
+
+```bash
+USB_MOUNT=/run/media/$USER/SANIKEY
+findmnt --json --output SOURCE,TARGET,FSTYPE,UUID --target "$USB_MOUNT"
+USB_DEVICE="$(findmnt -no SOURCE --target "$USB_MOUNT")"
+USB_UUID="$(findmnt -no UUID --target "$USB_MOUNT")"
+test -n "$USB_DEVICE"
+test -n "$USB_UUID"
+printf 'device=%s uuid=%s\n' "$USB_DEVICE" "$USB_UUID"
+```
+
+Se la chiavetta è quella corretta, aggiornare la configurazione con l'UUID reale
+del filesystem USB. Aggiornare `[global.usb].required_filesystem_uuid`; i campi
+`usb_uuid` dei pazienti sono opzionali e devono essere aggiornati solo se sono
+presenti come override espliciti.
+
+```bash
+cp config/accounts.toml config/accounts.toml.bak
+export USB_UUID="$(findmnt -no UUID --target "$USB_MOUNT")"
+test -n "$USB_UUID"
+python - <<'PY'
+from pathlib import Path
+import os
+import re
+
+path = Path("config/accounts.toml")
+uuid = os.environ["USB_UUID"]
+text = path.read_text(encoding="utf-8")
+text = re.sub(
+    r'required_filesystem_uuid = "[^"]*"',
+    f'required_filesystem_uuid = "{uuid}"',
+    text,
+)
+text = re.sub(r'usb_uuid = "[^"]*"', f'usb_uuid = "{uuid}"', text)
+path.write_text(text, encoding="utf-8")
+PY
+uv run sanikey validate-config --config config/accounts.toml
+```
+
+In alternativa, se la configurazione contiene già l'UUID desiderato e si vuole
+assegnarlo alla chiavetta, smontare il filesystem e cambiare l'UUID del volume
+exFAT. Questo modifica la chiavetta: eseguirlo solo dopo aver verificato con
+certezza `USB_DEVICE`.
+
+```bash
+EXPECTED_USB_UUID="$(python - <<'PY'
+import tomllib
+from pathlib import Path
+
+config = tomllib.loads(Path("config/accounts.toml").read_text(encoding="utf-8"))
+print(config["global"]["usb"]["required_filesystem_uuid"])
+PY
+)"
+test -n "$EXPECTED_USB_UUID"
+sudo umount "$USB_MOUNT"
+sudo tune.exfat -U "$EXPECTED_USB_UUID" "$USB_DEVICE"
+sync
+```
+
+Rimontare la chiavetta e ricontrollare che `findmnt -no UUID --target
+"$USB_MOUNT"` stampi lo stesso UUID registrato in `config/accounts.toml`.
 
 Se la chiavetta non e' ancora preparata, formattarla e assegnare label con
 comandi di sistema, dopo aver identificato con certezza la partizione corretta.

@@ -240,6 +240,77 @@ exclude_patterns = ["**/Viewer-Windows/**"]
     )
 
 
+def test_parse_accounts_uses_global_usb_uuid_default(tmp_path: Path) -> None:
+    """Verify the global USB UUID defaults missing patient UUIDs.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    config = parse_accounts_data(
+        {
+            "global": {
+                "config_version": 1,
+                "usb": {"required_filesystem_uuid": "757F-7873"},
+            },
+            "person": [
+                {
+                    "id": "patient-a",
+                    "display_name": "Patient A",
+                    "source_documents": str(tmp_path / "source"),
+                    "metadata_directory": str(tmp_path / "metadata"),
+                    "local_build": str(tmp_path / "generated"),
+                }
+            ],
+        },
+        path=tmp_path / "accounts.toml",
+    )
+
+    assert config.people[0].usb_uuid == "757F-7873"
+
+
+def test_parse_accounts_rejects_missing_usb_uuid_without_global(
+    tmp_path: Path,
+) -> None:
+    """Verify patient UUIDs are required when no global default exists.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    with pytest.raises(
+        ConfigError,
+        match=r"usb_uuid or \[global\.usb\]\.required_filesystem_uuid",
+    ):
+        parse_accounts_data(
+            {
+                "global": {"config_version": 1},
+                "person": [
+                    {
+                        "id": "patient-a",
+                        "display_name": "Patient A",
+                        "source_documents": str(tmp_path / "source"),
+                        "metadata_directory": str(tmp_path / "metadata"),
+                        "local_build": str(tmp_path / "generated"),
+                    }
+                ],
+            },
+            path=tmp_path / "accounts.toml",
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

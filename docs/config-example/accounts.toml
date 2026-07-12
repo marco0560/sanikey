@@ -17,8 +17,8 @@ config_version = 1
 # [global.ingestion]
 # exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
 #
-# [global.usb]
-# required_filesystem_uuid = "1A2B-3C4D"
+[global.usb]
+required_filesystem_uuid = "1A2B-3C4D"
 # require_exfat = true
 # min_free_space_mb = 512
 # copy_strategy = "rsync-preferred"
@@ -29,5 +29,4 @@ display_name = "Paziente A"
 source_documents = "local-data/patient-a/documents"
 metadata_directory = "local-data/patient-a/metadata"
 local_build = "local-data/generated/patient-a"
-usb_uuid = "1A2B-3C4D"
 enabled = true

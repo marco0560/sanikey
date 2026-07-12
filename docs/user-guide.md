@@ -48,7 +48,7 @@ repository quando il file si trova in `config/accounts.toml`:
 - `source_documents`: documenti originali ricevuti da ospedali o operatori.
 - `metadata_directory`: file di metadati curati per il paziente.
 - `local_build`: artefatti generati per il paziente.
-- `usb_uuid`: UUID atteso del filesystem USB o identificativo di deploy.
+- `required_filesystem_uuid`: UUID atteso del filesystem USB.
 
 Esempio locale:
 
@@ -71,7 +71,6 @@ display_name = "Marco Coppola"
 source_documents = "local-data/marco/documents"
 metadata_directory = "local-data/marco/metadata"
 local_build = "local-data/generated/marco"
-usb_uuid = "MANUAL-TEST-USB"
 ```
 
 ### Sintassi completa di `accounts.toml`
@@ -205,8 +204,9 @@ min_free_space_mb = 512
 copy_strategy = "rsync-preferred"
 ```
 
-Se `required_filesystem_uuid` non e' impostato, i pazienti abilitati devono
-avere lo stesso `usb_uuid`; quel valore viene usato come UUID atteso quando il
+`required_filesystem_uuid` è il default per i campi `usb_uuid` dei pazienti. Se
+non è impostato, ogni paziente deve dichiarare `usb_uuid`; i pazienti abilitati
+devono condividere lo stesso valore, che viene usato come UUID atteso quando il
 target sembra una chiavetta fisica montata sotto `/run/media` o `/media`.
 
 #### `[[person]]`
@@ -218,7 +218,7 @@ target sembra una chiavetta fisica montata sotto `/run/media` o `/media`.
 | `source_documents` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
 | `metadata_directory` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
 | `local_build` | stringa path | si | nessuno | path assoluto o relativo alla root repo |
-| `usb_uuid` | stringa | si | nessuno | UUID filesystem o identificativo coerente con `[global.usb]` |
+| `usb_uuid` | stringa | no se `[global.usb].required_filesystem_uuid` è impostato | valore globale | Override UUID filesystem coerente con `[global.usb]` |
 | `enabled` | booleano | no | `true` | `true`, `false` |
 
 I percorsi dentro `local-data/` sono accettati perché la directory è ignorata da
@@ -499,13 +499,15 @@ background_opacity = 0.10
 dictionary = "config/search-dictionary.toml"
 advanced_index_warning_mb = 25
 
+[global.usb]
+required_filesystem_uuid = "MANUAL-TEST-USB"
+
 [[person]]
 id = "patient-a"
 display_name = "Patient A"
 source_documents = "local-data/patient-a/documents"
 metadata_directory = "local-data/patient-a/metadata"
 local_build = "local-data/generated/patient-a"
-usb_uuid = "MANUAL-TEST-USB"
 
 [person.ui]
 default_tab = "timeline"

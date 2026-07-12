@@ -18,7 +18,6 @@ REQUIRED_PERSON_FIELDS = (
     "source_documents",
     "metadata_directory",
     "local_build",
-    "usb_uuid",
 )
 UI_DENSITIES = frozenset({"compact", "comfortable"})
 UI_TABS = frozenset({"advanced", "documents", "timeline", "summary"})
@@ -235,7 +234,8 @@ class PersonConfig:
     local_build : pathlib.Path
         Directory for generated artefacts.
     usb_uuid : str
-        Expected filesystem UUID for deployment.
+        Expected filesystem UUID for deployment, resolved from the per-patient
+        value or ``[global.usb].required_filesystem_uuid``.
     enabled : bool
         Whether the patient should be included in builds.
     ui : UiConfig
@@ -417,6 +417,7 @@ def parse_accounts_data(data: dict[str, Any], *, path: Path) -> AccountsConfig:
             global_ui=global_ui,
             global_search=global_search,
             global_ingestion=global_ingestion,
+            global_usb=global_usb,
         )
         for index, item in enumerate(people_items)
     )
@@ -441,6 +442,7 @@ def _parse_person(  # noqa: PLR0913
     global_ui: UiConfig,
     global_search: SearchConfig,
     global_ingestion: IngestionConfig,
+    global_usb: UsbConfig,
 ) -> PersonConfig:
     """Parse one ``[[person]]`` entry.
 
@@ -458,6 +460,8 @@ def _parse_person(  # noqa: PLR0913
         Global search defaults to merge with per-person overrides.
     global_ingestion : IngestionConfig
         Global ingestion defaults to merge with per-person overrides.
+    global_usb : UsbConfig
+        Global USB defaults used to resolve the per-person UUID.
 
     Returns
     -------
@@ -503,6 +507,21 @@ def _parse_person(  # noqa: PLR0913
         context=f"[[person]] entry {index} ingestion",
         base=global_ingestion,
     )
+    usb_uuid = _optional_nullable_string(
+        item,
+        "usb_uuid",
+        context=f"[[person]] entry {index}",
+        default=None,
+    )
+    if usb_uuid is None:
+        global_usb_uuid = global_usb.required_filesystem_uuid
+        if global_usb_uuid is None:
+            _fail(
+                f"[[person]] entry {index} missing fields: usb_uuid "
+                "or [global.usb].required_filesystem_uuid",
+            )
+        usb_uuid = global_usb_uuid
+    assert usb_uuid is not None
 
     return PersonConfig(
         id=person_id,
@@ -514,7 +533,7 @@ def _parse_person(  # noqa: PLR0913
             item, "metadata_directory", index=index, base_dir=base_dir
         ),
         local_build=_require_path(item, "local_build", index=index, base_dir=base_dir),
-        usb_uuid=_require_string(item, "usb_uuid", index=index),
+        usb_uuid=usb_uuid,
         enabled=enabled,
         ui=ui,
         search=search,
