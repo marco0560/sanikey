@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from .documents import (
     DocumentRecordOrigin,
-    _matches_exclusion,
+    _is_excluded_by_ingestion,
     document_record_for_path,
 )
 
@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from .progress import ProgressReporter
 
 CONTAINER_SUFFIXES = {".7z", ".img", ".iso", ".rar", ".zip"}
-TECHNICAL_PATH_SEGMENTS = {"assets", "help", "jre", "manual", "viewer-windows"}
 
 
 @dataclass(frozen=True)
@@ -246,12 +245,10 @@ def _should_ingest_staged_document(
         ``True`` for clinically relevant document-like members.
     """
 
-    if document.internal_path is not None and _matches_exclusion(
+    if document.internal_path is not None and _is_excluded_by_ingestion(
         document.internal_path,
-        person.ingestion.exclude_patterns,
+        person.ingestion,
     ):
-        return False
-    if _is_technical_container_path(document.internal_path):
         return False
     return document.kind in {
         "dicom_file",
@@ -261,29 +258,6 @@ def _should_ingest_staged_document(
         "pdf",
         "text",
     }
-
-
-def _is_technical_container_path(internal_path: str | None) -> bool:
-    """Return whether a staged member belongs to known viewer/support paths.
-
-    Parameters
-    ----------
-    internal_path : str | None
-        Member path inside the container.
-
-    Returns
-    -------
-    bool
-        ``True`` when any path segment is a known technical support directory.
-    """
-
-    if internal_path is None:
-        return False
-    segments = (segment.lower() for segment in PurePosixPath(internal_path).parts)
-    return any(
-        segment in TECHNICAL_PATH_SEGMENTS or segment.startswith("manuale")
-        for segment in segments
-    )
 
 
 def _extract_container(container: DocumentRecord, target: Path) -> None:

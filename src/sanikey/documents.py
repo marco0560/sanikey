@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from .models import DocumentRecord
 
 if TYPE_CHECKING:
-    from .config import PersonConfig
+    from .config import IngestionConfig, PersonConfig
     from .progress import ProgressReporter
 
 DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
@@ -177,10 +177,31 @@ def is_excluded_source_path(person: PersonConfig, path: Path) -> bool:
         relative = path.relative_to(person.source_documents).as_posix()
     except ValueError:
         relative = path.name
-    return _matches_exclusion(relative, person.ingestion.exclude_patterns)
+    return _is_excluded_by_ingestion(relative, person.ingestion)
 
 
-def _matches_exclusion(relative_path: str, patterns: tuple[str, ...]) -> bool:
+def _is_excluded_by_ingestion(relative_path: str, ingestion: IngestionConfig) -> bool:
+    """Return whether ingestion rules exclude a relative path.
+
+    Parameters
+    ----------
+    relative_path : str
+        POSIX-style path relative to a source or container root.
+    ingestion : IngestionConfig
+        Include and exclude glob patterns.
+
+    Returns
+    -------
+    bool
+        ``True`` when an exclusion matches and no inclusion recovers the path.
+    """
+
+    if _matches_patterns(relative_path, ingestion.include_patterns):
+        return False
+    return _matches_patterns(relative_path, ingestion.exclude_patterns)
+
+
+def _matches_patterns(relative_path: str, patterns: tuple[str, ...]) -> bool:
     """Return whether a relative path matches any configured pattern.
 
     Parameters
@@ -201,9 +222,37 @@ def _matches_exclusion(relative_path: str, patterns: tuple[str, ...]) -> bool:
     normalized_path = relative_path.casefold()
     name = PurePath(normalized_path).name
     return any(
-        fnmatch.fnmatchcase(normalized_path, pattern.casefold())
-        or fnmatch.fnmatchcase(name, pattern.casefold())
+        _matches_pattern(normalized_path, name, pattern.casefold())
         for pattern in patterns
+    )
+
+
+def _matches_pattern(normalized_path: str, name: str, pattern: str) -> bool:
+    """Return whether one normalized path matches one normalized glob.
+
+    Parameters
+    ----------
+    normalized_path : str
+        POSIX-style case-folded path.
+    name : str
+        Case-folded basename.
+    pattern : str
+        Case-folded glob pattern.
+
+    Returns
+    -------
+    bool
+        ``True`` when the pattern matches the full path, basename, or a root
+        path covered by a leading ``**/`` glob.
+    """
+
+    candidates = [pattern]
+    if pattern.startswith("**/"):
+        candidates.append(pattern[3:])
+    return any(
+        fnmatch.fnmatchcase(normalized_path, candidate)
+        or fnmatch.fnmatchcase(name, candidate)
+        for candidate in candidates
     )
 
 

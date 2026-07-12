@@ -2523,13 +2523,16 @@ artefatti generati e possono entrare nella pipeline documentale ordinaria come
 documenti derivati.
 
 I membri tecnici non clinici, per esempio runtime Java, DLL, help HTML o asset
-dei viewer inclusi nei supporti, devono restare nel manifest di staging ma non
-devono essere trattati come documenti clinici da indicizzare o da inviare
+dei viewer inclusi nei supporti, devono essere esclusi tramite pattern di
+ingestione espliciti. Tali membri restano nel manifest di staging ma non devono
+essere trattati come documenti clinici da indicizzare o da inviare
 all'estrazione testo ordinaria.
 
 I path tecnici dei viewer, inclusi segmenti come `Help`, `Manual`,
-`Viewer-Windows`, `jre` e `assets`, sono manifest-only. PDF esterni a tali path
-continuano a essere trattati come documenti derivati ordinari.
+`Viewer-Windows`, `jre` e `assets`, sono manifest-only solo quando corrispondono
+a `exclude_patterns` configurati; eventuali eccezioni puntuali possono essere
+recuperate con `include_patterns`. PDF esterni a tali path continuano a essere
+trattati come documenti derivati ordinari.
 
 #### 6.11.2 Documenti Office e OpenDocument
 

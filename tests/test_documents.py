@@ -93,21 +93,28 @@ def test_scan_documents_applies_ingestion_exclusions(tmp_path: Path) -> None:
     base = _person(tmp_path)
     person = replace(
         base,
-        ingestion=IngestionConfig(exclude_patterns=("**/Help/**", "*.tmp")),
+        ingestion=IngestionConfig(
+            exclude_patterns=("**/Help/**", "*.tmp"),
+            include_patterns=("**/Help/keep.txt",),
+        ),
     )
     person.source_documents.mkdir(parents=True)
     (person.source_documents / "20260102 Report.txt").write_text(
         "include",
         encoding="utf-8",
     )
-    help_dir = person.source_documents / "Viewer" / "help"
+    help_dir = person.source_documents / "Help"
     help_dir.mkdir(parents=True)
     (help_dir / "manual.txt").write_text("exclude", encoding="utf-8")
+    (help_dir / "keep.txt").write_text("include", encoding="utf-8")
     (person.source_documents / "scratch.tmp").write_text("exclude", encoding="utf-8")
 
     inventory = scan_document_inventory(person)
 
-    assert [document.path.name for document in inventory] == ["20260102 Report.txt"]
+    assert [document.path.name for document in inventory] == [
+        "20260102 Report.txt",
+        "keep.txt",
+    ]
 
 
 def test_scan_documents_classifies_archive_and_office_kinds(

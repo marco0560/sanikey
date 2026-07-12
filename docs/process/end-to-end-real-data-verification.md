@@ -66,7 +66,13 @@ mkdir -p config
 config_version = 1
 
 [global.ingestion]
-exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
+exclude_patterns = [
+    "**/Help/**",
+    "**/Viewer-Windows/**",
+    "**/Viewer/**",
+    "**/jre/**",
+    "**/assets/**",
+]
 
 [global.usb]
 usb_uuid = "MANUAL-TEST-USB"
@@ -102,7 +108,9 @@ prova end-to-end:
 | `[global.search]` | `dictionary` | stringa path a TOML esistente | file privato con sezioni `[terms]` e/o `[months]` |
 | `[global.search]` | `advanced_index_warning_mb` | intero positivo | soglia coerente con il dataset reale |
 | `[global.ingestion]` | `exclude_patterns` | una sola lista di stringhe glob, case-insensitive | esclusioni tecniche comuni, per esempio `["**/Help/**"]` |
+| `[global.ingestion]` | `include_patterns` | una sola lista di stringhe glob, case-insensitive | recuperi comuni da esclusioni ampie, se necessari |
 | `[person.ingestion]` | `exclude_patterns` | una sola lista di stringhe glob, case-insensitive | esclusioni aggiuntive del singolo paziente |
+| `[person.ingestion]` | `include_patterns` | una sola lista di stringhe glob, case-insensitive | recuperi specifici del singolo paziente |
 | `[global.usb]` | `usb_uuid` | stringa UUID o assente | UUID reale mostrato da `lsblk -f` per la chiavetta fisica |
 | `[global.usb]` | `require_exfat` | booleano | `true` per la prova fisica exFAT |
 | `[global.usb]` | `min_free_space_mb` | intero positivo | margine, per esempio `512` |
@@ -400,8 +408,9 @@ trattati come documenti OCR o testo ordinario. Se un archivio contiene
 un'immagine disco `.iso` o `.img`, la directory di staging deve contenere sia
 l'immagine disco estratta sia la sua espansione ricorsiva sotto una seconda
 directory di container. I path tecnici dei viewer, ad esempio `Help`, `Manual`,
-`Viewer-Windows`, `jre` e `assets`, devono restare nel manifest ma non comparire
-come documenti derivati nel database.
+`Viewer-Windows`, `jre` e `assets`, devono essere elencati nei pattern di
+ingestione; i membri esclusi devono restare nel manifest ma non comparire come
+documenti derivati nel database.
 Se il supporto contiene più ISO o più arborescenze DICOM, verificare che tutti i
 file DICOM attesi compaiano come membri derivati e che gli studi nel database
 siano raggruppati per `StudyInstanceUID` o, quando presente, dai record `STUDY`

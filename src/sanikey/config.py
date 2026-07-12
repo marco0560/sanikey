@@ -19,6 +19,16 @@ REQUIRED_PERSON_FIELDS = (
     "metadata_directory",
     "local_build",
 )
+PERSON_FIELDS = frozenset(
+    {
+        *REQUIRED_PERSON_FIELDS,
+        "enabled",
+        "ingestion",
+        "search",
+        "ui",
+        "usb_uuid",
+    }
+)
 UI_DENSITIES = frozenset({"compact", "comfortable"})
 UI_TABS = frozenset({"advanced", "documents", "timeline", "summary"})
 UI_TIMELINE_ORDERS = frozenset({"asc", "desc"})
@@ -36,7 +46,7 @@ UI_FIELDS = frozenset(
     }
 )
 SEARCH_FIELDS = frozenset({"advanced_index_warning_mb", "dictionary"})
-INGESTION_FIELDS = frozenset({"exclude_patterns"})
+INGESTION_FIELDS = frozenset({"exclude_patterns", "include_patterns"})
 USB_COPY_STRATEGIES = frozenset({"python", "rsync-preferred"})
 USB_FIELDS = frozenset(
     {
@@ -146,9 +156,12 @@ class IngestionConfig:
     ----------
     exclude_patterns : tuple[str, ...]
         Glob patterns excluded before hashing, staging, and extraction.
+    include_patterns : tuple[str, ...]
+        Glob patterns that recover paths matched by exclusion patterns.
     """
 
     exclude_patterns: tuple[str, ...] = ()
+    include_patterns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -476,6 +489,9 @@ def _parse_person(  # noqa: PLR0913
 
     if not isinstance(item, dict):
         _fail(f"[[person]] entry {index} must be a table")
+    unknown = sorted(set(item) - PERSON_FIELDS)
+    if unknown:
+        _fail(f"[[person]] entry {index} unknown fields: {', '.join(unknown)}")
     missing = [field for field in REQUIRED_PERSON_FIELDS if field not in item]
     if missing:
         _fail(f"[[person]] entry {index} missing fields: {', '.join(missing)}")
@@ -739,6 +755,15 @@ def _parse_ingestion_config(
             *_optional_string_list(
                 value,
                 "exclude_patterns",
+                context=context,
+                default=(),
+            ),
+        ),
+        include_patterns=(
+            *source.include_patterns,
+            *_optional_string_list(
+                value,
+                "include_patterns",
                 context=context,
                 default=(),
             ),

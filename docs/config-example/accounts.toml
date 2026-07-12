@@ -15,7 +15,14 @@ config_version = 1
 # advanced_index_warning_mb = 25
 #
 # [global.ingestion]
-# exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
+# exclude_patterns = [
+#     "**/Help/**",
+#     "**/Viewer-Windows/**",
+#     "**/Viewer/**",
+#     "**/jre/**",
+#     "**/assets/**",
+# ]
+# include_patterns = ["**/Viewer/report.pdf"]
 #
 [global.usb]
 usb_uuid = "1A2B-3C4D"

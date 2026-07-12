@@ -202,7 +202,7 @@ def test_stage_container_documents_applies_case_insensitive_exclusions(
 def test_stage_container_documents_filters_technical_members(
     tmp_path: Path,
 ) -> None:
-    """Verify extracted technical files stay out of document ingestion.
+    """Verify configured technical paths stay out of document ingestion.
 
     Parameters
     ----------
@@ -214,12 +214,21 @@ def test_stage_container_documents_filters_technical_members(
     None
     """
 
-    person = _person(tmp_path)
+    base = _person(tmp_path)
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        ingestion=IngestionConfig(exclude_patterns=("**/Viewer-Windows/**",)),
+    )
     person.source_documents.mkdir(parents=True)
     path = person.source_documents / "20260102 Viewer.zip"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("report.txt", "synthetic report")
-        archive.writestr("Viewer-Windows/jre/bin/java.dll", b"binary")
+        archive.writestr("Viewer-Windows/manual.pdf", b"%PDF")
 
     result = stage_container_documents(
         person,
@@ -228,7 +237,7 @@ def test_stage_container_documents_filters_technical_members(
 
     assert [document.internal_path for document in result.documents] == ["report.txt"]
     assert [member.internal_path for member in result.members] == [
-        "Viewer-Windows/jre/bin/java.dll",
+        "Viewer-Windows/manual.pdf",
         "report.txt",
     ]
 
@@ -248,7 +257,16 @@ def test_stage_container_documents_skips_technical_path_pdfs(
     None
     """
 
-    person = _person(tmp_path)
+    base = _person(tmp_path)
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        ingestion=IngestionConfig(exclude_patterns=("**/Help/**",)),
+    )
     person.source_documents.mkdir(parents=True)
     path = person.source_documents / "20260102 Viewer.zip"
     with zipfile.ZipFile(path, "w") as archive:
@@ -266,6 +284,54 @@ def test_stage_container_documents_skips_technical_path_pdfs(
     assert {member.internal_path for member in result.members} == {
         "Help/manual.pdf",
         "reports/20260103 Referto.pdf",
+    }
+
+
+def test_stage_container_documents_include_patterns_recover_members(
+    tmp_path: Path,
+) -> None:
+    """Verify include patterns recover selected excluded container members.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    base = _person(tmp_path)
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        ingestion=IngestionConfig(
+            exclude_patterns=("**/Viewer/**",),
+            include_patterns=("**/Viewer/report.pdf",),
+        ),
+    )
+    person.source_documents.mkdir(parents=True)
+    path = person.source_documents / "20260102 Viewer.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("Viewer/manual.pdf", b"%PDF")
+        archive.writestr("Viewer/report.pdf", b"%PDF")
+
+    result = stage_container_documents(
+        person,
+        (_document(path, person.source_documents),),
+    )
+
+    assert [document.internal_path for document in result.documents] == [
+        "Viewer/report.pdf"
+    ]
+    assert {member.internal_path for member in result.members} == {
+        "Viewer/manual.pdf",
+        "Viewer/report.pdf",
     }
 
 

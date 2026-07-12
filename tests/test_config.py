@@ -205,6 +205,7 @@ config_version = 1
 
 [global.ingestion]
 exclude_patterns = ["**/Help/**", "*.tmp"]
+include_patterns = ["**/Help/keep.txt"]
 
 [global.usb]
 usb_uuid = "1A2B-3C4D"
@@ -222,6 +223,7 @@ usb_uuid = "1A2B-3C4D"
 
 [person.ingestion]
 exclude_patterns = ["**/Viewer-Windows/**"]
+include_patterns = ["**/Viewer-Windows/report.txt"]
 """,
         encoding="utf-8",
     )
@@ -229,6 +231,7 @@ exclude_patterns = ["**/Viewer-Windows/**"]
     config = load_accounts(config_path)
 
     assert config.ingestion.exclude_patterns == ("**/Help/**", "*.tmp")
+    assert config.ingestion.include_patterns == ("**/Help/keep.txt",)
     assert config.usb.usb_uuid == "1A2B-3C4D"
     assert config.usb.require_exfat
     assert config.usb.min_free_space_mb == 512
@@ -238,6 +241,48 @@ exclude_patterns = ["**/Viewer-Windows/**"]
         "*.tmp",
         "**/Viewer-Windows/**",
     )
+    assert config.people[0].ingestion.include_patterns == (
+        "**/Help/keep.txt",
+        "**/Viewer-Windows/report.txt",
+    )
+
+
+def test_load_accounts_rejects_unknown_person_field(tmp_path: Path) -> None:
+    """Verify patient tables reject misplaced configuration fields.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{tmp_path / "source"}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{tmp_path / "generated"}"
+usb_uuid = "1A2B-3C4D"
+exclude_patterns = ["**/Help/**"]
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ConfigError,
+        match=r"\[\[person\]\] entry 0 unknown fields: exclude_patterns",
+    ):
+        load_accounts(config_path)
 
 
 def test_parse_accounts_uses_global_usb_uuid_default(tmp_path: Path) -> None:

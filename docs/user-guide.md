@@ -57,7 +57,13 @@ Esempio locale:
 config_version = 1
 
 [global.ingestion]
-exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
+exclude_patterns = [
+    "**/Help/**",
+    "**/Viewer-Windows/**",
+    "**/Viewer/**",
+    "**/jre/**",
+    "**/assets/**",
+]
 
 [global.usb]
 usb_uuid = "MANUAL-TEST-USB"
@@ -155,23 +161,33 @@ sostituiscono. I pattern sorgente sono relativi a `source_documents`; dentro un
 container sono relativi alla root estratta del container. Ogni pattern viene
 confrontato sia con il path relativo sia con il solo nome file. Il confronto e'
 case-insensitive, quindi `"**/Help/**"` esclude anche `help`, `HELP` o
-combinazioni miste. Gli stessi pattern filtrano anche la copia dei documenti
+combinazioni miste. `include_patterns` ha precedenza su `exclude_patterns` e
+serve a recuperare un file specifico dentro una directory esclusa. Gli stessi
+pattern filtrano anche la copia dei documenti
 originali in `export-usb`: un file escluso dall'ingestione non viene copiato
 nella directory `patients/<id>/documents` della chiavetta.
 
-In TOML la chiave `exclude_patterns` puo' comparire una sola volta nella stessa
-tabella. Per indicare piu' esclusioni bisogna usare una lista nello stesso
-campo.
+In TOML le chiavi `exclude_patterns` e `include_patterns` possono comparire una
+sola volta nella stessa tabella. Per indicare piu' pattern bisogna usare una
+lista nello stesso campo.
 
 | Campo | Tipo TOML | Obbligatorio | Default | Valori ammessi |
 | --- | --- | --- | --- | --- |
 | `exclude_patterns` | lista di stringhe | no | `[]` | glob non vuoti, per esempio `"**/Help/**"` o `"*.tmp"` |
+| `include_patterns` | lista di stringhe | no | `[]` | glob non vuoti che recuperano file esclusi, per esempio `"**/Viewer/report.pdf"` |
 
 Esempio:
 
 ```toml
 [global.ingestion]
-exclude_patterns = ["**/Help/**", "**/Viewer-Windows/**", "**/jre/**"]
+exclude_patterns = [
+    "**/Help/**",
+    "**/Viewer-Windows/**",
+    "**/Viewer/**",
+    "**/jre/**",
+    "**/assets/**",
+]
+include_patterns = ["**/Viewer/report.pdf"]
 
 [[person]]
 id = "irene"
@@ -179,6 +195,7 @@ id = "irene"
 
 [person.ingestion]
 exclude_patterns = ["**/documentazione-non-clinica/**"]
+include_patterns = ["**/documentazione-non-clinica/referto.pdf"]
 ```
 
 #### `[global.usb]`
@@ -370,8 +387,10 @@ dalle istanze DICOM, SaniKey conserva un solo record di studio prima della
 scrittura nel database. I file DICOM privi di metadati leggibili restano
 catalogati singolarmente come fallback diagnostico.
 I file tecnici dei viewer inclusi nei supporti, per esempio runtime Java, DLL,
-manuali, HTML di help o asset applicativi, restano tracciati nel manifest di
-staging ma non entrano nella pipeline documentale ordinaria. Se lo staging
+manuali, HTML di help o asset applicativi, devono essere esclusi con pattern di
+ingestione espliciti come `**/Viewer-Windows/**`, `**/jre/**` o `**/assets/**`.
+I membri esclusi restano tracciati nel manifest di staging ma non entrano nella
+pipeline documentale ordinaria. Se lo staging
 contiene un viewer HTML consultabile, SaniKey preferisce entrypoint IHE PDI
 come `IHE_PDI/PAGES/STUDIES/*.HTM`, poi altre pagine HTML note come
 `index.html`, `index.htm`, `default.htm` o `start.htm`. In export USB questi
