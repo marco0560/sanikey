@@ -2,17 +2,101 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
-from sanikey import __version__
+import pytest
+
+from sanikey import __version__, cli
 from sanikey.cli import _config_path, build_parser
-from sanikey.config import default_accounts_path
+from sanikey.config import AccountsConfig, PersonConfig, default_accounts_path
+from sanikey.documents import ExtractedText
+from sanikey.errors import ConfigError
+from sanikey.models import DocumentRecord
 
 MODULE = "sanikey"
+
+
+def _person(tmp_path: Path, patient_id: str = "patient-a") -> PersonConfig:
+    """Build a synthetic patient config.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary test directory.
+    patient_id : str, optional
+        Patient identifier.
+
+    Returns
+    -------
+    PersonConfig
+        Patient configuration.
+    """
+
+    return PersonConfig(
+        id=patient_id,
+        display_name=f"Patient {patient_id}",
+        source_documents=tmp_path / patient_id / "source",
+        metadata_directory=tmp_path / patient_id / "metadata",
+        local_build=tmp_path / patient_id / "generated",
+        usb_uuid="1A2B-3C4D",
+    )
+
+
+def _accounts(tmp_path: Path, *people: PersonConfig) -> AccountsConfig:
+    """Build a synthetic accounts config.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary test directory.
+    *people : PersonConfig
+        Patient configurations.
+
+    Returns
+    -------
+    AccountsConfig
+        Accounts configuration.
+    """
+
+    return AccountsConfig(
+        path=tmp_path / "accounts.toml",
+        config_version=1,
+        people=people,
+    )
+
+
+def _document(path: Path, *, patient_id: str = "patient-a") -> DocumentRecord:
+    """Build a synthetic document record.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Document path.
+    patient_id : str, optional
+        Owning patient id.
+
+    Returns
+    -------
+    DocumentRecord
+        Document record.
+    """
+
+    return DocumentRecord(
+        document_id="doc-1",
+        patient_id=patient_id,
+        path=path,
+        title="Report",
+        category="laboratorio",
+        kind="txt",
+        sha256="a" * 64,
+        date="2026-01-02",
+    )
 
 
 def test_module_help_runs() -> None:
@@ -120,6 +204,759 @@ def test_scan_documents_rejects_config_flag_in_italian() -> None:
 
     assert result.returncode == 2
     assert "errore: argomenti non riconosciuti: --config" in result.stderr
+
+
+def test_argparse_error_translation_handles_common_messages() -> None:
+    """Verify common argparse diagnostics are localized.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    assert (
+        cli._translate_argparse_error(
+            "invalid choice: 'x' (choose from 'a'); expected one argument"
+        )
+        == "scelta non valida: 'x' (choose from 'a'); atteso un argomento"
+    )
+
+
+def test_italian_argument_parser_error_exits_in_italian(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify parser errors are emitted in Italian.
+
+    Parameters
+    ----------
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    parser = cli.ItalianArgumentParser(prog="sanikey-test")
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.error("expected one argument")
+
+    assert exc_info.value.code == 2
+    assert "errore: atteso un argomento" in capsys.readouterr().err
+
+
+def test_run_info_direct_output(capsys: pytest.CaptureFixture[str]) -> None:
+    """Verify run_info prints the localized project summary.
+
+    Parameters
+    ----------
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    status = cli.run_info(argparse.Namespace())
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert "progetto=sanikey" in captured.out
+    assert f"versione={__version__}" in captured.out
+
+
+def test_cli_config_and_selection_helpers(tmp_path: Path) -> None:
+    """Verify shared CLI helper branches.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    patient_a = _person(tmp_path, "patient-a")
+    patient_b = _person(tmp_path, "patient-b")
+    config = _accounts(tmp_path, patient_a, patient_b)
+
+    assert cli._config_path(argparse.Namespace(config_option=tmp_path / "x.toml")) == (
+        tmp_path / "x.toml"
+    )
+    assert cli._config_path(argparse.Namespace()) == default_accounts_path()
+    assert cli._selected_people(config, None) == (patient_a, patient_b)
+    assert cli._selected_people(config, "patient-b") == (patient_b,)
+    assert (
+        cli._progress_from_args(argparse.Namespace(no_progress=True)).enabled is False
+    )
+
+
+def test_run_validate_config_direct_success_and_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify validate-config runner success and localized failure output.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    config = _accounts(tmp_path, _person(tmp_path))
+    args = argparse.Namespace(config=tmp_path / "accounts.toml", repo_root=tmp_path)
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: config)
+    monkeypatch.setattr(cli, "validate_privacy", lambda _config, *, repo_root: None)
+    monkeypatch.setattr(cli, "load_curated_metadata", lambda _path: None)
+
+    assert cli.run_validate_config(args) == 0
+    captured = capsys.readouterr()
+    assert "pazienti=1" in captured.out
+    assert "stato=ok" in captured.out
+
+    monkeypatch.setattr(
+        cli,
+        "load_accounts",
+        lambda _path: (_ for _ in ()).throw(ConfigError("non valida")),
+    )
+    assert cli.run_validate_config(args) == 1
+    assert "ERRORE: non valida" in capsys.readouterr().out
+
+
+def test_run_list_patients_direct_includes_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify list-patients renders enabled and disabled patients.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    enabled = _person(tmp_path, "patient-a")
+    disabled = PersonConfig(
+        id="patient-b",
+        display_name="Patient B",
+        source_documents=tmp_path / "patient-b" / "source",
+        metadata_directory=tmp_path / "patient-b" / "metadata",
+        local_build=tmp_path / "patient-b" / "generated",
+        usb_uuid="1A2B-3C4D",
+        enabled=False,
+    )
+    monkeypatch.setattr(
+        cli, "load_accounts", lambda _path: _accounts(tmp_path, enabled, disabled)
+    )
+
+    assert (
+        cli.run_list_patients(
+            argparse.Namespace(config=tmp_path / "accounts.toml", all=True)
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "patient-a" in output
+    assert "abilitato" in output
+    assert "patient-b" in output
+    assert "disabilitato" in output
+
+
+def test_run_scan_documents_direct_writes_output_and_warnings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify scan-documents orchestration without subprocess coverage gaps.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document = _document(person.source_documents / "20260102 Report.txt")
+    output_path = tmp_path / "scan" / "documents.csv"
+    config = _accounts(tmp_path, person)
+    staging = SimpleNamespace(
+        members=(SimpleNamespace(container_id="container-1"),),
+        documents=(document,),
+    )
+    inspection = SimpleNamespace(
+        inventory=(document.path,),
+        documents=(document,),
+        duplicates=(),
+        excluded_files=(tmp_path / "skip.tmp",),
+        warning_messages=("avviso inventario",),
+        preflight_warning_messages=("avviso preflight",),
+        container_staging=staging,
+    )
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: config)
+    monkeypatch.setattr(cli, "load_curated_metadata", lambda _path: None)
+    monkeypatch.setattr(
+        cli, "inspect_patient_documents", lambda *args, **kwargs: inspection
+    )
+
+    status = cli.run_scan_documents(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml",
+            patient=None,
+            output=output_path,
+            format="csv",
+            preflight=True,
+            no_stage_containers=False,
+            no_progress=True,
+            verbose=True,
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert status == 0
+    assert "archivi_preparati=1" in output
+    assert "AVVISO: avviso inventario" in output
+    assert "paziente=patient-a documenti_acquisiti=1" in output
+    assert (
+        output_path.read_text(encoding="utf-8")
+        .splitlines()[0]
+        .startswith("paziente,tipo,categoria")
+    )
+
+
+def test_run_scan_documents_direct_rejects_invalid_output_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify scan-documents direct error branches.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    assert cli.run_scan_documents(argparse.Namespace(output=None, format="csv")) == 1
+    assert "--format e' valido solo con --output" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli, "load_accounts", lambda _path: _accounts(tmp_path, _person(tmp_path))
+    )
+    monkeypatch.setattr(cli, "load_curated_metadata", lambda _path: None)
+    monkeypatch.setattr(
+        cli,
+        "inspect_patient_documents",
+        lambda *args, **kwargs: SimpleNamespace(
+            inventory=(),
+            documents=(),
+            duplicates=(),
+            excluded_files=(),
+            warning_messages=(),
+            preflight_warning_messages=(),
+            container_staging=None,
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_write_scan_output",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("permesso negato")),
+    )
+
+    status = cli.run_scan_documents(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml",
+            patient=None,
+            output=tmp_path / "blocked" / "out.txt",
+            format="text",
+            preflight=False,
+            no_stage_containers=True,
+            no_progress=True,
+            verbose=False,
+        )
+    )
+
+    assert status == 1
+    assert "impossibile scrivere" in capsys.readouterr().out
+
+
+def test_cli_formatting_helpers_cover_fallbacks(tmp_path: Path) -> None:
+    """Verify pure CLI formatting helpers.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    in_source = _document(person.source_documents / "20260102 Report.txt")
+    outside = _document(tmp_path / "outside.txt")
+    text_path = tmp_path / "scan.txt"
+
+    cli._write_scan_output(text_path, [(person, in_source)], output_format="text")
+
+    assert (
+        cli._format_scan_verbose(person, ())
+        == "paziente=patient-a documenti_acquisiti=0"
+    )
+    assert "02/01/2026" in cli._format_scan_verbose(person, (in_source,))
+    assert cli._format_display_date(None) == ""
+    assert cli._format_display_date("20260102") == "20260102"
+    assert cli._source_relative_path(person, in_source) == "20260102 Report.txt"
+    assert cli._source_relative_path(person, outside) == str(outside.path)
+    assert text_path.read_text(encoding="utf-8").startswith("patient-a\ttxt")
+
+
+def test_run_document_integrity_direct_handles_write_and_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify document-integrity runner covers success and OSError paths.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+
+    status = cli.run_document_integrity(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml",
+            patient=None,
+            action="before",
+            output_dir=tmp_path / "snapshots",
+        )
+    )
+
+    assert status == 0
+    assert "stato=written" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "write_source_snapshot",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disco pieno")),
+    )
+    status = cli.run_document_integrity(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml",
+            patient=None,
+            action="after",
+            output_dir=tmp_path / "snapshots",
+        )
+    )
+
+    assert status == 1
+    assert "disco pieno" in capsys.readouterr().out
+
+
+def test_run_document_integrity_direct_reports_changed_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify document-integrity check returns non-zero on changed snapshots.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+    monkeypatch.setattr(
+        cli,
+        "check_source_snapshots",
+        lambda *args, **kwargs: SimpleNamespace(
+            patient_id="patient-a",
+            status="changed",
+            sha256_path=tmp_path / "after.sha256",
+            mtime_path=tmp_path / "after-mtime.tsv",
+        ),
+    )
+
+    status = cli.run_document_integrity(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml",
+            patient=None,
+            action="check",
+            output_dir=tmp_path / "snapshots",
+        )
+    )
+
+    assert status == 1
+    assert "stato=changed" in capsys.readouterr().out
+
+
+def test_direct_content_runners_cover_success_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify direct CLI content runners without subprocess coverage gaps.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document = _document(person.source_documents / "20260102 Report.txt")
+    config = _accounts(tmp_path, person)
+    args = argparse.Namespace(
+        config=tmp_path / "accounts.toml",
+        patient=None,
+        mode="incremental",
+        no_progress=True,
+    )
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: config)
+    monkeypatch.setattr(cli, "scan_documents", lambda _person: (document,))
+    monkeypatch.setattr(
+        cli,
+        "extract_text",
+        lambda _document: ExtractedText(
+            document_id="doc-1",
+            text="testo",
+            warnings=("avviso testo",),
+        ),
+    )
+
+    assert cli.run_extract_text(args) == 0
+    assert "chars=5\tavvisi=1" in capsys.readouterr().out
+
+    study = SimpleNamespace(
+        patient_id="patient-a",
+        support_kind="dicom_iso",
+        support_path=tmp_path / "study.iso",
+        extracted_path=tmp_path / "expanded",
+        viewer_paths=(tmp_path / "viewer.exe",),
+        warnings=("avviso dicom",),
+        study_instance_uid="1.2.3",
+        study_date="2026-01-02",
+        study_description="Studio",
+        instance_count=2,
+    )
+    monkeypatch.setattr(cli, "catalog_dicom_studies", lambda *_args: (study,))
+    assert cli.run_process_dicom(args) == 0
+    assert "studi_dicom=1" in capsys.readouterr().out
+
+    monkeypatch.setattr(cli, "load_curated_metadata", lambda _path: object())
+    monkeypatch.setattr(
+        cli,
+        "build_database",
+        lambda *_args: SimpleNamespace(
+            path=tmp_path / "medical_archive.db",
+            documents=1,
+            dicom_studies=1,
+        ),
+    )
+    assert cli.run_build_database(args) == 0
+    assert "documenti=1 studi_dicom=1" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "generate_manual_proposals",
+        lambda _path: (SimpleNamespace(id="p1"),),
+    )
+    assert cli.run_generate_proposals(args) == 0
+    assert "proposte=1" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "generate_exports",
+        lambda *_args: SimpleNamespace(data_dir=tmp_path / "data"),
+    )
+    assert cli.run_generate_exports(args) == 0
+    assert f"dati={tmp_path / 'data'}" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "build_frontend",
+        lambda _person: SimpleNamespace(web_dir=tmp_path / "web"),
+    )
+    assert cli.run_build_web(args) == 0
+    assert f"web={tmp_path / 'web'}" in capsys.readouterr().out
+
+
+def test_direct_build_and_usb_runners_cover_success_and_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify direct CLI build and USB runners.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    config = _accounts(tmp_path, person)
+    build_result = SimpleNamespace(
+        patient_id="patient-a",
+        build_root=tmp_path / "generated",
+        documents=1,
+        derived_documents=2,
+        dicom_instances=3,
+        total_records=4,
+        extracted_documents=5,
+        cached_documents=6,
+        duplicates=1,
+        warnings=2,
+        warning_messages=(
+            "contenuto documento duplicato saltato. a -> b",
+            "PyMuPDF non ha potuto estrarre il testo PDF: report.pdf",
+            "avviso nascosto",
+        ),
+        database=tmp_path / "db.sqlite",
+        manifest=tmp_path / "manifest.json",
+        checksums=tmp_path / "checksums.sha256",
+        report=tmp_path / "report.json",
+    )
+    usb_result = SimpleNamespace(root=tmp_path / "usb", patients=1, files=2)
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: config)
+    monkeypatch.setattr(cli, "build_patient", lambda *_args, **_kwargs: build_result)
+    monkeypatch.setattr(cli, "build_all", lambda *_args, **_kwargs: (build_result,))
+    monkeypatch.setattr(cli, "export_usb", lambda *_args, **_kwargs: usb_result)
+    monkeypatch.setattr(cli, "validate_usb", lambda _target: True)
+
+    patient_args = argparse.Namespace(
+        config=tmp_path / "accounts.toml",
+        patient="patient-a",
+        mode="incremental",
+        no_progress=True,
+    )
+    assert cli.run_build_patient(patient_args) == 0
+    output = capsys.readouterr().out
+    assert "documenti_derivati=2 istanze_dicom=3 record_totali=4" in output
+    assert "AVVISO: contenuto documento duplicato" in output
+    assert "avviso nascosto" not in output
+
+    all_args = argparse.Namespace(
+        config=tmp_path / "accounts.toml",
+        mode="incremental",
+        no_progress=True,
+    )
+    assert cli.run_build_all(all_args) == 0
+    assert "paziente=patient-a stato=ok" in capsys.readouterr().out
+
+    export_args = argparse.Namespace(
+        config=tmp_path / "accounts.toml",
+        target=tmp_path / "usb",
+        no_progress=True,
+    )
+    assert cli.run_export_usb(export_args) == 0
+    assert "pazienti=1 file=2" in capsys.readouterr().out
+    assert cli.run_validate_usb(argparse.Namespace(target=tmp_path / "usb")) == 0
+    assert "stato=ok" in capsys.readouterr().out
+
+    assert cli.run_deploy_usb(export_args) == 0
+    assert "pazienti=1 file=2" in capsys.readouterr().out
+
+    monkeypatch.setattr(cli, "validate_usb", lambda _target: False)
+    assert cli.run_validate_usb(argparse.Namespace(target=tmp_path / "usb")) == 1
+    assert "stato=invalido" in capsys.readouterr().out
+    assert cli.run_deploy_usb(export_args) == 1
+    assert "validazione USB non riuscita" in capsys.readouterr().out
+
+
+def test_direct_runner_error_branches_and_update_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify direct CLI error branches and update delegation.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    config = _accounts(tmp_path, person)
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: config)
+
+    assert (
+        cli.run_build_patient(
+            argparse.Namespace(
+                config=tmp_path / "accounts.toml",
+                patient="missing",
+                mode="incremental",
+                no_progress=True,
+            )
+        )
+        == 1
+    )
+    assert "paziente non trovato" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "review_proposal",
+        lambda *_args: SimpleNamespace(id="proposal-1", status="approved"),
+    )
+    assert (
+        cli.run_review_proposal(
+            argparse.Namespace(
+                config=tmp_path / "accounts.toml",
+                patient="patient-a",
+                proposal_id="proposal-1",
+                status="approved",
+            )
+        )
+        == 0
+    )
+    assert "proposta=proposal-1 stato=approved" in capsys.readouterr().out
+    assert (
+        cli.run_review_proposal(
+            argparse.Namespace(
+                config=tmp_path / "accounts.toml",
+                patient="missing",
+                proposal_id="proposal-1",
+                status="approved",
+            )
+        )
+        == 1
+    )
+    assert "paziente non trovato" in capsys.readouterr().out
+
+    calls: list[tuple[str, str | None]] = []
+
+    def fake_build_all(args: argparse.Namespace) -> int:
+        """Record build-all delegation.
+
+        Parameters
+        ----------
+        args : argparse.Namespace
+            Parsed command arguments.
+
+        Returns
+        -------
+        int
+            Synthetic exit status.
+        """
+
+        calls.append((args.mode, None))
+        return 7
+
+    def fake_build_patient(args: argparse.Namespace) -> int:
+        """Record build-patient delegation.
+
+        Parameters
+        ----------
+        args : argparse.Namespace
+            Parsed command arguments.
+
+        Returns
+        -------
+        int
+            Synthetic exit status.
+        """
+
+        calls.append((args.mode, args.patient))
+        return 8
+
+    monkeypatch.setattr(cli, "run_build_all", fake_build_all)
+    monkeypatch.setattr(cli, "run_build_patient", fake_build_patient)
+
+    all_args = argparse.Namespace(patient=None)
+    patient_args = argparse.Namespace(patient="patient-a")
+    assert cli.run_update_archive(all_args) == 7
+    assert cli.run_update_archive(patient_args) == 8
+    assert calls == [("incremental", None), ("incremental", "patient-a")]
 
 
 def test_validate_config_subcommand_runs(tmp_path: Path) -> None:
