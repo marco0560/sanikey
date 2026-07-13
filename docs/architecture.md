@@ -111,7 +111,7 @@ La radice USB esportata contiene attualmente:
 
 ```text
 SANIKEY-MANIFEST.json
-START-HERE-Patient-A.html
+index.html
 patients/
   patient-a/
     dicom-viewers/
@@ -139,11 +139,10 @@ effettuare richieste `fetch()` per mostrare la prima schermata.
 La UI e' progettata per PC non noti in anticipo:
 
 - usa HTML, CSS e JavaScript statici;
-- evita framework frontend e runtime server;
-- puo' usare un helper JavaScript vendorizzato solo se resta piccolo e copiato
-  nell'export;
-- su schermi larghi separa risultati/documenti da timeline e riepilogo;
-- su schermi stretti usa tab per evitare pagine troppo lunghe;
+- usa asset Material Web locali vendorizzati, senza CDN o build runtime;
+- evita runtime server;
+- su schermi larghi separa risultati/documenti da timeline e sintesi clinica;
+- su schermi stretti adatta header, ricerca e controlli alla larghezza;
 - mantiene la maschera di ricerca e i link alle sezioni in alto durante la
   consultazione;
 - mostra i risultati di ricerca senza lasciare la timeline davanti;
@@ -155,7 +154,7 @@ ma il frontend mostra schede aggregate per studio DICOM invece delle singole
 istanze, che non sono leggibili da un medico senza viewer dedicato.
 Quando un supporto contiene un viewer HTML statico, per esempio IHE PDI,
 l'export copia la subtree necessaria al viewer e la scheda dello studio espone
-un link `Apri viewer HTML` in un tab separato.
+`Apri studio DICOM` come azione primaria in un tab separato.
 
 La personalizzazione UI e' export-time e viene validata dalla configurazione:
 `[global.ui]` definisce i default dell'export, mentre `[[person]].ui` puo'

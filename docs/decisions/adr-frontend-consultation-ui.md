@@ -14,20 +14,31 @@ ricerca poco usabile perche' gli esiti restano sotto una timeline lunga.
 
 ## Decisione
 
-Il frontend di consultazione resta statico e offline. Usa HTML, CSS e
-JavaScript generati localmente, con un piccolo helper JavaScript vendorizzato
-solo se riduce la complessita' senza introdurre build frontend o rete.
+Il frontend di consultazione resta statico e offline. Usa HTML, CSS,
+JavaScript generati localmente e asset Material Web vendorizzati nel
+repository. L'export non dipende da CDN, backend o build frontend eseguita sulla
+chiavetta.
 
 La UI predefinita e' responsiva:
 
-- su schermi larghi usa un layout a due aree, con ricerca e risultati in primo
-  piano e timeline/riepilogo in un pannello secondario;
-- su schermi stretti usa tab per `documenti`, `timeline` e `riepilogo`;
+- su schermi larghi usa un header a due aree, con identita' paziente e controlli
+  a sinistra e ricerca a destra;
+- su schermi stretti adatta header, ricerca e controlli alla larghezza
+  disponibile;
+- la ricerca base e quella avanzata usano lo stesso box e si alternano dal
+  frame superiore;
+- gli aiuti della ricerca base e avanzata sono separati e si aprono in modal
+  locali;
 - durante una ricerca l'utente vede subito i risultati, senza dover scorrere
   oltre la timeline;
+- la sezione clinica si chiama `Sintesi Clinica` e sposta i conteggi tecnici in
+  fondo;
 - la timeline e' mostrata per default in ordine cronologico inverso;
 - i link ai documenti originali nella chiavetta sono relativi al frontend
   esportato e non puntano mai ai percorsi sorgente del computer di build.
+
+La radice USB contiene `index.html`: con un solo paziente apre direttamente il
+frontend del paziente; con piu' pazienti mostra una lista di scelta.
 
 La personalizzazione e' configurabile in `config/accounts.toml` con una tabella
 `[global.ui]` e override opzionali in `[[person]].ui`. I valori sono chiusi e
@@ -42,10 +53,10 @@ validati, non CSS libero:
 
 ## Conseguenze
 
-La UI rimane leggera e consultabile da `file://`, ma diventa piu' usabile sui
-monitor larghi e sui portatili piccoli. La configurazione permette di adattare
-l'export senza rendere fragile il rendering. La scelta esclude per ora temi CSS
-arbitrari e framework frontend.
+La UI rimane consultabile da `file://`, ma adotta componenti locali piu'
+strutturati. La configurazione permette di adattare l'export senza rendere
+fragile il rendering. La scelta richiede test espliciti sugli asset locali e sui
+link relativi.
 
 ## Verifica
 
@@ -55,5 +66,6 @@ I test devono coprire:
 - precedenza `[[person]].ui` su `[global.ui]`;
 - assenza di path assoluti nei link documentali esportati;
 - ordine timeline configurato;
-- presenza dei controlli di layout/tab nel frontend generato;
+- presenza dei controlli header, ricerca, modal e sintesi nel frontend generato;
+- presenza dell'entrypoint root USB;
 - consultazione manuale da directory locale e da chiavetta fisica.

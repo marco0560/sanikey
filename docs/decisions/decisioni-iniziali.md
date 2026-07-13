@@ -123,7 +123,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-106 | La modalità incrementale è la modalità di distribuzione predefinita. | 17 |  |
 | DA-107 | rsync è il meccanismo preferenziale di sincronizzazione. | 17 |  |
 | DA-108 | Ogni paziente possiede un archivio completamente indipendente sulla chiavetta. | 17 |  |
-| DA-109 | Le pagine START-HERE costituiscono il punto di ingresso ufficiale per la consultazione. | 17 |  |
+| DA-109 | La pagina root `index.html` costituisce il punto di ingresso ufficiale per la consultazione USB. | 17 |  |
 | DA-110 | La distribuzione deve verificare l'integrità degli artefatti copiati. | 17 |  |
 | DA-111 | Il filesystem raccomandato è exFAT. | 17 |  |
 | DA-112 | L'intero contenuto della chiavetta deve poter essere rigenerato a partire dagli artefatti locali. | 17 |  |
@@ -380,7 +380,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-106 | La modalità incrementale è la modalità di distribuzione predefinita. |  |
 | DA-107 | rsync è il meccanismo preferenziale di sincronizzazione. |  |
 | DA-108 | Ogni paziente possiede un archivio completamente indipendente sulla chiavetta. |  |
-| DA-109 | Le pagine START-HERE costituiscono il punto di ingresso ufficiale per la consultazione. |  |
+| DA-109 | La pagina root `index.html` costituisce il punto di ingresso ufficiale per la consultazione USB. |  |
 | DA-110 | La distribuzione deve verificare l'integrità degli artefatti copiati. |  |
 | DA-111 | Il filesystem raccomandato è exFAT. |  |
 | DA-112 | L'intero contenuto della chiavetta deve poter essere rigenerato a partire dagli artefatti locali. |  |

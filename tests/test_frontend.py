@@ -39,16 +39,22 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert result.script.is_file()
     assert result.stylesheet.is_file()
     assert result.helper.is_file()
+    assert result.material_script.is_file()
+    assert result.material_stylesheet.is_file()
     assert "Patient A" in result.index.read_text(encoding="utf-8")
     assert 'data-tab-button="documents"' in result.index.read_text(encoding="utf-8")
-    assert 'data-tab-button="advanced"' in result.index.read_text(encoding="utf-8")
-    assert "Aiuto ricerca" in result.index.read_text(encoding="utf-8")
+    assert 'data-tab-button="summary"' in result.index.read_text(encoding="utf-8")
+    assert "Aiuto ricerca base" in result.index.read_text(encoding="utf-8")
     assert "Ricerca avanzata" in result.index.read_text(encoding="utf-8")
     script = result.script.read_text(encoding="utf-8").lower()
     helper = result.helper.read_text(encoding="utf-8").lower()
+    material = result.material_script.read_text(encoding="utf-8").lower()
     index = result.index.read_text(encoding="utf-8").lower()
     stylesheet = result.stylesheet.read_text(encoding="utf-8").lower()
-    generated = "\n".join((index, script, helper, stylesheet))
+    material_stylesheet = result.material_stylesheet.read_text(encoding="utf-8").lower()
+    generated = "\n".join(
+        (index, script, helper, stylesheet, material, material_stylesheet)
+    )
     forbidden_fragments = (
         "telemetry",
         "document.cookie",
@@ -61,6 +67,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert not any(fragment in generated for fragment in forbidden_fragments)
     assert 'script src="data.js"' in index
     assert 'script src="assets/ui-helper.js"' in index
+    assert 'script type="module" src="assets/material-web.js"' in index
+    assert 'href="assets/material-web.css"' in index
     assert "fetch(" not in script
     assert "window.sanikey_data" in script
     assert "window.sanikey_content_search" in script
@@ -71,6 +79,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "not" in script
     assert "window.sanikeyui" in helper
     assert "setuptabs" in helper
+    assert "custom-elements" not in material
+    assert "customElements.define".lower() in material
     assert "function formatdate(value)" in script
     assert "${match[3]}/${match[2]}/${match[1]}" in script
     assert "formatdaterange(item.start_date, item.end_date)" in script
@@ -78,6 +88,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "clinical_summary_html" in script
     assert "markdown_html" in script
     assert "item.href" in script
+    assert "item.viewer_href" in script
+    assert "apri studio dicom" in script
     assert "renderclinicaldashboard" in script
     assert "renderquicksearch" in script
     assert "rendersearchresults" in script
@@ -89,9 +101,11 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "terms.every" in script
     assert "item.path" in script
     assert ".markdown" in stylesheet
-    assert ".search-help" in stylesheet
+    assert ".search-panel" in stylesheet
+    assert ".help-dialog" in stylesheet
     assert ".badge" in stylesheet
     assert "has-background-image" in stylesheet
+    assert "sintesi clinica" in index
     assert "@media (min-width: 56rem)" in stylesheet
     assert "section-jumps" in index
     assert "function updatesectionjumps(sections)" in script

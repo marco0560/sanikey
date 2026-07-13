@@ -475,26 +475,29 @@ Il frontend e' pensato per la consultazione diretta dalla chiavetta USB. I dati
 necessari alla prima schermata sono esportati anche in `web/data.js`, caricato
 come script locale, così Chrome e gli altri browser non devono usare `fetch()`
 su URL `file://`.
-La ricerca rapida nella tab `Documenti` cerca in documenti, farmaci, terapie,
+La ricerca rapida nel box in alto cerca in documenti, farmaci, terapie,
 problemi, procedure, osservazioni e studi DICOM sintetici. I risultati vengono
 raggruppati per sezione e mostrano link iniziali con conteggi, in modo che il
 medico possa saltare subito alla parte utile.
-La tab `Ricerca avanzata` carica al primo uso `web/content-search.js` e cerca
+Il bottone `Ricerca avanzata` cambia lo stesso box di ricerca e carica al primo
+uso `web/content-search.js`, cercando
 anche nel testo estratto da PDF, immagini OCR, documenti Office e file testuali.
 La ricerca avanzata combina quei risultati documentali con gli stessi metadati
-clinici della ricerca rapida.
+clinici della ricerca rapida. Gli aiuti di ricerca base e avanzata sono
+separati e si aprono in finestre modali locali.
 
 La sintassi della ricerca avanzata è case-insensitive e accent-insensitive.
 Supporta parole, frasi tra virgolette, `AND`, `OR`, `NOT` e parentesi. Parole
 adiacenti equivalgono a `AND`, quindi `creatinina 2024` è equivalente a
 `creatinina AND 2024`.
 
-La tab `Riepilogo` mostra una dashboard clinica sempre consultabile. Include,
+La sezione `Sintesi Clinica` mostra una dashboard clinica sempre consultabile. Include,
 quando presenti, problemi, terapie, farmaci, osservazioni, procedure e studi
 DICOM sintetici. Le terapie sono arricchite con nome commerciale, principio
 attivo, dosaggio, schedula, istruzioni, periodo e ruolo. Gli studi DICOM sono
 schede sintetiche con supporto, tipo, data/UID quando disponibili e numero di
-istanze; non viene mostrata la lista di ogni singola slice.
+istanze; non viene mostrata la lista di ogni singola slice. Il riepilogo
+tecnico con conteggi e' in fondo alla sintesi clinica.
 
 ### Personalizzare la Consultazione
 
@@ -619,7 +622,7 @@ uv run sanikey validate-usb /path/to/usb-root
 Apri la pagina iniziale generata dalla radice USB:
 
 ```text
-START-HERE-Patient-A.html
+index.html
 ```
 
 ## Struttura USB
@@ -628,7 +631,7 @@ Un export USB generato contiene:
 
 ```text
 SANIKEY-MANIFEST.json
-START-HERE-Patient-A.html
+index.html
 patients/
   patient-a/
     documents/

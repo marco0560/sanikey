@@ -28,6 +28,10 @@ class FrontendResult:
         Generated stylesheet.
     helper : pathlib.Path
         Vendored UI helper JavaScript.
+    material_script : pathlib.Path
+        Vendored Material Web compatibility JavaScript.
+    material_stylesheet : pathlib.Path
+        Vendored Material Web compatibility stylesheet.
     """
 
     web_dir: Path
@@ -35,6 +39,8 @@ class FrontendResult:
     script: Path
     stylesheet: Path
     helper: Path
+    material_script: Path
+    material_stylesheet: Path
 
 
 def build_frontend(person: PersonConfig) -> FrontendResult:
@@ -59,10 +65,14 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     script = web_dir / "app.js"
     stylesheet = web_dir / "style.css"
     helper = assets_dir / "ui-helper.js"
+    material_script = assets_dir / "material-web.js"
+    material_stylesheet = assets_dir / "material-web.css"
     index.write_text(_index_html(person), encoding="utf-8")
     script.write_text(_app_js(), encoding="utf-8")
     stylesheet.write_text(_style_css(), encoding="utf-8")
     helper.write_text(_ui_helper_js(), encoding="utf-8")
+    material_script.write_text(_material_web_js(), encoding="utf-8")
+    material_stylesheet.write_text(_material_web_css(), encoding="utf-8")
     if person.ui.background_image is not None:
         shutil.copy2(
             person.ui.background_image,
@@ -74,6 +84,8 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
         script=script,
         stylesheet=stylesheet,
         helper=helper,
+        material_script=material_script,
+        material_stylesheet=material_stylesheet,
     )
 
 
@@ -100,52 +112,70 @@ def _index_html(person: PersonConfig) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SaniKey - {title}</title>
+  <link rel="stylesheet" href="assets/material-web.css">
   <link rel="stylesheet" href="style.css">
+  <script type="module" src="assets/material-web.js"></script>
 </head>
 <body>
   <header>
-    <div class="header-title">
-      <h1>{title}</h1>
-      <p>{subtitle}</p>
+    <div class="header-primary">
+      <div class="header-title">
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+      </div>
+      <nav class="header-actions" aria-label="Sezioni archivio">
+        <md-text-button type="button" data-tab-button="documents">Documenti</md-text-button>
+        <md-text-button type="button" data-tab-button="timeline">Timeline</md-text-button>
+        <md-text-button type="button" data-tab-button="summary">Sintesi Clinica</md-text-button>
+      </nav>
     </div>
-    <div class="search-control">
-      <label for="search">Cerca nell'archivio</label>
-      <input id="search" type="search" placeholder="Cerca documenti, categorie o tag">
+    <div class="search-panel" data-search-mode="basic">
+      <div class="search-toolbar" role="group" aria-label="Modalita' ricerca">
+        <md-filled-tonal-button type="button" id="basic-toggle">Ricerca base</md-filled-tonal-button>
+        <md-outlined-button type="button" id="advanced-toggle">Ricerca avanzata</md-outlined-button>
+        <md-icon-button type="button" id="basic-help-button" aria-label="Aiuto ricerca base">?</md-icon-button>
+        <md-icon-button type="button" id="advanced-help-button" aria-label="Aiuto ricerca avanzata">?</md-icon-button>
+      </div>
+      <div class="search-control" data-search-panel="basic">
+        <label for="search">Cerca nell'archivio</label>
+        <input id="search" type="search" placeholder="Cerca documenti, categorie o tag">
+      </div>
+      <div class="search-control" data-search-panel="advanced">
+        <label for="advanced-search">Cerca nel testo OCR e contenuto estratto</label>
+        <input id="advanced-search" type="search" placeholder='Esempio: creatinina AND (2024 OR 2025) NOT "urine"'>
+      </div>
     </div>
-    <details class="search-help">
-      <summary>Aiuto ricerca</summary>
-      <p>Scrivi una o piu' parole presenti in titolo, categoria, tag, tipo,
-      percorso o data. Esempi: <code>cardiologo 2024</code>,
-      <code>analisi pdf</code>, <code>risonanza</code>.</p>
-    </details>
     <nav id="section-jumps" class="section-jumps" aria-label="Vai alla sezione"></nav>
   </header>
-  <nav class="tabs" aria-label="Sezioni archivio">
-    <button type="button" data-tab-button="documents">Documenti</button>
-    <button type="button" data-tab-button="advanced">Ricerca avanzata</button>
-    <button type="button" data-tab-button="timeline">Timeline</button>
-    <button type="button" data-tab-button="summary">Riepilogo</button>
-  </nav>
   <main data-default-tab="{default_tab}">
     <section id="documents" class="primary-pane" data-tab-panel="documents" aria-label="Documenti"></section>
     <section id="advanced" class="primary-pane" data-tab-panel="advanced" aria-label="Ricerca avanzata">
-      <h2>Ricerca avanzata</h2>
-      <label for="advanced-search">Cerca nel contenuto OCR e testo estratto</label>
-      <input id="advanced-search" type="search" placeholder='Esempio: creatinina AND (2024 OR 2025) NOT "urine"'>
-      <details class="search-help" open>
-        <summary>Sintassi ricerca avanzata</summary>
-        <p>Usa parole, frasi tra virgolette, <code>AND</code>, <code>OR</code>,
-        <code>NOT</code> e parentesi. Le parole adiacenti valgono come
-        <code>AND</code>. La ricerca non distingue maiuscole, minuscole o
-        accenti e applica sinonimi configurati.</p>
-      </details>
       <div id="advanced-results" class="advanced-results"></div>
     </section>
     <aside class="secondary-pane">
       <section id="timeline" data-tab-panel="timeline" aria-label="Timeline"></section>
-      <section id="summary" data-tab-panel="summary" aria-label="Riepilogo"></section>
+      <section id="summary" data-tab-panel="summary" aria-label="Sintesi Clinica"></section>
     </aside>
   </main>
+  <dialog id="basic-help-dialog" class="help-dialog">
+    <article>
+      <h2>Aiuto ricerca base</h2>
+      <p>Scrivi una o piu' parole presenti in titolo, categoria, tag, tipo,
+      percorso o data. Esempi: <code>cardiologo 2024</code>,
+      <code>analisi pdf</code>, <code>risonanza</code>.</p>
+      <form method="dialog"><md-filled-button>Chiudi</md-filled-button></form>
+    </article>
+  </dialog>
+  <dialog id="advanced-help-dialog" class="help-dialog">
+    <article>
+      <h2>Aiuto ricerca avanzata</h2>
+      <p>Usa parole, frasi tra virgolette, <code>AND</code>, <code>OR</code>,
+      <code>NOT</code> e parentesi. Le parole adiacenti valgono come
+      <code>AND</code>. La ricerca non distingue maiuscole, minuscole o
+      accenti e applica sinonimi configurati.</p>
+      <form method="dialog"><md-filled-button>Chiudi</md-filled-button></form>
+    </article>
+  </dialog>
   <script src="data.js"></script>
   <script src="assets/ui-helper.js"></script>
   <script src="app.js"></script>
@@ -176,7 +206,7 @@ def _app_js() -> str:
   observations: "Osservazioni",
   dicom: "Studi DICOM",
   timeline: "Timeline",
-  summary: "Riepilogo",
+  summary: "Sintesi Clinica",
 };
 
 const SECTION_ORDER = ["documents", "therapies", "medications", "problems", "procedures", "observations", "dicom", "timeline"];
@@ -227,12 +257,17 @@ function applyUi(summary) {
 
 function renderSummary(summary, clinical = {}) {
   const target = document.querySelector("#summary");
-  target.innerHTML = `<h2>Riepilogo</h2>
-    <p>Documenti: ${escapeHtml(summary.document_count)}</p>
-    <p>Problemi: ${escapeHtml(summary.problem_count)}</p>
-    <p>Procedure: ${escapeHtml(summary.procedure_count)}</p>
+  target.innerHTML = `<h2>Sintesi Clinica</h2>
     <div class="markdown">${html(summary.clinical_summary_html) || `<p>${escapeHtml(summary.clinical_summary)}</p>`}</div>
-    ${renderClinicalDashboard(clinical)}`;
+    ${renderClinicalDashboard(clinical)}
+    <section class="technical-summary" aria-label="Riepilogo tecnico">
+      <h3>Riepilogo tecnico</h3>
+      <dl>
+        <div><dt>Documenti</dt><dd>${escapeHtml(summary.document_count)}</dd></div>
+        <div><dt>Problemi</dt><dd>${escapeHtml(summary.problem_count)}</dd></div>
+        <div><dt>Procedure</dt><dd>${escapeHtml(summary.procedure_count)}</dd></div>
+      </dl>
+    </section>`;
 }
 
 function renderTimeline(timeline) {
@@ -275,13 +310,24 @@ function renderDocuments(documents, query = "") {
       <p>${escapeHtml(formatDate(item.date))} ${escapeHtml(item.category)} ${escapeHtml(item.kind)}</p>
       <p>${item.tags.map(escapeHtml).join(", ")}</p>
       ${item.markdown_html ? `<div class="markdown">${html(item.markdown_html)}</div>` : ""}
-      ${item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : `<span class="muted">Origine nel contenitore</span>`}</article>`
+      ${renderDocumentActions(item)}</article>`
   ).join("");
   updateSectionJumps([
     {id: "documents", label: "documents", count: selected.length},
     {id: "timeline", label: "timeline"},
     {id: "summary", label: "summary"},
   ]);
+}
+
+function renderDocumentActions(item) {
+  if (item.viewer_href) {
+    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a>
+      ${item.support_href ? `<a href="${attr(item.support_href)}">Scarica supporto originale</a>` : ""}</p>`;
+  }
+  if (item.href) {
+    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">Apri originale</a></p>`;
+  }
+  return `<span class="muted">Origine nel contenitore</span>`;
 }
 
 function renderClinicalDashboard(clinical) {
@@ -308,8 +354,18 @@ function renderEntityCard(item, section) {
   return `<article id="entity-${attr(item.id)}"><h4>${escapeHtml(item.title)}</h4>
     ${item.date || item.start_date ? `<p>${escapeHtml(formatDate(item.date || item.start_date))}</p>` : ""}
     ${renderFields(item.fields || [])}
-    ${item.href ? `<a href="${attr(item.href)}">${section === "dicom" ? "Apri supporto DICOM" : "Apri originale"}</a>` : ""}
-    ${item.viewer_href ? `<a href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri viewer HTML</a>` : ""}</article>`;
+    ${renderEntityActions(item, section)}</article>`;
+}
+
+function renderEntityActions(item, section) {
+  if (section === "dicom" && item.viewer_href) {
+    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a>
+      ${item.href ? `<a href="${attr(item.href)}">Scarica supporto originale</a>` : ""}</p>`;
+  }
+  if (item.href) {
+    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">${section === "dicom" ? "Scarica supporto DICOM" : "Apri originale"}</a></p>`;
+  }
+  return "";
 }
 
 function renderFields(fields) {
@@ -351,7 +407,17 @@ function renderResultCard(item, section) {
   return `<article><h4>${escapeHtml(item.title)} <span class="badge">${escapeHtml(SECTION_LABELS[section] || item.type)}</span></h4>
     ${item.subtitle ? `<p>${escapeHtml(item.subtitle)}</p>` : ""}
     ${renderFields(item.fields || [])}
-    ${item.type === "document" && item.href ? `<a href="${attr(item.href)}">Apri originale</a>` : `<a href="#entity-${attr(item.id)}">Vai alla scheda</a>`}</article>`;
+    ${renderResultAction(item)}</article>`;
+}
+
+function renderResultAction(item) {
+  if (item.viewer_href) {
+    return `<a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a>`;
+  }
+  if (item.type === "document" && item.href) {
+    return `<a class="primary-action" href="${attr(item.href)}">Apri originale</a>`;
+  }
+  return `<a href="#entity-${attr(item.id)}">Vai alla scheda</a>`;
 }
 
 function groupBySection(records) {
@@ -644,6 +710,29 @@ function loadAdvancedSearchData() {
   });
 }
 
+function setSearchMode(mode) {
+  const panel = document.querySelector(".search-panel");
+  panel.dataset.searchMode = mode;
+  document.querySelector("#basic-toggle").classList.toggle("is-active", mode === "basic");
+  document.querySelector("#advanced-toggle").classList.toggle("is-active", mode === "advanced");
+  if (mode === "basic") {
+    document.querySelector("#search").focus();
+    window.SaniKeyUi.showTab("documents");
+  } else {
+    document.querySelector("#advanced-search").focus();
+    window.SaniKeyUi.showTab("advanced");
+  }
+}
+
+function openHelpDialog(id) {
+  const dialog = document.querySelector(id);
+  if (dialog.showModal) {
+    dialog.showModal();
+  } else {
+    dialog.setAttribute("open", "");
+  }
+}
+
 function advancedDocumentRecord(item, terms, expansions) {
   return {
     id: item.id,
@@ -654,6 +743,10 @@ function advancedDocumentRecord(item, terms, expansions) {
     date: item.date,
     text: item.text,
     href: item.href,
+    viewer_href: item.viewer_href,
+    support_href: item.support_href,
+    primary_href: item.primary_href,
+    primary_action: item.primary_action,
     fields: [
       {label: "Categoria", value: item.category},
       {label: "Tipo", value: item.kind},
@@ -711,7 +804,13 @@ function main() {
   window.SaniKeyUi.setupTabs({
     defaultTab: document.querySelector("main").dataset.defaultTab || "documents",
   });
+  setSearchMode("basic");
+  document.querySelector("#basic-toggle").addEventListener("click", () => setSearchMode("basic"));
+  document.querySelector("#advanced-toggle").addEventListener("click", () => setSearchMode("advanced"));
+  document.querySelector("#basic-help-button").addEventListener("click", () => openHelpDialog("#basic-help-dialog"));
+  document.querySelector("#advanced-help-button").addEventListener("click", () => openHelpDialog("#advanced-help-dialog"));
   document.querySelector("#search").addEventListener("input", (event) => {
+    setSearchMode("basic");
     if (event.target.value.trim()) {
       renderQuickSearch(quickRecords, event.target.value);
     } else {
@@ -720,6 +819,7 @@ function main() {
     window.SaniKeyUi.showTab("documents");
   });
   advancedInput.addEventListener("input", (event) => {
+    setSearchMode("advanced");
     advancedResults.innerHTML = '<p class="muted">Caricamento indice di ricerca avanzata...</p>';
     loadAdvancedSearchData()
       .then((payload) => renderAdvancedResults(payload, event.target.value, clinicalRecords))
@@ -776,6 +876,112 @@ def _ui_helper_js() -> str:
 """
 
 
+def _material_web_js() -> str:
+    """Render local Material Web compatibility elements.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    str
+        JavaScript source.
+    """
+
+    return r"""class SaniKeyMaterialButton extends HTMLElement {
+  connectedCallback() {
+    if (this.dataset.ready === "true") {
+      return;
+    }
+    this.dataset.ready = "true";
+    this.setAttribute("role", "button");
+    this.setAttribute("tabindex", this.getAttribute("tabindex") || "0");
+    this.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        this.click();
+      }
+    });
+  }
+}
+
+["md-filled-button", "md-filled-tonal-button", "md-outlined-button", "md-text-button", "md-icon-button"].forEach((name) => {
+  if (!customElements.get(name)) {
+    customElements.define(name, SaniKeyMaterialButton);
+  }
+});
+"""
+
+
+def _material_web_css() -> str:
+    """Render local Material Web compatibility styles.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    str
+        CSS source.
+    """
+
+    return """:root {
+  --md-sys-color-primary: #1f5f8b;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-secondary-container: #d7e8f4;
+  --md-sys-color-on-secondary-container: #12384f;
+  --md-sys-color-outline: #b8c7d4;
+}
+
+md-filled-button,
+md-filled-tonal-button,
+md-outlined-button,
+md-text-button,
+md-icon-button {
+  align-items: center;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.4rem;
+  padding: 0.35rem 0.85rem;
+  text-decoration: none;
+  user-select: none;
+}
+
+md-filled-button {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+md-filled-tonal-button {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+md-outlined-button {
+  border: 1px solid var(--md-sys-color-outline);
+  color: var(--md-sys-color-primary);
+}
+
+md-text-button {
+  color: var(--md-sys-color-primary);
+}
+
+md-icon-button {
+  aspect-ratio: 1;
+  border: 1px solid var(--md-sys-color-outline);
+  color: var(--md-sys-color-primary);
+  padding: 0;
+  width: 2.4rem;
+}
+"""
+
+
 def _style_css() -> str:
     """Render static CSS.
 
@@ -825,16 +1031,21 @@ body.has-background-image::before {
 }
 
 header {
-  align-items: end;
+  align-items: start;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: grid;
-  gap: 0.75rem;
-  grid-template-columns: 1fr minmax(16rem, 28rem);
+  gap: 1rem;
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(22rem, 1.1fr);
   padding: 1rem;
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+.header-primary {
+  display: grid;
+  gap: 0.7rem;
 }
 
 h1 {
@@ -848,39 +1059,31 @@ header p {
   margin: 0.25rem 0 0;
 }
 
+.header-actions,
+.search-toolbar,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.search-panel {
+  display: grid;
+  gap: 0.65rem;
+}
+
 .search-control {
   display: grid;
   gap: 0.35rem;
 }
 
+[data-search-mode="basic"] [data-search-panel="advanced"],
+[data-search-mode="advanced"] [data-search-panel="basic"] {
+  display: none;
+}
+
 label {
   font-weight: 600;
-}
-
-.tabs {
-  background: white;
-  border-bottom: 1px solid var(--border);
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  position: sticky;
-  top: 8.25rem;
-  z-index: 1;
-}
-
-.tabs button {
-  background: white;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font: inherit;
-  padding: 0.75rem;
-}
-
-.tabs button.is-active {
-  border-color: var(--accent);
-  color: var(--text);
-  font-weight: 700;
 }
 
 main {
@@ -897,22 +1100,6 @@ input {
   font: inherit;
   padding: 0.5rem;
   width: 100%;
-}
-
-.search-help {
-  color: var(--muted);
-  font-size: 0.92rem;
-  grid-column: 2;
-}
-
-.search-help summary {
-  color: var(--accent);
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.search-help p {
-  margin: 0.35rem 0 0;
 }
 
 .section-links,
@@ -935,6 +1122,37 @@ input {
 .section-jumps {
   grid-column: 1 / -1;
   margin: 0;
+}
+
+.primary-action {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.is-active {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.technical-summary {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+}
+
+.help-dialog {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: min(34rem, calc(100vw - 2rem));
+  padding: 0;
+}
+
+.help-dialog::backdrop {
+  background: rgb(31 41 51 / 0.35);
+}
+
+.help-dialog article {
+  border: 0;
+  padding: 1rem;
 }
 
 article {
@@ -1008,7 +1226,10 @@ dd {
 }
 
 body[data-density="compact"] article,
-body[data-density="compact"] .tabs button {
+body[data-density="compact"] md-filled-button,
+body[data-density="compact"] md-filled-tonal-button,
+body[data-density="compact"] md-outlined-button,
+body[data-density="compact"] md-text-button {
   padding-bottom: 0.45rem;
   padding-top: 0.45rem;
 }
@@ -1060,14 +1281,18 @@ body[data-density="compact"] .tabs button {
     grid-template-columns: 1fr;
   }
 
-  .search-help {
-    grid-column: 1;
+  .search-toolbar,
+  .header-actions {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media print {
   input,
-  .tabs {
+  .header-actions,
+  .search-panel {
     display: none;
   }
 }

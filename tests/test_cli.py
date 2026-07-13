@@ -1623,8 +1623,8 @@ usb_uuid = "1A2B-3C4D"
     )
     assert result.returncode == 0
     assert "usb=" in result.stdout
-    assert (target / "START-HERE-Patient-A.html").is_file()
-    assert (tmp_path / "exports" / "usb-image" / "START-HERE-Patient-A.html").is_file()
+    assert (target / "index.html").is_file()
+    assert (tmp_path / "exports" / "usb-image" / "index.html").is_file()
 
 
 def test_export_usb_subcommand_accepts_no_progress(tmp_path: Path) -> None:
@@ -1695,7 +1695,7 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "usb=" in result.stdout
     assert result.stderr == ""
-    assert (target / "START-HERE-Patient-A.html").is_file()
+    assert (target / "index.html").is_file()
 
 
 def test_list_patients_wrapper_script_runs(tmp_path: Path) -> None:

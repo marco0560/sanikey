@@ -47,4 +47,4 @@ def test_public_examples_build_and_export_demo_usb(tmp_path: Path) -> None:
     export = export_usb(config, tmp_path / "usb")
 
     assert validate_usb(export.root)
-    assert (export.root / "START-HERE-Patient-A.html").is_file()
+    assert (export.root / "index.html").is_file()

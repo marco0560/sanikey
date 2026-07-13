@@ -166,7 +166,10 @@ def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
     result = export_usb(config, tmp_path / "usb")
 
     assert result.patients == 1
-    assert (result.root / "START-HERE-Patient-A.html").is_file()
+    assert (result.root / "index.html").is_file()
+    root_index = (result.root / "index.html").read_text(encoding="utf-8")
+    assert "url=patients/patient-a/web/index.html" in root_index
+    assert 'href="patients/patient-a/web/index.html"' in root_index
     assert (result.root / "patients" / "patient-a" / "medical_archive.db").is_file()
     assert (result.root / "patients" / "patient-a" / "web" / "index.html").is_file()
     assert (result.root / "patients" / "patient-a" / "web" / "data.js").is_file()
@@ -175,8 +178,44 @@ def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
     ).read_text(encoding="utf-8")
     assert '"href": "../documents/20260102 Report.txt"' in data_script
     assert str(person.source_documents) not in data_script
-    assert (usb_image_root(config) / "START-HERE-Patient-A.html").is_file()
+    assert (usb_image_root(config) / "index.html").is_file()
     assert usb_image_root(config) != result.root
+    assert validate_usb(result.root)
+
+
+def test_export_usb_root_index_lists_multiple_patients(tmp_path: Path) -> None:
+    """Verify root USB index lists enabled patients when more than one exists.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    first = _person(tmp_path, "patient-a", "Patient A")
+    second = _person(tmp_path, "patient-b", "Patient B")
+    _write_document(first, "20260102 Report.txt", "synthetic")
+    _write_document(second, "20260103 Report.txt", "synthetic")
+    build_patient(first, mode="full")
+    build_patient(second, mode="full")
+    config = AccountsConfig(
+        config_version=1,
+        people=(first, second),
+        path=tmp_path / "accounts.toml",
+    )
+
+    result = export_usb(config, tmp_path / "usb")
+    root_index = (result.root / "index.html").read_text(encoding="utf-8")
+
+    assert "Seleziona il paziente" in root_index
+    assert 'href="patients/patient-a/web/index.html"' in root_index
+    assert 'href="patients/patient-b/web/index.html"' in root_index
+    assert "Patient A" in root_index
+    assert "Patient B" in root_index
     assert validate_usb(result.root)
 
 
@@ -292,9 +331,13 @@ def test_export_usb_copies_dicom_html_viewer_and_validates_link(
         data_script.removeprefix("window.SANIKEY_DATA = ").removesuffix(";\n")
     )
     viewer_href = payload["clinical"]["dicom_studies"][0]["viewer_href"]
+    document = payload["documents"][0]
 
     assert "../dicom-viewers/" in data_script
     assert "IHE_PDI/PAGES/STUDIES/STUDY1.HTM" in data_script
+    assert document["viewer_href"] == viewer_href
+    assert document["primary_action"] == "Apri studio DICOM"
+    assert document["support_href"] == "../documents/20260102 TAC.zip"
     assert (result.root / "patients" / "patient-a" / "web" / viewer_href).is_file()
     assert "/home/" not in data_script
     assert "file://" not in data_script

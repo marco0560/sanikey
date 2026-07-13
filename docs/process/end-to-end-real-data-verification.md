@@ -642,8 +642,7 @@ locale:
 
 ```bash
 test -f "$USB_MOUNT/SANIKEY-MANIFEST.json"
-test -f "$USB_MOUNT/START-HERE-Marco-Coppola.html"
-test -f "$USB_MOUNT/START-HERE-Irene-Corazzesi.html"
+test -f "$USB_MOUNT/index.html"
 test -f "$USB_MOUNT/patients/marco/medical_archive.db"
 test -f "$USB_MOUNT/patients/marco/web/data.js"
 test -f "$USB_MOUNT/patients/marco/web/content-search.js"
@@ -652,8 +651,7 @@ test -f "$USB_MOUNT/patients/irene/web/data.js"
 test -f "$USB_MOUNT/patients/irene/web/content-search.js"
 sqlite3 "$USB_MOUNT/patients/marco/medical_archive.db" 'SELECT count(*) FROM documents;'
 sqlite3 "$USB_MOUNT/patients/irene/medical_archive.db" 'SELECT count(*) FROM documents;'
-xdg-open "$USB_MOUNT/START-HERE-Marco-Coppola.html"
-xdg-open "$USB_MOUNT/START-HERE-Irene-Corazzesi.html"
+xdg-open "$USB_MOUNT/index.html"
 ```
 
 Nel browser, controllare che la ricerca funzioni e che non compaia `Failed to
@@ -671,23 +669,25 @@ Verificare anche il comportamento della UI di consultazione:
 - una query con principio attivo reale mostra farmaci o terapie collegate;
 - una query con schedula reale, per esempio `cena` o `risveglio`, mostra le
   terapie che la contengono;
-- la tab `Ricerca avanzata` permette una query su testo estratto/OCR, per
-  esempio un valore di laboratorio realmente presente come `Creatinina`;
+- il bottone `Ricerca avanzata` cambia il box di ricerca e permette una query
+  su testo estratto/OCR, per esempio un valore di laboratorio realmente
+  presente come `Creatinina`;
 - una query booleana reale, per esempio `creatinina AND (2024 OR 2025) NOT urine`,
   mostra risultati comprensibili anche nei metadati clinici, oppure un messaggio
   di sintassi leggibile;
-- la tab `Riepilogo` mostra una dashboard clinica con problemi, terapie,
+- `Sintesi Clinica` mostra una dashboard clinica con problemi, terapie,
   farmaci, osservazioni, procedure e studi DICOM sintetici quando presenti;
 - la timeline e' consultabile in ordine cronologico inverso salvo diversa
   configurazione;
 - su schermo largo i risultati e la timeline non si coprono;
-- su schermo stretto o riducendo la finestra sono presenti tab navigabili;
+- su schermo stretto o riducendo la finestra header, ricerca e controlli
+  restano utilizzabili;
 - i link `Apri originale` puntano a file sotto la chiavetta e non a percorsi
   assoluti del computer di build.
 - gli studi DICOM appaiono come schede aggregate e non come migliaia di file
   interni non cliccabili.
-- se uno studio DICOM contiene un viewer HTML, la scheda mostra `Apri viewer
-  HTML` e il link si apre in un nuovo tab da un path relativo sotto
+- se uno studio DICOM contiene un viewer HTML, la scheda mostra `Apri studio
+  DICOM` e il link si apre in un nuovo tab da un path relativo sotto
   `patients/<id>/dicom-viewers/`.
 
 Controllare automaticamente che il payload frontend della chiavetta non contenga
@@ -751,7 +751,7 @@ if not hrefs:
     raise SystemExit(0)
 target = (web / hrefs[0]).resolve()
 if not target.is_file():
-    raise SystemExit(f"Apri viewer HTML non risolve a un file: {target}")
+    raise SystemExit(f"Apri studio DICOM non risolve a un file: {target}")
 print(target)
 PY
 ```
@@ -940,16 +940,15 @@ Se il supporto contiene un viewer HTML riconosciuto, `data.js` contiene un
 Aprire il frontend generato dal target:
 
 ```bash
-xdg-open local-data/usb-target/START-HERE-Marco-Coppola.html
-xdg-open local-data/usb-target/START-HERE-Irene-Corazzesi.html
+xdg-open local-data/usb-target/index.html
 ```
 
 Se `xdg-open` non è disponibile, aprire manualmente i file nel browser.
 
 Controllare:
 
-- la pagina `START-HERE` apre il frontend del paziente corretto;
-- il riepilogo mostra il numero documenti atteso;
+- la pagina `index.html` apre direttamente l'unico paziente o mostra la lista dei pazienti;
+- la sintesi clinica mostra il contenuto atteso;
 - la timeline è visibile;
 - la ricerca client-side filtra i documenti;
 - non compare il messaggio `Failed to fetch` aprendo la pagina direttamente dal

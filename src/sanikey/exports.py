@@ -92,13 +92,15 @@ def generate_exports(
     data_dir.mkdir(parents=True, exist_ok=True)
     consultation_documents = _consultation_documents(documents)
     ordered_documents = _ordered_documents(consultation_documents)
+    dicom_viewers = _dicom_viewers_by_support(dicom_studies)
     documents_payload = [
-        _document_payload(person, document, metadata) for document in ordered_documents
+        _document_payload(person, document, metadata, dicom_viewers)
+        for document in ordered_documents
     ]
     clinical_payload = _clinical_payload(person, metadata, dicom_studies)
     search_payload = [
         *(
-            _document_search_payload(person, document, metadata)
+            _document_search_payload(person, document, metadata, dicom_viewers)
             for document in consultation_documents
         ),
         *_metadata_search_payloads(clinical_payload),
@@ -152,6 +154,7 @@ def generate_exports(
         ordered_documents,
         metadata,
         extracted_text,
+        dicom_viewers,
     )
     content_search_script = _write_content_search_script(
         person.local_build / "web" / "content-search.js",
@@ -268,6 +271,7 @@ def _content_search_payload(
     documents: tuple[DocumentRecord, ...],
     metadata: CuratedMetadata,
     extracted_text: tuple[ExtractedText, ...],
+    dicom_viewers: dict[Path, dict[str, str]],
 ) -> dict[str, Any]:
     """Build the advanced offline search payload.
 
@@ -281,6 +285,8 @@ def _content_search_payload(
         Curated metadata.
     extracted_text : tuple[ExtractedText, ...]
         Extracted/OCR text records.
+    dicom_viewers : dict[pathlib.Path, dict[str, str]]
+        Viewer metadata keyed by DICOM support path.
 
     Returns
     -------
@@ -296,7 +302,7 @@ def _content_search_payload(
         "dictionary": _search_dictionary_payload(person),
         "documents": [
             _content_search_document_payload(
-                person, document, metadata, text_by_document
+                person, document, metadata, text_by_document, dicom_viewers
             )
             for document in documents
             if document.document_id in text_by_document
@@ -325,11 +331,40 @@ def _search_dictionary_payload(person: PersonConfig) -> dict[str, Any]:
     }
 
 
+def _dicom_viewers_by_support(
+    dicom_studies: tuple[DicomStudy, ...],
+) -> dict[Path, dict[str, str]]:
+    """Return DICOM viewer metadata keyed by support path.
+
+    Parameters
+    ----------
+    dicom_studies : tuple[DicomStudy, ...]
+        Cataloged DICOM studies.
+
+    Returns
+    -------
+    dict[pathlib.Path, dict[str, str]]
+        Viewer metadata for studies with browser-openable viewers.
+    """
+
+    viewers: dict[Path, dict[str, str]] = {}
+    for study in dicom_studies:
+        viewer_href = _dicom_html_viewer_href(study)
+        if viewer_href is None:
+            continue
+        viewers[study.support_path] = {
+            "study_id": study.study_id,
+            "viewer_href": viewer_href,
+        }
+    return viewers
+
+
 def _content_search_document_payload(
     person: PersonConfig,
     document: DocumentRecord,
     metadata: CuratedMetadata,
     text: dict[str, str],
+    dicom_viewers: dict[Path, dict[str, str]],
 ) -> dict[str, Any]:
     """Build one advanced-search document payload.
 
@@ -343,6 +378,8 @@ def _content_search_document_payload(
         Curated metadata.
     text : dict[str, str]
         Extracted text keyed by document id.
+    dicom_viewers : dict[pathlib.Path, dict[str, str]]
+        Viewer metadata keyed by DICOM support path.
 
     Returns
     -------
@@ -351,7 +388,7 @@ def _content_search_document_payload(
     """
 
     return {
-        **_document_payload(person, document, metadata),
+        **_document_payload(person, document, metadata, dicom_viewers),
         "text": text[document.document_id],
     }
 
@@ -389,6 +426,7 @@ def _document_payload(
     person: PersonConfig,
     document: DocumentRecord,
     metadata: CuratedMetadata,
+    dicom_viewers: dict[Path, dict[str, str]],
 ) -> dict[str, Any]:
     """Build frontend document payload.
 
@@ -400,6 +438,8 @@ def _document_payload(
         Document record.
     metadata : CuratedMetadata
         Curated metadata.
+    dicom_viewers : dict[pathlib.Path, dict[str, str]]
+        Viewer metadata keyed by DICOM support path.
 
     Returns
     -------
@@ -407,20 +447,33 @@ def _document_payload(
         JSON-serializable payload.
     """
 
-    return {
+    href = _document_href(person, document)
+    viewer = dicom_viewers.get(document.path)
+    payload = {
         "id": document.document_id,
         "title": document.title,
         "date": document.date,
         "category": document.category,
         "kind": document.kind,
         "path": _document_display_path(person, document),
-        "href": _document_href(person, document),
+        "href": href,
         "origin": document.origin,
         "container_id": document.container_id,
         "internal_path": document.internal_path,
         "tags": list(_document_tags(document, metadata)),
         "markdown_html": _document_markdown_html(document),
     }
+    if viewer is not None:
+        payload.update(
+            {
+                "viewer_href": viewer["viewer_href"],
+                "dicom_study_id": viewer["study_id"],
+                "support_href": href,
+                "primary_href": viewer["viewer_href"],
+                "primary_action": "Apri studio DICOM",
+            }
+        )
+    return payload
 
 
 def _consultation_documents(
@@ -543,6 +596,7 @@ def _document_search_payload(
     person: PersonConfig,
     document: DocumentRecord,
     metadata: CuratedMetadata,
+    dicom_viewers: dict[Path, dict[str, str]],
 ) -> dict[str, Any]:
     """Build lexical search payload.
 
@@ -554,6 +608,8 @@ def _document_search_payload(
         Document record.
     metadata : CuratedMetadata
         Curated metadata.
+    dicom_viewers : dict[pathlib.Path, dict[str, str]]
+        Viewer metadata keyed by DICOM support path.
 
     Returns
     -------
@@ -563,7 +619,9 @@ def _document_search_payload(
 
     tags = _document_tags(document, metadata)
     text = " ".join((document.title, document.category, " ".join(tags))).strip()
-    return {
+    href = _document_href(person, document)
+    viewer = dicom_viewers.get(document.path)
+    payload = {
         "id": document.document_id,
         "type": "document",
         "section": "documents",
@@ -579,10 +637,21 @@ def _document_search_payload(
             {"label": "Tipo", "value": document.kind},
             {"label": "Percorso", "value": _document_display_path(person, document)},
         ],
-        "href": _document_href(person, document),
+        "href": href,
         "origin": document.origin,
         "container_id": document.container_id,
     }
+    if viewer is not None:
+        payload.update(
+            {
+                "viewer_href": viewer["viewer_href"],
+                "dicom_study_id": viewer["study_id"],
+                "support_href": href,
+                "primary_href": viewer["viewer_href"],
+                "primary_action": "Apri studio DICOM",
+            }
+        )
+    return payload
 
 
 def _document_tags(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -102,6 +103,7 @@ def export_usb(
             progress.advance(index, total=len(patients))
     if progress is not None:
         progress.done(f"done patients={len(patients)}")
+    _write_usb_index(patients, image_root)
     _write_manifest(patients, image_root, progress=progress)
     if image_root.resolve() != target.resolve():
         _validate_physical_target(config, image_root, target)
@@ -138,10 +140,12 @@ def validate_usb(target: Path) -> bool:
     if not manifest.is_file():
         return False
     payload = json.loads(manifest.read_text(encoding="utf-8"))
+    if not (target / "index.html").is_file():
+        return False
+    if not _validate_usb_index_links(target):
+        return False
     for patient in payload.get("patients", []):
         patient_id = patient["id"]
-        if not (target / f"START-HERE-{patient['start_label']}.html").is_file():
-            return False
         patient_root = target / "patients" / patient_id
         if not (patient_root / "medical_archive.db").is_file():
             return False
@@ -172,11 +176,6 @@ def _export_patient(person: PersonConfig, target: Path) -> None:
     None
     """
 
-    label = _start_label(person.display_name)
-    (target / f"START-HERE-{label}.html").write_text(
-        _start_page(person),
-        encoding="utf-8",
-    )
     patient_root = target / "patients" / person.id
     patient_root.mkdir(parents=True, exist_ok=True)
     db_source = database_path(person)
@@ -671,6 +670,26 @@ def _validate_frontend_links(web_dir: Path) -> bool:
     return all(_validate_relative_href(web_dir, href) for href in _frontend_hrefs(data))
 
 
+def _validate_usb_index_links(target: Path) -> bool:
+    """Validate root USB index links.
+
+    Parameters
+    ----------
+    target : pathlib.Path
+        USB export root.
+
+    Returns
+    -------
+    bool
+        ``True`` when every root index href resolves inside the export.
+    """
+
+    index = target / "index.html"
+    content = index.read_text(encoding="utf-8")
+    hrefs = re.findall(r'href="([^"]+)"', content)
+    return all(_validate_relative_href(target, href) for href in hrefs)
+
+
 def _frontend_hrefs(value: object) -> tuple[str, ...]:
     """Collect href string values from a frontend payload.
 
@@ -771,7 +790,6 @@ def _write_manifest(
             {
                 "id": person.id,
                 "display_name": person.display_name,
-                "start_label": _start_label(person.display_name),
                 "usb_uuid": person.usb_uuid,
             }
             for person in people
@@ -784,45 +802,98 @@ def _write_manifest(
     return manifest
 
 
-def _start_page(person: PersonConfig) -> str:
-    """Render a START-HERE page.
+def _write_usb_index(people: tuple[PersonConfig, ...], target: Path) -> Path:
+    """Write the root USB entrypoint.
 
     Parameters
     ----------
-    person : PersonConfig
-        Patient configuration.
+    people : tuple[PersonConfig, ...]
+        Exported people.
+    target : pathlib.Path
+        USB export root.
 
     Returns
     -------
-    str
-        HTML document.
+    pathlib.Path
+        Written root index path.
     """
 
-    return f"""<!doctype html>
+    index = target / "index.html"
+    if len(people) == 1:
+        person = people[0]
+        href = f"patients/{_escape_html(person.id)}/web/index.html"
+        index.write_text(
+            f"""<!doctype html>
 <html lang="it">
-<head><meta charset="utf-8"><title>SaniKey - {person.display_name}</title></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0; url={href}">
+  <title>SaniKey - {_escape_html(person.display_name)}</title>
+</head>
 <body>
-  <p><a href="patients/{person.id}/web/index.html">Apri archivio {person.display_name}</a></p>
+  <p><a href="{href}">Apri archivio {_escape_html(person.display_name)}</a></p>
 </body>
 </html>
-"""
+""",
+            encoding="utf-8",
+        )
+        return index
+    links = "\n".join(
+        f'    <li><a href="patients/{_escape_html(person.id)}/web/index.html">'
+        f"{_escape_html(person.display_name)}</a></li>"
+        for person in people
+    )
+    index.write_text(
+        f"""<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SaniKey - Archivi pazienti</title>
+  <style>
+    body {{ font-family: system-ui, sans-serif; line-height: 1.5; margin: 2rem; }}
+    main {{ max-width: 42rem; }}
+    a {{ color: #1f5f8b; font-weight: 700; }}
+    li {{ margin: 0.75rem 0; }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>SaniKey</h1>
+    <p>Seleziona il paziente da consultare.</p>
+    <ul>
+{links}
+    </ul>
+  </main>
+</body>
+</html>
+""",
+        encoding="utf-8",
+    )
+    return index
 
 
-def _start_label(display_name: str) -> str:
-    """Return a filesystem label for START-HERE files.
+def _escape_html(value: str) -> str:
+    """Escape minimal HTML text.
 
     Parameters
     ----------
-    display_name : str
-        Display name.
+    value : str
+        Text to escape.
 
     Returns
     -------
     str
-        Label with spaces replaced by hyphens.
+        Escaped text.
     """
 
-    return "-".join(part for part in display_name.split() if part)
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
 
 
 def _sha256(path: Path) -> str:

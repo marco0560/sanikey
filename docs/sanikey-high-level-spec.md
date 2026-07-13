@@ -44,8 +44,7 @@ patients/
 
 La chiavetta contiene:
 
-START-HERE-Patient-A.html
-START-HERE-Patient-B.html
+index.html
 
 patients/
   patient-a/
@@ -302,8 +301,7 @@ Azioni:
 Struttura:
 
 USB/
-  START-HERE-Patient-A.html
-  START-HERE-Patient-B.html
+  index.html
   patients/
     patient-a/
       medical_archive.db
@@ -397,7 +395,8 @@ deploy_usb.py
 
 ## 22. Obiettivo Finale
 
-Il medico inserisce la chiavetta, apre il file START-HERE del paziente interessato e può:
+Il medico inserisce la chiavetta, apre `index.html`, seleziona il paziente se
+necessario e può:
 - consultare storia clinica
 - effettuare ricerche
 - navigare timeline

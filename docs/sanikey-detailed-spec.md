@@ -918,9 +918,7 @@ Esempio:
 
 ```text
 USB/
-├── START-HERE-Patient-A.html
-├── START-HERE-Patient-B.html
-├── START-HERE-Patient-C.html
+├── index.html
 │
 ├── patients/
 │
@@ -948,19 +946,16 @@ USB/
 
 La selezione del paziente deve essere immediata e comprensibile anche per utenti poco esperti.
 
-Per questo motivo il sistema utilizza file di avvio dedicati.
+Per questo motivo il sistema utilizza una pagina di avvio unica alla radice USB.
 
 Esempio:
 
 ```text
-START-HERE-Patient-A.html
-START-HERE-Patient-B.html
-START-HERE-Patient-C.html
+index.html
 ```
 
-Ogni file apre direttamente l'archivio del paziente corrispondente.
-
-Non è richiesto alcun menu iniziale.
+Con un solo paziente la pagina apre direttamente l'archivio corrispondente.
+Con più pazienti mostra una lista di scelta.
 
 ---
 
@@ -7113,7 +7108,7 @@ Tutte le funzionalità devono essere disponibili senza accesso alla rete.
 L'utente deve poter utilizzare il sistema semplicemente aprendo:
 
 ```text
-START-HERE-<Nome>.html
+index.html
 ```
 
 ---
@@ -7228,16 +7223,11 @@ La chiavetta può contenere più archivi indipendenti.
 Esempio:
 
 ```text
-START-HERE-Patient-A.html
-
-START-HERE-Patient-B.html
-
-START-HERE-Patient-C.html
-
-START-HERE-Patient-D.html
+index.html
 ```
 
-Ogni file rappresenta il punto di ingresso di un archivio indipendente.
+La pagina root rappresenta il punto di ingresso della consultazione e indirizza
+al frontend del paziente selezionato.
 
 ---
 
@@ -8539,8 +8529,7 @@ Esempio:
 ```text
 USB/
 │
-├── START-HERE-Patient-A.html
-├── START-HERE-Patient-B.html
+├── index.html
 │
 ├── patients/
 │
@@ -8573,16 +8562,14 @@ Non esistono frontend condivisi.
 
 ---
 
-### 17.14 Pagine di Avvio
+### 17.14 Pagina di Avvio
 
-Ogni paziente possiede una pagina dedicata.
+La chiavetta possiede una pagina di avvio alla radice.
 
-Esempi:
+Esempio:
 
 ```text
-START-HERE-Patient-A.html
-
-START-HERE-Patient-B.html
+index.html
 ```
 
 ---
@@ -9477,7 +9464,7 @@ L'UUID precedente non deve essere riutilizzato.
 Dopo una sostituzione devono essere verificati:
 
 * correttezza della struttura directory;
-* pagine START-HERE;
+* pagina root `index.html`;
 * integrità dei documenti;
 * integrità dei checksum;
 * funzionamento del frontend.
