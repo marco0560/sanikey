@@ -245,7 +245,7 @@ Git. Percorsi dentro directory versionate del repository, per esempio `docs/` o
 Valida la configurazione e gli invarianti di privacy:
 
 ```bash
-uv run sanikey validate-config --config config/accounts.toml
+uv run sanikey validate-config
 ```
 
 `validate-config` carica anche i metadati curati dei pazienti abilitati e
@@ -255,7 +255,7 @@ che fanno riferimento a farmaci non presenti in `medications.toml`.
 Elenca i pazienti abilitati:
 
 ```bash
-uv run sanikey list-patients --config config/accounts.toml
+uv run sanikey list-patients
 ```
 
 ## Preparare i Documenti Sorgente
@@ -268,17 +268,17 @@ un archivio SQLite generato.
 Per verificare il numero di file rilevati senza stampare l'intero inventario:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml
+uv run sanikey scan-documents
 ```
 
-Il comando segnala anche warning rilevabili senza build completa, come
+Il comando segnala anche avvisi rilevabili senza build completa, come
 duplicati e file con estensione non supportata. Per impostazione predefinita
 estrae anche i container supportati in
 `local_build/staging/containers/`, cosi' il contenuto degli archivi puo' essere
 verificato manualmente prima della build completa. Il riepilogo include
-`staged_containers=`, `staged_members=` e `derived_documents=` quando lo staging
-e' attivo e `excluded=` quando pattern di ingestion hanno saltato file
-deliberatamente. I file esclusi non sono warning. Prima della scansione viene
+`archivi_preparati=`, `membri_in_archivi=` e `documenti_derivati=` quando lo
+staging e' attivo e `esclusi=` quando pattern di ingestion hanno saltato file
+deliberatamente. I file esclusi non sono avvisi. Prima della scansione viene
 ripetuto il controllo dei metadati curati
 dei pazienti selezionati, cosi' un errore in `therapies.toml` blocca subito il
 comando invece di emergere dopo una build lunga.
@@ -296,20 +296,20 @@ ogni container processato e il catalogo DICOM un punto ogni 50 record. Per
 disattivarli:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml --no-progress
+uv run sanikey scan-documents --no-progress
 ```
 
 Per eseguire una scansione solo inventariale, senza creare o aggiornare lo
 staging dei container:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml --no-stage-containers
+uv run sanikey scan-documents --no-stage-containers
 ```
 
 Per eseguire anche controlli preliminari leggeri su archivi e documenti Office:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml --preflight
+uv run sanikey scan-documents --preflight
 ```
 
 `--preflight` non esegue OCR PDF e non converte documenti legacy Office, ma può
@@ -318,14 +318,14 @@ individuare prima della build archivi corrotti o documenti Office non leggibili.
 Per ispezionare a schermo la lista dei documenti ingeriti:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml --verbose
+uv run sanikey scan-documents --verbose
 ```
 
 Per salvare l'inventario in un file riprocessabile:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan.txt --format text
-uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan.csv --format csv
+uv run sanikey scan-documents --output local-data/scan.txt --format text
+uv run sanikey scan-documents --output local-data/scan.csv --format csv
 ```
 
 `--format` e' valido solo insieme a `--output`. Il formato `text` usa la riga
@@ -336,9 +336,9 @@ Per verificare che i documenti sorgente non vengano modificati dalla pipeline,
 creare uno snapshot prima della build, uno dopo la build e poi confrontarli:
 
 ```bash
-uv run sanikey document-integrity before --config config/accounts.toml
-uv run sanikey document-integrity after --config config/accounts.toml
-uv run sanikey document-integrity check --config config/accounts.toml
+uv run sanikey document-integrity before
+uv run sanikey document-integrity after
+uv run sanikey document-integrity check
 ```
 
 Il comando usa i pazienti abilitati in `accounts.toml` e scrive per ciascun
@@ -363,7 +363,7 @@ supportate vengono anche estratti in una staging area generata sotto
 autorevole; i membri estratti sono documenti derivati con provenance verso il
 contenitore, path interno e SHA256 proprio. Se un archivio è cifrato, corrotto o
 non leggibile, il contenitore resta catalogato e il problema viene registrato
-come warning.
+come avviso.
 
 I file ISO DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. Gli archivi `.zip`, `.7z` e `.rar` sono trattati inizialmente come
@@ -408,11 +408,11 @@ Per i PDF, SaniKey sceglie automaticamente il provider:
 
 `OCRmyPDF` è quindi una dipendenza di sistema supportata. Se nessun provider è
 disponibile, il PDF resta catalogato ma l'estrazione testo viene saltata con un
-warning esplicito sui provider mancanti o insufficienti.
+avviso esplicito sui provider mancanti o insufficienti.
 SaniKey configura OCRmyPDF per produrre un PDF temporaneo normale invece di un
 PDF/A, perché conserva solo il sidecar testuale. Se OCRmyPDF fallisce durante
 l'ottimizzazione del PDF temporaneo, SaniKey ritenta senza ottimizzazione. I
-warning registrati nel report sono sintetici e non includono il log completo del
+avvisi registrati nel report sono sintetici e non includono il log completo del
 tool esterno. Se anche il retry fallisce e il numero di pagine è disponibile,
 SaniKey ritenta su intervalli di pagine con una ricerca dicotomica per indicare
 la prima pagina del PDF originale che riproduce il problema.
@@ -428,31 +428,31 @@ generato dalla pipeline.
 Per le immagini, SaniKey usa il comando di sistema `tesseract`. Quando sono
 disponibili i language pack `ita` ed `eng`, usa `ita+eng`; altrimenti ricade
 sulla lingua predefinita di Tesseract. Se `tesseract` non e' installato,
-l'immagine resta catalogata e il report contiene un warning di OCR saltato.
+l'immagine resta catalogata e il report contiene un avviso di OCR saltato.
 
 ## Costruire un Archivio
 
 Costruisci un singolo paziente:
 
 ```bash
-uv run sanikey build-patient patient-a --config config/accounts.toml --mode full
+uv run sanikey build-patient patient-a --mode full
 ```
 
 Il comando stampa un riepilogo leggibile con conteggi, percorsi degli artefatti
-principali e path del report. `documents=` conta i documenti sorgente
-deduplicati; `derived_documents=`, `dicom_instances=` e `total_records=`
+principali e path del report. `documenti=` conta i documenti sorgente
+deduplicati; `documenti_derivati=`, `istanze_dicom=` e `record_totali=`
 distinguono contenuti estratti dai contenitori e istanze DICOM.
-`extracted_documents=` conta i documenti elaborati dall'estrazione testo nella
-run corrente; `cached_documents=` conta i documenti invariati riusati dalla
+`documenti_estratti=` conta i documenti elaborati dall'estrazione testo nella
+run corrente; `documenti_cached=` conta i documenti invariati riusati dalla
 cache incrementale. In modalità `incremental`, predefinita, SaniKey riusa il
 testo estratto quando `document_id`, path, tipo, SHA256 e provenance del
 documento coincidono con la cache in `local_build/cache/extracted_text.json`. In
 modalità `full`, l'estrazione testo viene sempre rieseguita. Il database viene
 comunque rigenerato dall'inventario corrente, usando testo nuovo o cache, per
 evitare record obsoleti.
-I warning lunghi o ripetitivi non vengono serializzati in stdout: sono
+Gli avvisi lunghi o ripetitivi non vengono serializzati in stdout: sono
 conservati nel report JSON indicato dalla riga
-`report=...`. I warning sui documenti duplicati restano visibili anche in
+`report=...`. Gli avvisi sui documenti duplicati restano visibili anche in
 stdout perché richiedono una decisione manuale.
 Anche `build-patient` usa punti di avanzamento su `stderr` quando il terminale e'
 interattivo; usare `--no-progress` per disattivarli.
@@ -460,7 +460,7 @@ interattivo; usare `--no-progress` per disattivarli.
 Costruisci tutti i pazienti abilitati:
 
 ```bash
-uv run sanikey build-all --config config/accounts.toml --mode full
+uv run sanikey build-all --mode full
 ```
 
 La build scrive gli artefatti generati nella directory `local_build` configurata
@@ -577,14 +577,14 @@ manualmente. I provider AI reali sono rimandati.
 Genera le proposte:
 
 ```bash
-uv run sanikey generate-proposals --config config/accounts.toml --patient patient-a
+uv run sanikey generate-proposals --patient patient-a
 ```
 
 Approva o rifiuta una proposta:
 
 ```bash
-uv run sanikey review-proposal --config config/accounts.toml patient-a PROPOSAL-ID approved
-uv run sanikey review-proposal --config config/accounts.toml patient-a PROPOSAL-ID rejected
+uv run sanikey review-proposal patient-a PROPOSAL-ID approved
+uv run sanikey review-proposal patient-a PROPOSAL-ID rejected
 ```
 
 ## Esportare su USB
@@ -593,13 +593,13 @@ Costruisci ed esporta tutti i pazienti abilitati verso una radice USB o una
 directory simulata:
 
 ```bash
-uv run sanikey deploy-usb --config config/accounts.toml /path/to/usb-root
+uv run sanikey deploy-usb /path/to/usb-root
 ```
 
 Per esportare artefatti gia' generati:
 
 ```bash
-uv run sanikey export-usb --config config/accounts.toml /path/to/usb-root
+uv run sanikey export-usb /path/to/usb-root
 ```
 
 `export-usb` e `deploy-usb` usano punti di avanzamento su `stderr` quando il
@@ -654,8 +654,8 @@ policy operativa locale.
 
 Usa prima questi controlli:
 
-- `uv run sanikey validate-config --config config/accounts.toml`
-- `uv run sanikey build-patient PATIENT-ID --config config/accounts.toml --mode full`
+- `uv run sanikey validate-config`
+- `uv run sanikey build-patient PATIENT-ID --mode full`
 - `uv run sanikey validate-usb /path/to/usb-root`
 - `uv run python scripts/validate_repo.py`
 

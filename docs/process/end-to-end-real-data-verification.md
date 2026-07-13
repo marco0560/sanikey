@@ -288,7 +288,7 @@ per esempio `antipertensivo`; più terapie possono avere lo stesso ruolo.
 Validare la configurazione:
 
 ```bash
-uv run sanikey validate-config --config config/accounts.toml
+uv run sanikey validate-config
 ```
 
 Questo passo deve anche validare i metadati curati: correggere subito TOML
@@ -298,7 +298,7 @@ malformati, id duplicati o terapie che citano un `medication_id` non presente in
 Creare lo snapshot iniziale dei documenti sorgente configurati:
 
 ```bash
-uv run sanikey document-integrity before --config config/accounts.toml --output-dir local-data
+uv run sanikey document-integrity before --output-dir local-data
 ```
 
 Il comando usa i pazienti abilitati in `accounts.toml` e produce per ciascun
@@ -309,10 +309,10 @@ esempio `local-data/marco-before.sha256` e
 Eseguire una scansione preliminare dei documenti:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml
+uv run sanikey scan-documents
 ```
 
-Il comando stampa solo il riepilogo per paziente e gli eventuali warning
+Il comando stampa solo il riepilogo per paziente e gli eventuali avvisi
 rilevabili senza build completa. Su terminale interattivo puo' stampare punti di
 avanzamento su `stderr`; aggiungere `--no-progress` se si vuole un log
 strettamente privo di progress. Per impostazione predefinita crea anche lo
@@ -337,29 +337,29 @@ esistere con `members` vuoto. Eseguire anche il preflight leggero prima di una
 build lunga:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml --preflight
+uv run sanikey scan-documents --preflight
 ```
 
 Il preflight controlla archivi, immagini e documenti Office moderni/OpenDocument
 senza eseguire OCR PDF e senza convertire documenti legacy Office. Per le
 immagini verifica anche la disponibilita' del provider OCR `tesseract`. Se
-compaiono warning inattesi, fermarsi e risolverli o annotarli prima di
+compaiono avvisi inattesi, fermarsi e risolverli o annotarli prima di
 proseguire.
 
 Per leggere a schermo l'inventario dei documenti ingeriti:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml --verbose
+uv run sanikey scan-documents --verbose
 ```
 
 Per conservare l'inventario completo in un file riprocessabile:
 
 ```bash
-uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan-documents.tsv --format text
-uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan-documents.csv --format csv
+uv run sanikey scan-documents --output local-data/scan-documents.tsv --format text
+uv run sanikey scan-documents --output local-data/scan-documents.csv --format csv
 ```
 
-Se l'output contiene `duplicates=`, leggere eventuali righe `AVVISO:`. File con
+Se l'output contiene `duplicati=`, leggere eventuali righe `AVVISO:`. File con
 lo stesso SHA256 sono identici: SaniKey conserva solo la prima occorrenza
 nell'archivio generato e segnala il file saltato insieme al file trattenuto. In
 presenza di duplicati inattesi, fermarsi e decidere manualmente se rimuovere,
@@ -368,22 +368,22 @@ rinominare o archiviare separatamente una delle copie prima di proseguire.
 Eseguire la build completa per tutti i pazienti abilitati:
 
 ```bash
-uv run sanikey build-all --config config/accounts.toml --mode full
+uv run sanikey build-all --mode full
 ```
 
 In alternativa, per isolare un problema, eseguire un paziente alla volta:
 
 ```bash
-uv run sanikey build-patient marco --config config/accounts.toml --mode full
-uv run sanikey build-patient irene --config config/accounts.toml --mode full
+uv run sanikey build-patient marco --mode full
+uv run sanikey build-patient irene --mode full
 ```
 
 L'output deve essere un riepilogo multi-riga leggibile per ogni paziente, non
 una riga JSON minificata. Annotare ogni percorso `report=...`: contiene il
-dettaglio completo dei warning e deve essere consultato se `warnings` e'
+dettaglio completo degli avvisi e deve essere consultato se `avvisi` e'
 maggiore di zero.
-`documents=` conta solo i documenti sorgente deduplicati; usare
-`derived_documents=`, `dicom_instances=` e `total_records=` per valutare quanto
+`documenti=` conta solo i documenti sorgente deduplicati; usare
+`documenti_derivati=`, `istanze_dicom=` e `record_totali=` per valutare quanto
 deriva da contenitori e supporti diagnostici.
 I punti di avanzamento, quando presenti, devono essere su `stderr`, non dentro
 il riepilogo su `stdout`.
@@ -421,15 +421,15 @@ studio.
 Eseguire una build incrementale ripetuta:
 
 ```bash
-uv run sanikey build-patient marco --config config/accounts.toml
-uv run sanikey build-patient marco --config config/accounts.toml
-uv run sanikey build-patient irene --config config/accounts.toml
-uv run sanikey build-patient irene --config config/accounts.toml
+uv run sanikey build-patient marco
+uv run sanikey build-patient marco
+uv run sanikey build-patient irene
+uv run sanikey build-patient irene
 ```
 
 Dopo una build full completata, la cache di estrazione testo esiste già. La
 prima e la seconda build incrementale senza modifiche ai sorgenti devono quindi
-mostrare `extracted_documents=0` e `cached_documents=` maggiore di zero per i
+mostrare `documenti_estratti=0` e `documenti_cached=` maggiore di zero per i
 documenti non DICOM già estratti con la stessa identità (`document_id`, path,
 kind, SHA256 e provenance). Se la cache viene rimossa manualmente, la prima
 build incrementale successiva può riestrarre i documenti e ricrearla. Il file di
@@ -444,11 +444,11 @@ Eseguire una build full per verificare che la cache non venga usata come
 scorciatoia:
 
 ```bash
-uv run sanikey build-patient marco --config config/accounts.toml --mode full
-uv run sanikey build-patient irene --config config/accounts.toml --mode full
+uv run sanikey build-patient marco --mode full
+uv run sanikey build-patient irene --mode full
 ```
 
-In questo caso `cached_documents=` deve essere `0` e `extracted_documents=` deve
+In questo caso `documenti_cached=` deve essere `0` e `documenti_estratti=` deve
 riflettere i documenti non DICOM sottoposti a estrazione testo.
 
 Generare l'export USB verso un target locale di verifica e rigenerare anche
@@ -490,12 +490,12 @@ text = re.sub(
 )
 path.write_text(text, encoding="utf-8")
 PY
-uv run sanikey validate-config --config local-data/accounts.local-usb.toml
+uv run sanikey validate-config local-data/accounts.local-usb.toml
 ```
 
 ```bash
 rm -rf exports/usb-image local-data/usb-target
-uv run sanikey export-usb --config config/accounts.toml exports/usb-image
+uv run sanikey export-usb exports/usb-image
 uv run sanikey export-usb --config local-data/accounts.local-usb.toml local-data/usb-target
 uv run sanikey validate-usb exports/usb-image
 uv run sanikey validate-usb local-data/usb-target
@@ -508,7 +508,7 @@ punti di avanzamento, aggiungere `--no-progress`.
 I comandi `validate-usb` devono stampare:
 
 ```text
-status=ok
+stato=ok
 ```
 
 Interrogare anche il target USB locale simulato, non solo `local-data/generated`:
@@ -571,7 +571,7 @@ text = re.sub(
 )
 path.write_text(text, encoding="utf-8")
 PY
-uv run sanikey validate-config --config config/accounts.toml
+uv run sanikey validate-config
 ```
 
 In alternativa, se la configurazione contiene già l'UUID desiderato e si vuole
@@ -626,7 +626,7 @@ L'export verso una chiavetta fisica sostituisce il contenuto SaniKey nel target:
 usare solo un mountpoint verificato e dedicato.
 
 ```bash
-uv run sanikey export-usb --config config/accounts.toml "$USB_MOUNT"
+uv run sanikey export-usb "$USB_MOUNT"
 sync
 uv run sanikey validate-usb "$USB_MOUNT"
 ```
@@ -634,7 +634,7 @@ uv run sanikey validate-usb "$USB_MOUNT"
 Il comando `validate-usb` deve stampare:
 
 ```text
-status=ok
+stato=ok
 ```
 
 Verificare gli artefatti direttamente sulla chiavetta, non solo nella directory
@@ -795,12 +795,12 @@ uv run sanikey validate-usb local-data/usb-target
 Verificare che i documenti originali non siano stati modificati:
 
 ```bash
-uv run sanikey document-integrity after --config config/accounts.toml --output-dir local-data
-uv run sanikey document-integrity check --config config/accounts.toml --output-dir local-data
+uv run sanikey document-integrity after --output-dir local-data
+uv run sanikey document-integrity check --output-dir local-data
 ```
 
-Il controllo deve stampare `status=ok` per ogni paziente. Se stampa
-`status=changed` o restituisce stato non zero, fermarsi: almeno un file sotto
+Il controllo deve stampare `stato=ok` per ogni paziente. Se stampa
+`stato=changed` o restituisce stato non zero, fermarsi: almeno un file sotto
 `source_documents` e' stato modificato, aggiunto o rimosso rispetto allo
 snapshot iniziale.
 
@@ -971,7 +971,7 @@ uv run sanikey validate-usb local-data/usb-target-tampered
 Il comando deve restituire stato non zero e stampare:
 
 ```text
-status=invalid
+stato=invalido
 ```
 
 ## Criteri di accettazione

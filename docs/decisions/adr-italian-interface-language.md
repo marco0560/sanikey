@@ -22,8 +22,8 @@ procedurali leggibili da persone e' l'italiano.
 Restano in inglese solo le superfici tecniche che sono contratti macchina o
 interfacce esterne:
 
-- nomi di comandi, opzioni, campi TOML, chiavi JSON e colonne CSV;
-- valori macchina gia' parte del contratto dati, per esempio `status=ok`;
+- nomi di comandi, opzioni, campi TOML e chiavi JSON;
+- valori macchina gia' parte di contratti dati interni o interfacce esterne;
 - nomi propri di strumenti, formati, librerie e protocolli;
 - messaggi provenienti da programmi esterni riportati come dettaglio diagnostico.
 

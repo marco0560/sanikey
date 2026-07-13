@@ -74,11 +74,11 @@ def generate_manual_proposals(metadata_directory: Path) -> tuple[Proposal, ...]:
 
     generated_at = datetime.now(UTC).date().isoformat()
     proposal = Proposal(
-        id=f"manual-review-{generated_at}",
-        kind="clinical_summary",
+        id=f"revisione-manuale-{generated_at}",
+        kind="sommario-clinico",
         title="Segnaposto revisione manuale",
         body="Revisionare documenti sorgente e metadati curati prima dell'approvazione.",
-        status="proposed",
+        status="proposta",
         source="manual-test-provider",
     )
     target = proposal_directory(metadata_directory) / "proposals.toml"

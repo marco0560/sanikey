@@ -9,6 +9,8 @@ import zipfile
 from pathlib import Path
 
 from sanikey import __version__
+from sanikey.cli import _config_path, build_parser
+from sanikey.config import default_accounts_path
 
 MODULE = "sanikey"
 
@@ -73,7 +75,51 @@ def test_info_subcommand_runs() -> None:
         check=False,
     )
     assert result.returncode == 0
-    assert "project=sanikey" in result.stdout
+    assert "progetto=sanikey" in result.stdout
+
+
+def test_config_path_uses_default_when_omitted() -> None:
+    """Verify shared CLI config arguments preserve the default config path.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    parser = build_parser()
+
+    default_args = parser.parse_args(["scan-documents", "--preflight"])
+    explicit_args = parser.parse_args(["scan-documents", "custom.toml", "--preflight"])
+
+    assert _config_path(default_args) == default_accounts_path()
+    assert _config_path(explicit_args) == Path("custom.toml")
+
+
+def test_scan_documents_rejects_config_flag_in_italian() -> None:
+    """Verify scan-documents rejects non-ambiguous config flags in Italian.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    result = subprocess.run(
+        [sys.executable, "-m", MODULE, "scan-documents", "--config", "custom.toml"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "errore: argomenti non riconosciuti: --config" in result.stderr
 
 
 def test_validate_config_subcommand_runs(tmp_path: Path) -> None:
@@ -111,7 +157,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "validate-config",
-            "--config",
             str(config_path),
             "--repo-root",
             str(Path.cwd()),
@@ -121,7 +166,7 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "status=ok" in result.stdout
+    assert "stato=ok" in result.stdout
 
 
 def test_validate_config_rejects_invalid_metadata(tmp_path: Path) -> None:
@@ -168,7 +213,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "validate-config",
-            "--config",
             str(config_path),
             "--repo-root",
             str(Path.cwd()),
@@ -217,7 +261,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "list-patients",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -266,7 +309,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--no-progress",
         ],
@@ -275,8 +317,10 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "documents=1" in result.stdout
-    assert "staged_containers=0 staged_members=0 derived_documents=0" in result.stdout
+    assert "documenti=1" in result.stdout
+    assert (
+        "archivi_preparati=0 membri_in_archivi=0 documenti_derivati=0" in result.stdout
+    )
     assert "Report" not in result.stdout
     assert result.stderr == ""
 
@@ -341,7 +385,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -394,7 +437,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--no-progress",
         ],
@@ -404,7 +446,9 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "staged_containers=1 staged_members=1 derived_documents=1" in result.stdout
+    assert (
+        "archivi_preparati=1 membri_in_archivi=1 documenti_derivati=1" in result.stdout
+    )
     assert (build_root / "staging" / "containers").is_dir()
     assert (build_root / "manifests" / "container_staging.json").is_file()
 
@@ -450,7 +494,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--no-stage-containers",
             "--no-progress",
@@ -461,7 +504,7 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "staged_containers=" not in result.stdout
+    assert "archivi_preparati=" not in result.stdout
     assert not (build_root / "staging" / "containers").exists()
 
 
@@ -530,8 +573,8 @@ usb_uuid = "1A2B-3C4D"
             check=False,
         )
         assert result.returncode == 0
-        assert "patient=patient-a" in result.stdout
-        assert "patient=patient-b" in result.stdout
+        assert "paziente=patient-a" in result.stdout
+        assert "paziente=patient-b" in result.stdout
 
     assert (snapshots / "patient-a-before.sha256").is_file()
     assert (snapshots / "patient-a-after-mtime.tsv").is_file()
@@ -627,7 +670,7 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert check.returncode == 1
-    assert "status=changed" in check.stdout
+    assert "stato=changed" in check.stdout
 
 
 def test_scan_documents_verbose_renders_readable_inventory(tmp_path: Path) -> None:
@@ -668,7 +711,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--verbose",
         ],
@@ -677,7 +719,7 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "patient=patient-a ingested_documents=1" in result.stdout
+    assert "paziente=patient-a documenti_acquisiti=1" in result.stdout
     assert "02/01/2026" in result.stdout
     assert "laboratory/20260102 Report.txt" in result.stdout
     assert not any(line.endswith(" ") for line in result.stdout.splitlines())
@@ -727,7 +769,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--output",
             str(output_path),
@@ -785,7 +826,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--output",
             str(output_path),
@@ -799,11 +839,11 @@ usb_uuid = "1A2B-3C4D"
     rows = list(csv.reader(output_path.read_text(encoding="utf-8").splitlines()))
     assert result.returncode == 0
     assert rows[0] == [
-        "patient_id",
-        "kind",
-        "category",
-        "date",
-        "title",
+        "paziente",
+        "tipo",
+        "categoria",
+        "data",
+        "titolo",
         "sha256",
         "path",
     ]
@@ -846,7 +886,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--format",
             "text",
@@ -898,7 +937,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -960,7 +998,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -969,8 +1006,10 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "documents=2 duplicates=0 warnings=0" in result.stdout
-    assert "staged_containers=1 staged_members=1 derived_documents=0" in result.stdout
+    assert "documenti=2 duplicati=0 avvisi=0" in result.stdout
+    assert (
+        "archivi_preparati=1 membri_in_archivi=1 documenti_derivati=0" in result.stdout
+    )
     assert "estrazione testo non supportata per .jpg" not in result.stdout
     assert "directory di espansione DICOM manuale non trovata" not in result.stdout
 
@@ -1016,7 +1055,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--preflight",
         ],
@@ -1026,7 +1064,7 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "documents=1 duplicates=0 warnings=1" in result.stdout
+    assert "documenti=1 duplicati=0 avvisi=1" in result.stdout
     assert "estrazione testo DOCX non riuscita" in result.stdout
 
 
@@ -1071,7 +1109,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "scan-documents",
-            "--config",
             str(config_path),
             "--preflight",
         ],
@@ -1081,7 +1118,7 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "documents=1 duplicates=0 warnings=0" in result.stdout
+    assert "documenti=1 duplicati=0 avvisi=0" in result.stdout
     assert "LibreOffice" not in result.stdout
 
 
@@ -1123,7 +1160,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "process-dicom",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -1131,7 +1167,7 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "dicom_studies=1" in result.stdout
+    assert "studi_dicom=1" in result.stdout
     assert "dicom_iso" in result.stdout
 
 
@@ -1175,7 +1211,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "build-database",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -1183,7 +1218,7 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "documents=1" in result.stdout
+    assert "documenti=1" in result.stdout
     assert (tmp_path / "generated" / "database" / "medical_archive.db").is_file()
 
 
@@ -1237,10 +1272,10 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "patient=patient-a status=ok" in result.stdout
-    assert "documents=1 duplicates=0 warnings=0" in result.stdout
-    assert "derived_documents=0 dicom_instances=0 total_records=1" in result.stdout
-    assert '"patient_id": "patient-a"' not in result.stdout
+    assert "paziente=patient-a stato=ok" in result.stdout
+    assert "documenti=1 duplicati=0 avvisi=0" in result.stdout
+    assert "documenti_derivati=0 istanze_dicom=0 record_totali=1" in result.stdout
+    assert '"paziente": "patient-a"' not in result.stdout
     assert result.stderr == ""
     assert (tmp_path / "generated" / "manifests" / "manifest.json").is_file()
 
@@ -1297,11 +1332,11 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "documents=1 duplicates=1" in result.stdout
+    assert "documenti=1 duplicati=1" in result.stdout
     assert "contenuto documento duplicato saltato" in result.stdout
     assert "20260103 B.txt" in result.stdout
     assert "20260102 A.txt" in result.stdout
-    assert "warning_messages=vedi report" in result.stdout
+    assert "Avvisi=vedi report" in result.stdout
 
 
 def test_build_patient_subcommand_prints_pymupdf_warning_path(
@@ -1468,7 +1503,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "generate-proposals",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -1476,7 +1510,7 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "proposals=1" in result.stdout
+    assert "proposte=1" in result.stdout
     assert (metadata / "proposed" / "proposals.toml").is_file()
 
 
@@ -1518,7 +1552,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "generate-exports",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -1526,7 +1559,7 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "patient=patient-a" in result.stdout
+    assert "paziente=patient-a" in result.stdout
     assert (tmp_path / "generated" / "web" / "data" / "summary.json").is_file()
 
 
@@ -1565,7 +1598,6 @@ usb_uuid = "1A2B-3C4D"
             "-m",
             MODULE,
             "build-web",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
@@ -1734,7 +1766,6 @@ usb_uuid = "1A2B-3C4D"
         [
             sys.executable,
             "scripts/list_patients.py",
-            "--config",
             str(config_path),
         ],
         capture_output=True,
