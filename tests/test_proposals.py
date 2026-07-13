@@ -74,12 +74,12 @@ def test_load_proposals_rejects_invalid_toml(tmp_path: Path) -> None:
     target.parent.mkdir(parents=True)
     target.write_text("[proposal\n", encoding="utf-8")
 
-    with pytest.raises(ConfigError, match="invalid TOML"):
+    with pytest.raises(ConfigError, match="TOML non valido"):
         load_proposals(tmp_path)
 
 
 def test_load_proposals_rejects_non_array_proposal_table(tmp_path: Path) -> None:
-    """Verify proposal must be an array of tables.
+    """Verify proposal deve essere un array di tabelle.
 
     Parameters
     ----------
@@ -101,7 +101,7 @@ id = "proposal-a"
         encoding="utf-8",
     )
 
-    with pytest.raises(ConfigError, match="proposal must be an array of tables"):
+    with pytest.raises(ConfigError, match="proposal deve essere un array di tabelle"):
         load_proposals(tmp_path)
 
 
@@ -122,7 +122,7 @@ def test_load_proposals_rejects_non_table_entries(tmp_path: Path) -> None:
     target.parent.mkdir(parents=True)
     target.write_text('proposal = ["bad"]\n', encoding="utf-8")
 
-    with pytest.raises(ConfigError, match="proposal 0 must be a table"):
+    with pytest.raises(ConfigError, match="proposal 0 deve essere una tabella"):
         load_proposals(tmp_path)
 
 
@@ -154,7 +154,9 @@ source = "manual"
         encoding="utf-8",
     )
 
-    with pytest.raises(ConfigError, match="field title must be a non-empty string"):
+    with pytest.raises(
+        ConfigError, match="campo title deve essere una stringa non vuota"
+    ):
         load_proposals(tmp_path)
 
 
@@ -195,7 +197,7 @@ def test_review_proposal_rejects_unsupported_status(tmp_path: Path) -> None:
 
     proposal = generate_manual_proposals(tmp_path)[0]
 
-    with pytest.raises(ConfigError, match="unsupported proposal status"):
+    with pytest.raises(ConfigError, match="stato proposta non supportato"):
         review_proposal(tmp_path, proposal.id, "proposed")
 
 
@@ -214,7 +216,7 @@ def test_review_proposal_rejects_unknown_id(tmp_path: Path) -> None:
 
     generate_manual_proposals(tmp_path)
 
-    with pytest.raises(ConfigError, match="proposal not found: missing"):
+    with pytest.raises(ConfigError, match="proposta non trovata: missing"):
         review_proposal(tmp_path, "missing", "approved")
 
 

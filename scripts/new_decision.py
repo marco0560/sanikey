@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a new decision note under docs/decisions/."""
+"""Crea una nuova nota decisionale sotto docs/decisions/."""
 
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def fail(message: str) -> None:
     -------
     None
     """
-    print(f"ERROR: {message}", file=sys.stderr)
+    print(f"ERRORE: {message}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -105,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     int
         Process exit status.
     """
-    parser = argparse.ArgumentParser(description="Create a new decision note.")
+    parser = argparse.ArgumentParser(description="Crea una nuova nota decisionale.")
     parser.add_argument("--decisions-dir", type=Path, default=DEFAULT_DECISIONS_DIR)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
@@ -113,37 +113,37 @@ def main(argv: list[str] | None = None) -> int:
     decisions_dir = args.decisions_dir
     index_file = decisions_dir / INDEX_FILENAME
     if not decisions_dir.is_dir():
-        fail(f"Decisions directory not found: {decisions_dir}")
+        fail(f"Directory decisioni non trovata: {decisions_dir}")
     if not index_file.is_file():
-        fail(f"Decision index not found: {index_file}")
+        fail(f"Indice decisioni non trovato: {index_file}")
 
-    description = input("One-line description: ").strip()
+    description = input("Descrizione su una riga: ").strip()
     if not description:
-        fail("Description cannot be empty")
+        fail("La descrizione non puo' essere vuota")
 
     decision_number = next_decision_number(decisions_dir)
     filename = f"{decision_number:04d}-{slugify(description)}.md"
     target = decisions_dir / filename
-    content = f"""# Decision {decision_number:04d} - {description}
+    content = f"""# Decisione {decision_number:04d} - {description}
 
-**Date**: {dt.date.today().isoformat()}
-**Status**: Accepted
+**Data**: {dt.date.today().isoformat()}
+**Stato**: Accettata
 
-## Context
+## Contesto
 
-<Describe the context>
+<Descrivere il contesto>
 
-## Decision
+## Decisione
 
-<Describe the decision>
+<Descrivere la decisione>
 
-## Consequences
+## Conseguenze
 
-<Describe the consequences>
+<Descrivere le conseguenze>
 """
     index_entry = f"- [{decision_number:04d} — {description}]({filename})\n"
 
-    print(f"Decision file: {target}")
+    print(f"File decisione: {target}")
     if args.dry_run:
         return 0
 

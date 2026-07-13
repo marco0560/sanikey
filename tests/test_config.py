@@ -280,7 +280,7 @@ exclude_patterns = ["**/Help/**"]
 
     with pytest.raises(
         ConfigError,
-        match=r"\[\[person\]\] entry 0 unknown fields: exclude_patterns",
+        match=r"voce \[\[person\]\] 0 campi sconosciuti: exclude_patterns",
     ):
         load_accounts(config_path)
 
@@ -359,12 +359,12 @@ def test_parse_accounts_rejects_missing_usb_uuid_without_global(
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
-        ("accent_color", '"blue"', "must be a #rrggbb color"),
-        ("density", '"wide"', "must be one of"),
-        ("default_tab", '"search"', "must be one of"),
-        ("timeline_order", '"newest"', "must be one of"),
-        ("document_link_mode", '"absolute"', "must be one of"),
-        ("background_opacity", "1.5", "must be between"),
+        ("accent_color", '"blue"', "deve essere un colore #rrggbb"),
+        ("density", '"wide"', "deve essere uno tra"),
+        ("default_tab", '"search"', "deve essere uno tra"),
+        ("timeline_order", '"newest"', "deve essere uno tra"),
+        ("document_link_mode", '"absolute"', "deve essere uno tra"),
+        ("background_opacity", "1.5", "deve essere tra"),
     ],
 )
 def test_load_accounts_rejects_invalid_ui_values(
@@ -448,7 +448,7 @@ usb_uuid = "1A2B-3C4D"
         encoding="utf-8",
     )
 
-    with pytest.raises(ConfigError, match="unknown fields: custom_css"):
+    with pytest.raises(ConfigError, match="campi sconosciuti: custom_css"):
         load_accounts(config_path)
 
 
@@ -488,7 +488,7 @@ def test_load_accounts_rejects_missing_file(tmp_path: Path) -> None:
     None
     """
 
-    with pytest.raises(ConfigError, match="accounts configuration not found"):
+    with pytest.raises(ConfigError, match="configurazione account non trovata"):
         load_accounts(tmp_path / "missing.toml")
 
 
@@ -508,7 +508,7 @@ def test_load_accounts_rejects_invalid_toml(tmp_path: Path) -> None:
     config_path = tmp_path / "accounts.toml"
     config_path.write_text("[global\n", encoding="utf-8")
 
-    with pytest.raises(ConfigError, match="invalid TOML"):
+    with pytest.raises(ConfigError, match="TOML non valido"):
         load_accounts(config_path)
 
 
@@ -570,7 +570,7 @@ def test_parse_accounts_rejects_missing_real_paths() -> None:
     None
     """
 
-    with pytest.raises(ConfigError, match="missing fields"):
+    with pytest.raises(ConfigError, match="campi mancanti"):
         parse_accounts_data(
             {
                 "global": {"config_version": 1},
@@ -583,19 +583,19 @@ def test_parse_accounts_rejects_missing_real_paths() -> None:
 @pytest.mark.parametrize(
     ("data", "message"),
     [
-        ({"global": "bad", "person": []}, r"\[global\] must be a table"),
-        ({"global": {}, "person": []}, r"\[global\].config_version is required"),
+        ({"global": "bad", "person": []}, r"\[global\] deve essere una tabella"),
+        ({"global": {}, "person": []}, r"\[global\].config_version e' obbligatorio"),
         (
             {"global": {"config_version": "1"}, "person": []},
-            r"\[global\].config_version must be an integer",
+            r"\[global\].config_version deve essere un intero",
         ),
         (
             {"global": {"config_version": 1}, "person": []},
-            r"at least one \[\[person\]\] entry is required",
+            r"e' richiesta almeno una voce \[\[person\]\]",
         ),
         (
             {"global": {"config_version": 1}, "person": "bad"},
-            r"at least one \[\[person\]\] entry is required",
+            r"e' richiesta almeno una voce \[\[person\]\]",
         ),
     ],
 )
@@ -710,7 +710,7 @@ def test_parse_accounts_rejects_invalid_patient_id(tmp_path: Path) -> None:
     None
     """
 
-    with pytest.raises(ConfigError, match="invalid id"):
+    with pytest.raises(ConfigError, match="id non valido"):
         parse_accounts_data(
             {
                 "global": {"config_version": 1},
@@ -741,7 +741,9 @@ def test_parse_accounts_rejects_non_table_person_entry() -> None:
     None
     """
 
-    with pytest.raises(ConfigError, match=r"\[\[person\]\] entry 0 must be a table"):
+    with pytest.raises(
+        ConfigError, match=r"voce \[\[person\]\] 0 deve essere una tabella"
+    ):
         parse_accounts_data(
             {"global": {"config_version": 1}, "person": ["bad"]},
             path=Path("accounts.toml"),
@@ -761,7 +763,7 @@ def test_parse_accounts_rejects_non_boolean_enabled(tmp_path: Path) -> None:
     None
     """
 
-    with pytest.raises(ConfigError, match="field enabled must be boolean"):
+    with pytest.raises(ConfigError, match="campo enabled deve essere booleano"):
         parse_accounts_data(
             {
                 "global": {"config_version": 1},
@@ -794,7 +796,9 @@ def test_parse_accounts_rejects_empty_string_fields(tmp_path: Path) -> None:
     None
     """
 
-    with pytest.raises(ConfigError, match="field display_name must be a non-empty"):
+    with pytest.raises(
+        ConfigError, match="campo display_name deve essere una stringa non vuota"
+    ):
         parse_accounts_data(
             {
                 "global": {"config_version": 1},
@@ -835,7 +839,7 @@ def test_parse_accounts_rejects_duplicate_patient_ids(tmp_path: Path) -> None:
         "usb_uuid": "1A2B-3C4D",
     }
 
-    with pytest.raises(ConfigError, match="duplicate patient id: patient-a"):
+    with pytest.raises(ConfigError, match="id paziente duplicato: patient-a"):
         parse_accounts_data(
             {"global": {"config_version": 1}, "person": [person, person]},
             path=tmp_path / "accounts.toml",
@@ -867,7 +871,7 @@ def test_privacy_rejects_versioned_repo_paths(tmp_path: Path) -> None:
 
     config = load_accounts(config_path)
 
-    with pytest.raises(PrivacyError, match="versioned repository content"):
+    with pytest.raises(PrivacyError, match="contenuto versionato del repository"):
         validate_privacy(config, repo_root=repo_root)
 
 

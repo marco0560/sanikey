@@ -417,8 +417,8 @@ def _content_search_warning_messages(
     if size_mb <= threshold:
         return ()
     return (
-        "advanced search index is large: "
-        f"{size_mb:.1f} MiB exceeds configured warning threshold {threshold} MiB",
+        "indice ricerca avanzata grande: "
+        f"{size_mb:.1f} MiB supera la soglia avviso configurata {threshold} MiB",
     )
 
 

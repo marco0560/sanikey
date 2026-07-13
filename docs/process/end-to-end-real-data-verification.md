@@ -359,7 +359,7 @@ uv run sanikey scan-documents --config config/accounts.toml --output local-data/
 uv run sanikey scan-documents --config config/accounts.toml --output local-data/scan-documents.csv --format csv
 ```
 
-Se l'output contiene `duplicates=`, leggere eventuali righe `WARNING:`. File con
+Se l'output contiene `duplicates=`, leggere eventuali righe `AVVISO:`. File con
 lo stesso SHA256 sono identici: SaniKey conserva solo la prima occorrenza
 nell'archivio generato e segnala il file saltato insieme al file trattenuto. In
 presenza di duplicati inattesi, fermarsi e decidere manualmente se rimuovere,

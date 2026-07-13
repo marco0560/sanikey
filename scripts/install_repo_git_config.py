@@ -66,7 +66,7 @@ def main() -> int:
         If a Git config command fails.
     """
     if GIT_EXE is None:
-        msg = "git executable not found"
+        msg = "eseguibile git non trovato"
         raise RuntimeError(msg)
     for key, value in git_alias_entries():
         subprocess.run([GIT_EXE, "config", "--local", key, value], check=True)

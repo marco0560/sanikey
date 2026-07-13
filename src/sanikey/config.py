@@ -356,11 +356,11 @@ def load_accounts(path: Path) -> AccountsConfig:
 
     resolved = path.expanduser().resolve(strict=False)
     if not resolved.is_file():
-        _fail(f"accounts configuration not found: {resolved}")
+        _fail(f"configurazione account non trovata: {resolved}")
     try:
         data = tomllib.loads(resolved.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        message = f"invalid TOML in {resolved}: {exc}"
+        message = f"TOML non valido in {resolved}: {exc}"
         raise ConfigError(message) from exc
     return parse_accounts_data(data, path=resolved)
 
@@ -388,19 +388,19 @@ def parse_accounts_data(data: dict[str, Any], *, path: Path) -> AccountsConfig:
 
     global_section = data.get("global", {})
     if not isinstance(global_section, dict):
-        _fail("[global] must be a table")
+        _fail("[global] deve essere una tabella")
     version = global_section.get(
         "config_version",
         global_section.get("repository_version"),
     )
     if version is None:
-        _fail("[global].config_version is required")
+        _fail("[global].config_version e' obbligatorio")
     if not isinstance(version, int):
-        _fail("[global].config_version must be an integer")
+        _fail("[global].config_version deve essere un intero")
 
     people_data = data.get("person")
     if not isinstance(people_data, list) or not people_data:
-        _fail("at least one [[person]] entry is required")
+        _fail("e' richiesta almeno una voce [[person]]")
     people_items = cast("list[Any]", people_data)
 
     base_dir = _path_base(path)
@@ -488,24 +488,24 @@ def _parse_person(  # noqa: PLR0913
     """
 
     if not isinstance(item, dict):
-        _fail(f"[[person]] entry {index} must be a table")
+        _fail(f"voce [[person]] {index} deve essere una tabella")
     unknown = sorted(set(item) - PERSON_FIELDS)
     if unknown:
-        _fail(f"[[person]] entry {index} unknown fields: {', '.join(unknown)}")
+        _fail(f"voce [[person]] {index} campi sconosciuti: {', '.join(unknown)}")
     missing = [field for field in REQUIRED_PERSON_FIELDS if field not in item]
     if missing:
-        _fail(f"[[person]] entry {index} missing fields: {', '.join(missing)}")
+        _fail(f"voce [[person]] {index} campi mancanti: {', '.join(missing)}")
 
     person_id = _require_string(item, "id", index=index)
     if PATIENT_ID_RE.fullmatch(person_id) is None:
         _fail(
-            f"[[person]] entry {index} has invalid id {person_id!r}; "
-            "use lowercase letters, digits, and hyphens",
+            f"voce [[person]] {index} ha id non valido {person_id!r}; "
+            "usare lettere minuscole, cifre e trattini",
         )
 
     enabled = item.get("enabled", True)
     if not isinstance(enabled, bool):
-        _fail(f"[[person]] entry {index} field enabled must be boolean")
+        _fail(f"voce [[person]] {index} campo enabled deve essere booleano")
     ui = _parse_ui_config(
         item.get("ui", {}),
         context=f"[[person]] entry {index} ui",
@@ -533,7 +533,7 @@ def _parse_person(  # noqa: PLR0913
         global_usb_uuid = global_usb.usb_uuid
         if global_usb_uuid is None:
             _fail(
-                f"[[person]] entry {index} missing fields: usb_uuid "
+                f"voce [[person]] {index} campi mancanti: usb_uuid "
                 "or [global.usb].usb_uuid",
             )
         usb_uuid = global_usb_uuid
@@ -589,10 +589,10 @@ def _parse_ui_config(
     """
 
     if not isinstance(value, dict):
-        _fail(f"{context} must be a table")
+        _fail(f"{context} deve essere una tabella")
     unknown = sorted(set(value) - UI_FIELDS)
     if unknown:
-        _fail(f"{context} unknown fields: {', '.join(unknown)}")
+        _fail(f"{context} campi sconosciuti: {', '.join(unknown)}")
     source = UiConfig() if base is None else base
     return UiConfig(
         accent_color=_optional_color(
@@ -684,10 +684,10 @@ def _parse_search_config(
     """
 
     if not isinstance(value, dict):
-        _fail(f"{context} must be a table")
+        _fail(f"{context} deve essere una tabella")
     unknown = sorted(set(value) - SEARCH_FIELDS)
     if unknown:
-        _fail(f"{context} unknown fields: {', '.join(unknown)}")
+        _fail(f"{context} campi sconosciuti: {', '.join(unknown)}")
     source = SearchConfig() if base is None else base
     dictionary = _optional_path(
         value,
@@ -744,10 +744,10 @@ def _parse_ingestion_config(
     """
 
     if not isinstance(value, dict):
-        _fail(f"{context} must be a table")
+        _fail(f"{context} deve essere una tabella")
     unknown = sorted(set(value) - INGESTION_FIELDS)
     if unknown:
-        _fail(f"{context} unknown fields: {', '.join(unknown)}")
+        _fail(f"{context} campi sconosciuti: {', '.join(unknown)}")
     source = IngestionConfig() if base is None else base
     return IngestionConfig(
         exclude_patterns=(
@@ -793,10 +793,10 @@ def _parse_usb_config(value: Any, *, context: str) -> UsbConfig:
     """
 
     if not isinstance(value, dict):
-        _fail(f"{context} must be a table")
+        _fail(f"{context} deve essere una tabella")
     unknown = sorted(set(value) - USB_FIELDS)
     if unknown:
-        _fail(f"{context} unknown fields: {', '.join(unknown)}")
+        _fail(f"{context} campi sconosciuti: {', '.join(unknown)}")
     source = UsbConfig()
     return UsbConfig(
         usb_uuid=_optional_nullable_string(
@@ -862,11 +862,13 @@ def _optional_string_list(
     if value is None:
         return default
     if not isinstance(value, list):
-        _fail(f"{context} field {field_name} must be a list of strings")
+        _fail(f"{context} campo {field_name} deve essere una lista di stringhe")
     parsed = []
     for raw_value in value:
         if not isinstance(raw_value, str) or not raw_value.strip():
-            _fail(f"{context} field {field_name} must contain only non-empty strings")
+            _fail(
+                f"{context} campo {field_name} deve contenere solo stringhe non vuote"
+            )
         parsed.append(raw_value.strip())
     return tuple(parsed)
 
@@ -906,7 +908,7 @@ def _optional_nullable_string(
     if value is None:
         return None
     if not isinstance(value, str) or not value.strip():
-        _fail(f"{context} field {field_name} must be a non-empty string")
+        _fail(f"{context} campo {field_name} deve essere una stringa non vuota")
     return value.strip()
 
 
@@ -943,7 +945,7 @@ def _optional_bool(
 
     value = item.get(field_name, default)
     if not isinstance(value, bool):
-        _fail(f"{context} field {field_name} must be boolean")
+        _fail(f"{context} campo {field_name} deve essere booleano")
     return cast("bool", value)
 
 
@@ -980,7 +982,7 @@ def _optional_color(
 
     value = item.get(field_name, default)
     if not isinstance(value, str) or COLOR_RE.fullmatch(value) is None:
-        _fail(f"{context} field {field_name} must be a #rrggbb color")
+        _fail(f"{context} campo {field_name} deve essere un colore #rrggbb")
     return cast("str", value).lower()
 
 
@@ -1021,7 +1023,7 @@ def _optional_choice(
     value = item.get(field_name, default)
     if not isinstance(value, str) or value not in choices:
         accepted = ", ".join(sorted(choices))
-        _fail(f"{context} field {field_name} must be one of: {accepted}")
+        _fail(f"{context} campo {field_name} deve essere uno tra: {accepted}")
     return cast("str", value)
 
 
@@ -1058,10 +1060,10 @@ def _optional_short_string(
 
     value = item.get(field_name, default)
     if not isinstance(value, str):
-        _fail(f"{context} field {field_name} must be a string")
+        _fail(f"{context} campo {field_name} deve essere una stringa")
     rendered = cast("str", value).strip()
     if len(rendered) > 120:
-        _fail(f"{context} field {field_name} must be at most 120 characters")
+        _fail(f"{context} campo {field_name} deve essere al massimo 120 caratteri")
     return rendered
 
 
@@ -1096,11 +1098,11 @@ def _optional_path(
     if value is None:
         return options.default
     if not isinstance(value, str) or not value.strip():
-        _fail(f"{options.context} field {field_name} must be a non-empty string")
+        _fail(f"{options.context} campo {field_name} deve essere una stringa non vuota")
     path = Path(cast("str", value).strip()).expanduser()
     resolved = path if path.is_absolute() else options.base_dir / path
     if options.must_exist and not resolved.exists():
-        _fail(f"{options.context} field {field_name} path does not exist: {resolved}")
+        _fail(f"{options.context} campo {field_name} percorso inesistente: {resolved}")
     return resolved
 
 
@@ -1133,12 +1135,12 @@ def _optional_float(
 
     value = item.get(field_name, options.default)
     if not isinstance(value, int | float) or isinstance(value, bool):
-        _fail(f"{options.context} field {field_name} must be a number")
+        _fail(f"{options.context} campo {field_name} deve essere un numero")
     rendered = float(value)
     if rendered < options.minimum or rendered > options.maximum:
         _fail(
-            f"{options.context} field {field_name} must be between "
-            f"{options.minimum} and {options.maximum}"
+            f"{options.context} campo {field_name} deve essere tra "
+            f"{options.minimum} e {options.maximum}"
         )
     return rendered
 
@@ -1176,7 +1178,7 @@ def _optional_positive_int(
 
     value = item.get(field_name, default)
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-        _fail(f"{context} field {field_name} must be a positive integer")
+        _fail(f"{context} campo {field_name} deve essere un intero positivo")
     return cast("int", value)
 
 
@@ -1206,7 +1208,7 @@ def _load_search_dictionary(path: Path | None, *, context: str) -> SearchDiction
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        message = f"invalid TOML in {path}: {exc}"
+        message = f"TOML non valido in {path}: {exc}"
         raise ConfigError(message) from exc
     terms = _parse_dictionary_section(data.get("terms", {}), context=f"{context}.terms")
     months = _parse_dictionary_section(
@@ -1214,7 +1216,7 @@ def _load_search_dictionary(path: Path | None, *, context: str) -> SearchDiction
     )
     unknown = sorted(set(data) - {"terms", "months"})
     if unknown:
-        _fail(f"{context} dictionary unknown sections: {', '.join(unknown)}")
+        _fail(f"{context} dizionario sezioni sconosciute: {', '.join(unknown)}")
     return SearchDictionary(terms=terms, months=months)
 
 
@@ -1242,17 +1244,17 @@ def _parse_dictionary_section(
     """
 
     if not isinstance(value, dict):
-        _fail(f"{context} must be a table")
+        _fail(f"{context} deve essere una tabella")
     parsed: dict[str, tuple[str, ...]] = {}
     for key, raw_values in value.items():
         if not isinstance(key, str) or not key.strip():
-            _fail(f"{context} keys must be non-empty strings")
+            _fail(f"{context} chiavi devono essere stringhe non vuote")
         if not isinstance(raw_values, list) or not raw_values:
-            _fail(f"{context}.{key} must be a non-empty list of strings")
+            _fail(f"{context}.{key} deve essere una lista non vuota di stringhe")
         values = []
         for raw_value in raw_values:
             if not isinstance(raw_value, str) or not raw_value.strip():
-                _fail(f"{context}.{key} must contain only non-empty strings")
+                _fail(f"{context}.{key} deve contenere solo stringhe non vuote")
             values.append(raw_value.strip())
         parsed[key.strip()] = tuple(values)
     return parsed
@@ -1284,7 +1286,7 @@ def _require_string(item: dict[str, Any], field: str, *, index: int) -> str:
     value = item[field]
     if not isinstance(value, str) or not value.strip():
         _fail(
-            f"[[person]] entry {index} field {field} must be a non-empty string",
+            f"voce [[person]] {index} campo {field} deve essere una stringa non vuota",
         )
     return cast("str", value.strip())
 
@@ -1364,7 +1366,7 @@ def _validate_unique_ids(people: tuple[PersonConfig, ...]) -> None:
     seen: set[str] = set()
     for person in people:
         if person.id in seen:
-            _fail(f"duplicate patient id: {person.id}")
+            _fail(f"id paziente duplicato: {person.id}")
         seen.add(person.id)
 
 
@@ -1400,12 +1402,12 @@ def _validate_enabled_usb_uuid(
         mismatches = sorted(uuid for uuid in enabled_uuids if uuid != usb.usb_uuid)
         if mismatches:
             _fail(
-                "[global.usb].usb_uuid conflicts with enabled "
-                f"patient usb_uuid values: {', '.join(mismatches)}"
+                "[global.usb].usb_uuid e' in conflitto con i valori usb_uuid "
+                f"dei pazienti abilitati: {', '.join(mismatches)}"
             )
         return
     if len(enabled_uuids) > 1:
         _fail(
-            "enabled patients use different usb_uuid values; set one shared "
-            "[global.usb].usb_uuid or align [[person]].usb_uuid"
+            "i pazienti abilitati usano valori usb_uuid diversi; impostare un "
+            "[global.usb].usb_uuid condiviso o allineare [[person]].usb_uuid"
         )

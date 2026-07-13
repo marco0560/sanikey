@@ -87,7 +87,7 @@ def _validate_local_data_dirs_ignored(repo_root: Path) -> None:
     )
     if violations:
         rendered = ", ".join(str(path) for path in violations[:10])
-        _fail(f"real-data paths are tracked by Git: {rendered}")
+        _fail(f"percorsi dati reali tracciati da Git: {rendered}")
 
 
 def _validate_person_paths(person: PersonConfig, *, repo_root: Path) -> None:
@@ -120,8 +120,8 @@ def _validate_person_paths(person: PersonConfig, *, repo_root: Path) -> None:
             relative = resolved.relative_to(repo_root)
             if not relative.parts or relative.parts[0] not in LOCAL_DATA_DIRS:
                 _fail(
-                    f"{person.id}.{field_name} points inside versioned repository "
-                    f"content: {resolved}",
+                    f"{person.id}.{field_name} punta dentro contenuto versionato "
+                    f"del repository: {resolved}",
                 )
 
 
@@ -145,7 +145,7 @@ def _tracked_paths(repo_root: Path) -> set[Path]:
     """
 
     if GIT_EXE is None:
-        _fail("git executable not found")
+        _fail("eseguibile git non trovato")
     git_exe = cast("str", GIT_EXE)
     completed = subprocess.run(
         [git_exe, "ls-files"],
@@ -155,7 +155,7 @@ def _tracked_paths(repo_root: Path) -> set[Path]:
         text=True,
     )
     if completed.returncode != 0:
-        _fail(completed.stderr.strip() or "git ls-files failed")
+        _fail(completed.stderr.strip() or "git ls-files non riuscito")
     return {Path(line) for line in completed.stdout.splitlines() if line}
 
 

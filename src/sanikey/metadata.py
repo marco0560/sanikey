@@ -107,10 +107,10 @@ def _load_toml(path: Path) -> dict[str, Any]:
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        message = f"invalid TOML in {path}: {exc}"
+        message = f"TOML non valido in {path}: {exc}"
         raise ConfigError(message) from exc
     if not isinstance(data, dict):
-        _fail(f"metadata file must contain a table: {path}")
+        _fail(f"file metadati deve contenere una tabella: {path}")
     return data
 
 
@@ -139,7 +139,7 @@ def _load_items[T](
     data = _load_toml(path)
     raw_items = data.get(key, [])
     if not isinstance(raw_items, list):
-        _fail(f"{path}: {key} must be an array of tables")
+        _fail(f"{path}: {key} deve essere un array di tabelle")
     return tuple(
         factory(_require_table(item, path, index), path, index)
         for index, item in enumerate(raw_items)
@@ -353,7 +353,7 @@ def _load_document_tags(path: Path) -> dict[str, tuple[str, ...]]:
     data = _load_toml(path)
     tags = data.get("tags", {})
     if not isinstance(tags, dict):
-        _fail(f"{path}: tags must be a table")
+        _fail(f"{path}: tags deve essere una tabella")
     return {
         str(document): _string_tuple(value, path, f"tags.{document}", 0)
         for document, value in tags.items()
@@ -381,7 +381,7 @@ def _load_summary(path: Path) -> str | None:
     if summary is None:
         return None
     if not isinstance(summary, str):
-        _fail(f"{path}: summary must be a string")
+        _fail(f"{path}: summary deve essere una stringa")
     return cast("str", summary)
 
 
@@ -439,7 +439,7 @@ def _validate_curated_metadata(metadata: CuratedMetadata, metadata_dir: Path) ->
         if therapy.medication_id not in medication_ids:
             _fail(
                 f"{metadata_dir / 'therapies.toml'}: therapy {therapy.id} "
-                f"references unknown medication_id {therapy.medication_id}",
+                f"referenzia medication_id sconosciuto {therapy.medication_id}",
             )
 
 
@@ -473,7 +473,7 @@ def _validate_unique_ids(
     seen: set[str] = set()
     for item_id in ids:
         if item_id in seen:
-            _fail(f"{path}: duplicate {label} id: {item_id}")
+            _fail(f"{path}: id {label} duplicato: {item_id}")
         seen.add(item_id)
     return seen
 
@@ -497,7 +497,7 @@ def _require_table(item: Any, path: Path, index: int) -> dict[str, Any]:
     """
 
     if not isinstance(item, dict):
-        _fail(f"{path}: item {index} must be a table")
+        _fail(f"{path}: elemento {index} deve essere una tabella")
     return cast("dict[str, Any]", item)
 
 
@@ -523,7 +523,9 @@ def _required_string(item: dict[str, Any], field: str, path: Path, index: int) -
 
     value = item.get(field)
     if not isinstance(value, str) or not value.strip():
-        _fail(f"{path}: item {index} field {field} must be a non-empty string")
+        _fail(
+            f"{path}: elemento {index} campo {field} deve essere una stringa non vuota"
+        )
     return cast("str", value).strip()
 
 
@@ -547,7 +549,7 @@ def _optional_string(item: dict[str, Any], field: str) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
-        _fail(f"field {field} must be a string")
+        _fail(f"campo {field} deve essere una stringa")
     return cast("str", value).strip()
 
 
@@ -572,9 +574,11 @@ def _string_tuple(value: Any, path: Path, field: str, index: int) -> tuple[str, 
     """
 
     if not isinstance(value, list | tuple):
-        _fail(f"{path}: item {index} field {field} must be a string array")
+        _fail(
+            f"{path}: elemento {index} campo {field} deve essere un array di stringhe"
+        )
     if not all(isinstance(item, str) for item in value):
-        _fail(f"{path}: item {index} field {field} must contain only strings")
+        _fail(f"{path}: elemento {index} campo {field} deve contenere solo stringhe")
     return tuple(item.strip() for item in value if item.strip())
 
 

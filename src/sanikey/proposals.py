@@ -76,8 +76,8 @@ def generate_manual_proposals(metadata_directory: Path) -> tuple[Proposal, ...]:
     proposal = Proposal(
         id=f"manual-review-{generated_at}",
         kind="clinical_summary",
-        title="Manual review placeholder",
-        body="Review source documents and curated metadata before approval.",
+        title="Segnaposto revisione manuale",
+        body="Revisionare documenti sorgente e metadati curati prima dell'approvazione.",
         status="proposed",
         source="manual-test-provider",
     )
@@ -112,11 +112,11 @@ def load_proposals(metadata_directory: Path) -> tuple[Proposal, ...]:
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        message = f"invalid TOML in {path}: {exc}"
+        message = f"TOML non valido in {path}: {exc}"
         raise ConfigError(message) from exc
     raw = data.get("proposal", [])
     if not isinstance(raw, list):
-        _fail(f"{path}: proposal must be an array of tables")
+        _fail(f"{path}: proposal deve essere un array di tabelle")
     return tuple(
         _proposal_from_table(item, path, index) for index, item in enumerate(raw)
     )
@@ -148,7 +148,7 @@ def review_proposal(
     """
 
     if status not in {"approved", "rejected"}:
-        _fail(f"unsupported proposal status: {status}")
+        _fail(f"stato proposta non supportato: {status}")
     proposals = list(load_proposals(metadata_directory))
     for index, proposal in enumerate(proposals):
         if proposal.id == proposal_id:
@@ -164,7 +164,7 @@ def review_proposal(
             target = proposal_directory(metadata_directory) / "proposals.toml"
             target.write_text(_render_proposals(tuple(proposals)), encoding="utf-8")
             return updated
-    _fail(f"proposal not found: {proposal_id}")
+    _fail(f"proposta non trovata: {proposal_id}")
     message = "unreachable"
     raise AssertionError(message)  # pragma: no cover
 
@@ -188,7 +188,7 @@ def _proposal_from_table(item: Any, path: Path, index: int) -> Proposal:
     """
 
     if not isinstance(item, dict):
-        _fail(f"{path}: proposal {index} must be a table")
+        _fail(f"{path}: proposal {index} deve essere una tabella")
     return Proposal(
         id=_required_string(item, "id", path, index),
         kind=_required_string(item, "kind", path, index),
@@ -252,7 +252,9 @@ def _required_string(item: dict[str, Any], field: str, path: Path, index: int) -
 
     value = item.get(field)
     if not isinstance(value, str) or not value.strip():
-        _fail(f"{path}: proposal {index} field {field} must be a non-empty string")
+        _fail(
+            f"{path}: proposal {index} campo {field} deve essere una stringa non vuota"
+        )
     return value.strip()
 
 

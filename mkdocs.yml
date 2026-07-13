@@ -49,6 +49,7 @@ nav:
       - Specifica dettagliata: sanikey-detailed-spec.md
       - Decisioni iniziali: decisions/decisioni-iniziali.md
       - Indice decisioni: decisions/index.md
+      - Lingua italiana per errori e interfaccia: decisions/adr-italian-interface-language.md
   - Rilascio:
       - Lista di controllo: release/checklist.md
       - Processo: release/process.md

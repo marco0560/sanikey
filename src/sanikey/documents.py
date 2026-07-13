@@ -299,8 +299,8 @@ def duplicate_document_warnings(
         retained = documents[0]
         for skipped in documents[1:]:
             warnings.append(
-                "duplicate document content skipped. "
-                "The following files are identical "
+                "contenuto documento duplicato saltato. "
+                "I file seguenti sono identici "
                 f"(sha256={digest}): \n{retained.path}\n{skipped.path}"
             )
     return tuple(warnings)
@@ -348,7 +348,9 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
     return ExtractedText(
         document_id=document.document_id,
         text="",
-        warnings=(f"unsupported text extraction for {suffix or 'extensionless file'}",),
+        warnings=(
+            f"estrazione testo non supportata per {suffix or 'file senza estensione'}",
+        ),
     )
 
 
@@ -551,7 +553,7 @@ def _extract_image_text(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=("Tesseract not installed; image OCR skipped",),
+            warnings=("Tesseract non installato; OCR immagine saltato",),
         )
     command = [
         executable,
@@ -571,14 +573,14 @@ def _extract_image_text(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"Tesseract failed; image OCR skipped: {exc}",),
+            warnings=(f"Tesseract non riuscito; OCR immagine saltato: {exc}",),
         )
     if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "unknown error"
+        detail = result.stderr.strip() or result.stdout.strip() or "errore sconosciuto"
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"Tesseract failed; image OCR skipped: {detail}",),
+            warnings=(f"Tesseract non riuscito; OCR immagine saltato: {detail}",),
         )
     return ExtractedText(document_id=document.document_id, text=result.stdout.strip())
 
@@ -650,15 +652,16 @@ def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:
             document_id=document.document_id,
             text=pymupdf_result.text,
             warnings=(
-                "PyMuPDF extracted insufficient text and no OCR provider is available",
+                "PyMuPDF ha estratto testo insufficiente e non e' disponibile "
+                "un provider OCR",
             ),
         )
     return ExtractedText(
         document_id=document.document_id,
         text="",
         warnings=(
-            "No PDF text extraction provider available; install PyMuPDF "
-            "or configure OCRmyPDF",
+            "Nessun provider di estrazione testo PDF disponibile; installare PyMuPDF "
+            "o configurare OCRmyPDF",
         ),
     )
 
@@ -693,8 +696,8 @@ def _extract_pdf_text_with_pymupdf(document: DocumentRecord) -> ExtractedText | 
             document_id=document.document_id,
             text="",
             warnings=(
-                "PyMuPDF could not extract PDF text; falling back to OCRmyPDF "
-                f"if available: {exc}",
+                "PyMuPDF non ha potuto estrarre il testo PDF; uso OCRmyPDF "
+                f"se disponibile: {exc}",
             ),
         )
     finally:
@@ -746,7 +749,7 @@ def _extract_archive_text(document: DocumentRecord) -> ExtractedText:
     return ExtractedText(
         document_id=document.document_id,
         text="",
-        warnings=(f"unsupported archive format {suffix}",),
+        warnings=(f"formato archivio non supportato {suffix}",),
     )
 
 
@@ -771,7 +774,7 @@ def _extract_zip_inventory(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"ZIP inventory extraction failed: {exc}",),
+            warnings=(f"estrazione inventario ZIP non riuscita: {exc}",),
         )
     return ExtractedText(
         document_id=document.document_id,
@@ -802,7 +805,7 @@ def _extract_7z_inventory(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"7z inventory extraction failed: {exc}",),
+            warnings=(f"estrazione inventario 7z non riuscita: {exc}",),
         )
     return ExtractedText(
         document_id=document.document_id,
@@ -833,7 +836,7 @@ def _extract_rar_inventory(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"RAR inventory extraction failed: {exc}",),
+            warnings=(f"estrazione inventario RAR non riuscita: {exc}",),
         )
     return ExtractedText(
         document_id=document.document_id,
@@ -858,8 +861,8 @@ def _archive_inventory_text(kind: str, names: list[str]) -> str:
     """
 
     if not names:
-        return f"{kind} archive is empty"
-    return "\n".join((f"{kind} archive contents:", *sorted(names)))
+        return f"archivio {kind} vuoto"
+    return "\n".join((f"contenuto archivio {kind}:", *sorted(names)))
 
 
 def _extract_docx_text(document: DocumentRecord) -> ExtractedText:
@@ -889,7 +892,7 @@ def _extract_docx_text(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"DOCX text extraction failed: {exc}",),
+            warnings=(f"estrazione testo DOCX non riuscita: {exc}",),
         )
     return ExtractedText(document_id=document.document_id, text="\n".join(parts))
 
@@ -931,11 +934,12 @@ def _extract_xlsx_text(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"XLSX text extraction failed: {exc}",),
+            warnings=(f"estrazione testo XLSX non riuscita: {exc}",),
         )
     warning_messages = tuple(
         dict.fromkeys(
-            "XLSX text extracted; workbook compatibility feature not preserved: "
+            "testo XLSX estratto; funzionalita' di compatibilita' cartella "
+            "non preservata: "
             f"{item.message}"
             for item in caught
         )
@@ -988,7 +992,7 @@ def _extract_odf_text(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"ODF text extraction failed: {exc}",),
+            warnings=(f"estrazione testo ODF non riuscita: {exc}",),
         )
     return ExtractedText(document_id=document.document_id, text=text)
 
@@ -1012,7 +1016,7 @@ def _extract_legacy_office_text(document: DocumentRecord) -> ExtractedText:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=("LibreOffice not installed; legacy Office extraction skipped",),
+            warnings=("LibreOffice non installato; estrazione Office legacy saltata",),
         )
     suffix = document.path.suffix.lower()
     output_filter = "csv" if suffix == ".xls" else "txt:Text"
@@ -1038,21 +1042,21 @@ def _extract_legacy_office_text(document: DocumentRecord) -> ExtractedText:
             return ExtractedText(
                 document_id=document.document_id,
                 text="",
-                warnings=("LibreOffice extraction timed out",),
+                warnings=("estrazione LibreOffice scaduta per timeout",),
             )
         if completed.returncode != 0:
             detail = completed.stderr.strip() or completed.stdout.strip()
             return ExtractedText(
                 document_id=document.document_id,
                 text="",
-                warnings=(f"LibreOffice extraction failed: {detail}",),
+                warnings=(f"estrazione LibreOffice non riuscita: {detail}",),
             )
         outputs = sorted(path for path in output_dir.iterdir() if path.is_file())
         if not outputs:
             return ExtractedText(
                 document_id=document.document_id,
                 text="",
-                warnings=("LibreOffice did not produce extracted text",),
+                warnings=("LibreOffice non ha prodotto testo estratto",),
             )
         text = "\n".join(
             path.read_text(encoding="utf-8", errors="replace") for path in outputs
@@ -1111,8 +1115,8 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
                     document_id=document.document_id,
                     text="",
                     warnings=(
-                        "OCRmyPDF failed; PDF text extraction skipped: "
-                        f"{detail}; retry with --optimize 0 failed: "
+                        "OCRmyPDF non riuscito; estrazione testo PDF saltata: "
+                        f"{detail}; retry con --optimize 0 non riuscito: "
                         f"{retry_detail}{page_detail}",
                     ),
                 )
@@ -1127,7 +1131,7 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
                 document_id=document.document_id,
                 text="",
                 warnings=(
-                    "OCRmyPDF failed; PDF text extraction skipped: "
+                    "OCRmyPDF non riuscito; estrazione testo PDF saltata: "
                     f"{detail}{page_detail}",
                 ),
             )
@@ -1135,7 +1139,7 @@ def _extract_pdf_text_with_ocrmypdf(document: DocumentRecord) -> ExtractedText |
             return ExtractedText(
                 document_id=document.document_id,
                 text="",
-                warnings=("OCRmyPDF did not produce text sidecar",),
+                warnings=("OCRmyPDF non ha prodotto il sidecar testuale",),
             )
         return ExtractedText(
             document_id=document.document_id,
@@ -1230,7 +1234,7 @@ def _ocrmypdf_failure_page_detail(
     )
     if page_number is None:
         return ""
-    return f"; failing source page: {page_number}"
+    return f"; pagina sorgente non riuscita: {page_number}"
 
 
 def _pdf_page_count(source: Path) -> int | None:

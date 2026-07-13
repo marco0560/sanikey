@@ -356,7 +356,9 @@ def parse_args() -> argparse.Namespace:
     """
 
     parser = argparse.ArgumentParser(
-        description="Run a repository tool with cache/temp state outside the repo."
+        description=(
+            "Esegue uno strumento repository con cache/temp fuori dal repository."
+        )
     )
     parser.add_argument("tool", choices=sorted(SUPPORTED_TOOLS))
     parser.add_argument("tool_args", nargs=argparse.REMAINDER)

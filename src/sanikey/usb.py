@@ -382,8 +382,8 @@ def _rsync_directory_contents(
         timeout=3600,
     )
     if completed.returncode != 0:
-        message = (completed.stderr or completed.stdout or "rsync failed").strip()
-        error = f"rsync USB copy failed: {message}"
+        message = (completed.stderr or completed.stdout or "rsync non riuscito").strip()
+        error = f"copia USB rsync non riuscita: {message}"
         raise UsbError(error)
     if progress is not None:
         progress.advance(len(files), total=len(files))
@@ -505,14 +505,14 @@ def _validate_physical_target(
     available = shutil.disk_usage(target).free
     if available < required_bytes:
         error = (
-            "USB target has insufficient free space: "
+            "target USB con spazio libero insufficiente: "
             f"available={available} required={required_bytes}"
         )
         raise UsbError(error)
     mount_info = _find_mount_info(target)
     if mount_info is None:
         if config.usb.usb_uuid or config.usb.require_exfat:
-            error = f"cannot determine filesystem information for {target}"
+            error = f"impossibile determinare informazioni filesystem per {target}"
             raise UsbError(error)
         return
     expected_uuid = _expected_usb_uuid(
@@ -522,13 +522,13 @@ def _validate_physical_target(
     actual_uuid = mount_info.get("uuid")
     if expected_uuid is not None and actual_uuid != expected_uuid:
         error = (
-            f"USB filesystem UUID mismatch: expected={expected_uuid} "
+            f"UUID filesystem USB non corrispondente: expected={expected_uuid} "
             f"actual={actual_uuid}"
         )
         raise UsbError(error)
     fstype = mount_info.get("fstype")
     if config.usb.require_exfat and fstype != "exfat":
-        error = f"USB filesystem must be exFAT: actual={fstype or 'unknown'}"
+        error = f"filesystem USB deve essere exFAT: actual={fstype or 'sconosciuto'}"
         raise UsbError(error)
 
 

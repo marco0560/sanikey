@@ -261,7 +261,7 @@ def test_duplicate_detection_skips_duplicate_content_with_warning(
     warning_lines = warnings[0].splitlines()
     assert len(warning_lines) == 3
     assert warning_lines[0].startswith(
-        "duplicate document content skipped. The following files are identical (sha256="
+        "contenuto documento duplicato saltato. I file seguenti sono identici (sha256="
     )
     assert warning_lines[1].endswith("20260102 A.txt")
     assert warning_lines[2].endswith("20260103 B.txt")
@@ -440,7 +440,7 @@ def test_extract_text_warns_when_tesseract_is_missing(
     extracted = extract_text(document)
 
     assert extracted.text == ""
-    assert extracted.warnings == ("Tesseract not installed; image OCR skipped",)
+    assert extracted.warnings == ("Tesseract non installato; OCR immagine saltato",)
 
 
 def test_extract_text_dicom_is_catalog_only_without_warning(tmp_path: Path) -> None:
@@ -493,7 +493,7 @@ def test_extract_text_lists_zip_archive_contents(tmp_path: Path) -> None:
 
     extracted = extract_text(document)
 
-    assert "zip archive contents:" in extracted.text
+    assert "contenuto archivio zip:" in extracted.text
     assert "nested/image.dcm" in extracted.text
     assert "report.txt" in extracted.text
     assert extracted.warnings == ()
@@ -527,7 +527,7 @@ def test_extract_text_lists_7z_archive_contents(tmp_path: Path) -> None:
 
     extracted = extract_text(document)
 
-    assert "7z archive contents:" in extracted.text
+    assert "contenuto archivio 7z:" in extracted.text
     assert "report.txt" in extracted.text
     assert extracted.warnings == ()
 
@@ -706,7 +706,8 @@ def test_extract_text_captures_xlsx_library_warnings(
 
     assert "Synthetic cell" in extracted.text
     assert extracted.warnings == (
-        "XLSX text extracted; workbook compatibility feature not preserved: "
+        "testo XLSX estratto; funzionalita' di compatibilita' cartella "
+        "non preservata: "
         "Data Validation extension is not supported",
     )
 
@@ -1055,7 +1056,7 @@ def test_extract_text_falls_back_to_ocr_when_pymupdf_raises(
     assert extracted.text == "ocr text after pymupdf failure"
     assert len(extracted.warnings) == 1
     assert extracted.warnings[0].startswith(
-        "PyMuPDF could not extract PDF text; falling back to OCRmyPDF if available:"
+        "PyMuPDF non ha potuto estrarre il testo PDF; uso OCRmyPDF se disponibile:"
     )
     assert "MuPDF error" not in captured.out
     assert "MuPDF error" not in captured.err
@@ -1097,7 +1098,7 @@ def test_extract_text_warns_when_pymupdf_raises_without_ocr(
     assert extracted.text == ""
     assert len(extracted.warnings) == 1
     assert extracted.warnings[0].startswith(
-        "PyMuPDF could not extract PDF text; falling back to OCRmyPDF if available:"
+        "PyMuPDF non ha potuto estrarre il testo PDF; uso OCRmyPDF se disponibile:"
     )
     assert "MuPDF error" not in captured.out
     assert "MuPDF error" not in captured.err
@@ -1230,7 +1231,7 @@ def test_extract_text_warns_when_pymupdf_text_is_insufficient_without_ocr(
 
     assert extracted.text == "short"
     assert extracted.warnings == (
-        "PyMuPDF extracted insufficient text and no OCR provider is available",
+        "PyMuPDF ha estratto testo insufficiente e non e' disponibile un provider OCR",
     )
 
 
@@ -1268,8 +1269,8 @@ def test_extract_text_warns_when_no_pdf_provider_is_available(
 
     assert extracted.text == ""
     assert extracted.warnings == (
-        "No PDF text extraction provider available; install PyMuPDF "
-        "or configure OCRmyPDF",
+        "Nessun provider di estrazione testo PDF disponibile; installare PyMuPDF "
+        "o configurare OCRmyPDF",
     )
 
 
@@ -1311,7 +1312,7 @@ def test_extract_text_warns_when_ocrmypdf_fails(
 
     assert extracted.text == ""
     assert extracted.warnings == (
-        "OCRmyPDF failed; PDF text extraction skipped: ocr failed",
+        "OCRmyPDF non riuscito; estrazione testo PDF saltata: ocr failed",
     )
 
 
@@ -1431,9 +1432,9 @@ def test_extract_text_summarizes_ocrmypdf_retry_failures(
 
     assert extracted.text == ""
     assert extracted.warnings == (
-        "OCRmyPDF failed; PDF text extraction skipped: "
+        "OCRmyPDF non riuscito; estrazione testo PDF saltata: "
         "OSError: image file is truncated (4 bytes not processed); "
-        "retry with --optimize 0 failed: Error: retry failed",
+        "retry con --optimize 0 non riuscito: Error: retry failed",
     )
 
 
@@ -1497,9 +1498,9 @@ def test_extract_text_locates_ocrmypdf_failure_page_with_bisection(
 
     assert extracted.text == ""
     assert extracted.warnings == (
-        "OCRmyPDF failed; PDF text extraction skipped: "
+        "OCRmyPDF non riuscito; estrazione testo PDF saltata: "
         "OSError: image file is truncated (4 bytes not processed); "
-        "retry with --optimize 0 failed: Error: retry failed; "
-        "failing source page: 6",
+        "retry con --optimize 0 non riuscito: Error: retry failed; "
+        "pagina sorgente non riuscita: 6",
     )
     assert diagnostic_ranges == ["1-4", "5-6", "5", "6"]

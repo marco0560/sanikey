@@ -195,7 +195,9 @@ def _stage_one_container(
         return ContainerStagingResult(
             documents=(),
             members=(),
-            warning_messages=(f"{container.path}: container staging failed: {exc}",),
+            warning_messages=(
+                f"{container.path}: staging contenitore non riuscito: {exc}",
+            ),
             manifest=person.local_build / "manifests" / "container_staging.json",
         )
     extracted_documents = tuple(
@@ -293,7 +295,7 @@ def _extract_container(container: DocumentRecord, target: Path) -> None:
     if suffix in {".img", ".iso"}:
         _extract_with_7z(container.path, target)
         return
-    msg = f"unsupported container format {suffix}"
+    msg = f"formato contenitore non supportato {suffix}"
     raise ValueError(msg)
 
 
@@ -410,7 +412,7 @@ def _extract_with_7z(source: Path, target: Path) -> None:
     """
 
     seven_zip = shutil.which("7z")
-    seven_zip_message = "7z command not installed"
+    seven_zip_message = "comando 7z non installato"
     if seven_zip is not None:
         completed = subprocess.run(
             [seven_zip, "x", "-y", f"-o{target}", str(source)],
@@ -422,11 +424,11 @@ def _extract_with_7z(source: Path, target: Path) -> None:
         if completed.returncode == 0:
             return
         seven_zip_message = (
-            completed.stderr or completed.stdout or "7z failed"
+            completed.stderr or completed.stdout or "7z non riuscito"
         ).strip()
     bsdtar = shutil.which("bsdtar")
     if bsdtar is None:
-        msg = f"ISO staging skipped: {seven_zip_message}; bsdtar command not installed"
+        msg = f"staging ISO saltato: {seven_zip_message}; comando bsdtar non installato"
         raise ValueError(msg)
     completed = subprocess.run(
         [bsdtar, "-xf", str(source), "-C", str(target)],
@@ -436,8 +438,12 @@ def _extract_with_7z(source: Path, target: Path) -> None:
         timeout=300,
     )
     if completed.returncode != 0:
-        message = (completed.stderr or completed.stdout or "bsdtar failed").strip()
-        msg = f"ISO staging skipped: {seven_zip_message}; bsdtar failed: {message}"
+        message = (
+            completed.stderr or completed.stdout or "bsdtar non riuscito"
+        ).strip()
+        msg = (
+            f"staging ISO saltato: {seven_zip_message}; bsdtar non riuscito: {message}"
+        )
         raise ValueError(msg)
 
 
@@ -464,7 +470,7 @@ def _safe_member_path(target: Path, member_name: str) -> Path:
 
     normalized = PurePosixPath(member_name.replace("\\", "/"))
     if normalized.is_absolute() or ".." in normalized.parts:
-        msg = f"unsafe container member path: {member_name}"
+        msg = f"percorso membro contenitore non sicuro: {member_name}"
         raise ValueError(msg)
     return target / Path(*normalized.parts)
 

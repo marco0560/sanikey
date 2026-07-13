@@ -179,7 +179,7 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 1
-    assert "unknown medication_id missing" in result.stdout
+    assert "medication_id sconosciuto missing" in result.stdout
 
 
 def test_list_patients_subcommand_runs(tmp_path: Path) -> None:
@@ -350,7 +350,7 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 1
-    assert "duplicate therapy id: duplicate" in result.stdout
+    assert "id therapy duplicato: duplicate" in result.stdout
 
 
 def test_scan_documents_stages_containers_by_default(tmp_path: Path) -> None:
@@ -856,7 +856,7 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 1
-    assert "--format is valid only with --output" in result.stdout
+    assert "--format e' valido solo con --output" in result.stdout
 
 
 def test_scan_documents_duplicate_warning_uses_three_lines(tmp_path: Path) -> None:
@@ -908,12 +908,12 @@ usb_uuid = "1A2B-3C4D"
     warning_lines = [
         line
         for line in result.stdout.splitlines()
-        if line.startswith("WARNING:") or line.endswith(".txt")
+        if line.startswith("AVVISO:") or line.endswith(".txt")
     ]
     assert result.returncode == 0
     assert warning_lines[0].startswith(
-        "WARNING: duplicate document content skipped. "
-        "The following files are identical (sha256="
+        "AVVISO: contenuto documento duplicato saltato. "
+        "I file seguenti sono identici (sha256="
     )
     assert warning_lines[1].endswith("20260102 A.txt")
     assert warning_lines[2].endswith("20260103 B.txt")
@@ -971,8 +971,8 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "documents=2 duplicates=0 warnings=0" in result.stdout
     assert "staged_containers=1 staged_members=1 derived_documents=0" in result.stdout
-    assert "unsupported text extraction for .jpg" not in result.stdout
-    assert "manual DICOM expansion directory not found" not in result.stdout
+    assert "estrazione testo non supportata per .jpg" not in result.stdout
+    assert "directory di espansione DICOM manuale non trovata" not in result.stdout
 
 
 def test_scan_documents_preflight_reports_corrupt_office_file(
@@ -1027,7 +1027,7 @@ usb_uuid = "1A2B-3C4D"
 
     assert result.returncode == 0
     assert "documents=1 duplicates=0 warnings=1" in result.stdout
-    assert "DOCX text extraction failed" in result.stdout
+    assert "estrazione testo DOCX non riuscita" in result.stdout
 
 
 def test_scan_documents_preflight_skips_legacy_office_conversion(
@@ -1298,10 +1298,10 @@ usb_uuid = "1A2B-3C4D"
 
     assert result.returncode == 0
     assert "documents=1 duplicates=1" in result.stdout
-    assert "duplicate document content skipped" in result.stdout
+    assert "contenuto documento duplicato saltato" in result.stdout
     assert "20260103 B.txt" in result.stdout
     assert "20260102 A.txt" in result.stdout
-    assert "warning_messages=see report" in result.stdout
+    assert "warning_messages=vedi report" in result.stdout
 
 
 def test_build_patient_subcommand_prints_pymupdf_warning_path(
@@ -1360,7 +1360,10 @@ usb_uuid = "1A2B-3C4D"
     combined_output = result.stdout + result.stderr
     assert result.returncode == 0
     assert "MuPDF error" not in combined_output
-    assert f"WARNING: {pdf_path}: PyMuPDF could not extract PDF text" in result.stdout
+    assert (
+        f"AVVISO: {pdf_path}: PyMuPDF non ha potuto estrarre il testo PDF"
+        in result.stdout
+    )
 
 
 def test_build_patient_subcommand_hides_unexpected_tracebacks(tmp_path: Path) -> None:
@@ -1424,7 +1427,7 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 1
-    assert "ERROR:" in result.stdout
+    assert "ERRORE:" in result.stdout
     assert "Traceback" not in result.stdout
     assert "Traceback" not in result.stderr
 

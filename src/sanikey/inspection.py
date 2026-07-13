@@ -177,8 +177,8 @@ def _static_document_warnings(document: DocumentRecord) -> tuple[str, ...]:
     """
 
     if document.kind == "binary":
-        suffix = document.path.suffix.lower() or "extensionless file"
-        return (f"unsupported text extraction for {suffix}",)
+        suffix = document.path.suffix.lower() or "file senza estensione"
+        return (f"estrazione testo non supportata per {suffix}",)
     return ()
 
 

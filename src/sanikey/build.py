@@ -158,7 +158,7 @@ def build_patient(
     """
 
     if mode not in {"full", "incremental", "validation"}:
-        msg = f"unsupported build mode: {mode}"
+        msg = f"modalita' build non supportata: {mode}"
         raise ValueError(msg)
     build_root = person.local_build
     build_root.mkdir(parents=True, exist_ok=True)
@@ -169,7 +169,7 @@ def build_patient(
     )
     staging = inspection.container_staging
     if staging is None:
-        msg = "container staging result missing after staged inspection"
+        msg = "risultato staging contenitori mancante dopo ispezione con staging"
         raise ValueError(msg)
     documents = (*inspection.documents, *staging.documents)
     dicom_studies = inspection.dicom_studies
@@ -187,7 +187,7 @@ def build_patient(
     inspection_warnings = tuple(
         warning
         for warning in inspection.warning_messages
-        if "manual DICOM expansion directory not found" not in warning
+        if "directory di espansione DICOM manuale non trovata" not in warning
     )
     counts = BuildCounts(
         documents=len(inspection.documents),

@@ -36,7 +36,7 @@ def git_ignored_paths() -> Iterable[Path]:
         If ``git status`` fails.
     """
     if GIT_EXE is None:
-        msg = "git executable not found"
+        msg = "eseguibile git non trovato"
         raise RuntimeError(msg)
     result = subprocess.run(
         [GIT_EXE, "status", "--ignored", "--porcelain"],
@@ -64,7 +64,7 @@ def remove_path(path: Path, dry_run: bool) -> None:
     None
     """
     if dry_run:
-        print(f"[DRY-RUN] Would remove: {path}")
+        print(f"[DRY-RUN] Rimuoverebbe: {path}")
         return
     if path.is_dir():
         shutil.rmtree(path)
@@ -84,7 +84,9 @@ def main() -> int:
     int
         Process exit status.
     """
-    parser = argparse.ArgumentParser(description="Clean ignored repository artifacts.")
+    parser = argparse.ArgumentParser(
+        description="Pulisce gli artefatti ignorati del repository."
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -95,7 +97,7 @@ def main() -> int:
         if path.parts and path.parts[0] not in PROTECTED_PATHS
     ]
     if not ignored:
-        print("Nothing to clean.")
+        print("Niente da pulire.")
         return 0
     for path in ignored:
         remove_path(repo_root / path, dry_run=args.dry_run)

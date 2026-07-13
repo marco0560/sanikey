@@ -79,7 +79,7 @@ def fail(msg: str, *, exit_code: int = 1) -> None:
         Always raised with ``exit_code``.
     """
 
-    print(f"ERROR: {msg}", file=sys.stderr)
+    print(f"ERRORE: {msg}", file=sys.stderr)
     raise SystemExit(exit_code)
 
 
@@ -99,7 +99,7 @@ def resolve_executable(name: str) -> str:
 
     resolved = shutil.which(name)
     if resolved is None:
-        fail(f"Required executable not found in PATH: {name}")
+        fail(f"Eseguibile obbligatorio non trovato nel PATH: {name}")
     return resolved
 
 
@@ -127,7 +127,7 @@ def detect_repo_root(repo_root: Path | None = None) -> Path:
     ]
     if missing:
         fail(
-            "Repository root validation failed. Missing expected entries: "
+            "Validazione radice repository non riuscita. Voci attese mancanti: "
             + ", ".join(missing)
         )
     return candidate
@@ -173,17 +173,17 @@ def build_bootstrap_commands(
 
     commands = [
         CommandSpec(
-            "Synchronize uv-managed development environment",
+            "Sincronizza ambiente di sviluppo gestito da uv",
             uv_sync_command(with_docs=options.with_docs),
             repo_root,
         ),
         CommandSpec(
-            "Verify installed package requirements",
+            "Verifica requisiti pacchetti installati",
             ("uv", "pip", "check"),
             repo_root,
         ),
         CommandSpec(
-            "Install repo-local Git configuration",
+            "Installa configurazione Git locale al repository",
             ("uv", "run", "python", "scripts/install_repo_git_config.py"),
             repo_root,
         ),
@@ -191,7 +191,7 @@ def build_bootstrap_commands(
     if options.run_validation:
         commands.append(
             CommandSpec(
-                "Run repository validation",
+                "Esegue validazione repository",
                 ("uv", "run", "python", "scripts/validate_repo.py"),
                 repo_root,
             )
@@ -240,7 +240,7 @@ def run_plan(commands: list[CommandSpec], *, dry_run: bool) -> None:
             subprocess.run(command.argv, cwd=command.cwd, check=True)
         except subprocess.CalledProcessError as exc:
             fail(
-                f"Bootstrap step failed with exit code {exc.returncode}: "
+                f"Passaggio bootstrap non riuscito con codice {exc.returncode}: "
                 f"{render_command(command)}"
             )
 
@@ -260,18 +260,18 @@ def main(argv: list[str] | None = None) -> int:
     """
 
     parser = argparse.ArgumentParser(
-        description="Install dependencies and configure local Git state.",
+        description="Installa dipendenze e configura lo stato Git locale.",
     )
     parser.add_argument(
         "--repo-root",
         type=Path,
         default=None,
-        help="Repository root to bootstrap (default: infer from script location)",
+        help="Radice repository da inizializzare (default: inferita dallo script)",
     )
     parser.add_argument(
         "--with-docs",
         action="store_true",
-        help="Install documentation dependencies in addition to dev dependencies",
+        help="Installa dipendenze documentazione oltre a quelle dev",
     )
     parser.add_argument("--skip-validation", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -288,9 +288,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     run_plan(commands, dry_run=args.dry_run)
 
-    print("\nBootstrap completed successfully.")
+    print("\nBootstrap completato correttamente.")
     if args.skip_validation:
-        print("Validation was skipped by request.")
+        print("Validazione saltata su richiesta.")
     return 0
 
 

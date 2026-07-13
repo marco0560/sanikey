@@ -41,7 +41,7 @@ def main() -> int:
     )
     content = "\n\n---\n\n".join(blocks)
     OUTPUT.write_text(header + "\n" + content + "\n", encoding="utf-8")
-    print(f"Generated {OUTPUT} with {len(blocks)} sections")
+    print(f"Generato {OUTPUT} con {len(blocks)} sezioni")
     return 0
 
 

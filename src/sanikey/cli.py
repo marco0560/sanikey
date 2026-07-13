@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from . import __version__
 from .build import PatientBuildResult, build_all, build_patient
@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="sanikey",
-        description="Medical documents on a USB key",
+        description="Documenti medici su chiavetta USB",
     )
     parser.add_argument(
         "-V",
@@ -57,110 +57,110 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    info_parser = subparsers.add_parser("info", help="Show project information")
+    info_parser = subparsers.add_parser("info", help="Mostra informazioni progetto")
     info_parser.set_defaults(func=run_info)
 
     validate_parser = subparsers.add_parser(
         "validate-config",
-        help="Validate local accounts configuration and privacy invariants",
+        help="Valida la configurazione account locale e i vincoli di privacy",
     )
     _add_config_arguments(validate_parser)
     validate_parser.set_defaults(func=run_validate_config)
 
     list_parser = subparsers.add_parser(
         "list-patients",
-        help="List configured patients",
+        help="Elenca i pazienti configurati",
     )
     _add_config_arguments(list_parser)
     list_parser.add_argument(
         "--all",
         action="store_true",
-        help="Include disabled patients",
+        help="Include i pazienti disabilitati",
     )
     list_parser.set_defaults(func=run_list_patients)
 
     scan_parser = subparsers.add_parser(
         "scan-documents",
-        help="Scan configured source documents",
+        help="Scansiona i documenti sorgente configurati",
     )
     _add_config_arguments(scan_parser)
-    scan_parser.add_argument("--patient", help="Only scan one patient id")
+    scan_parser.add_argument("--patient", help="Scansiona solo un id paziente")
     scan_parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Print a human-readable ingested document list",
+        help="Stampa una lista leggibile dei documenti acquisiti",
     )
     scan_parser.add_argument(
         "--output",
         type=Path,
-        help="Write the ingested document list to a file",
+        help="Scrive la lista dei documenti acquisiti in un file",
     )
     scan_parser.add_argument(
         "--format",
         choices=("text", "csv"),
         default=None,
-        help="Output file format, valid only with --output",
+        help="Formato del file di output, valido solo con --output",
     )
     scan_parser.add_argument(
         "--preflight",
         action="store_true",
-        help="Run lightweight pre-build checks for archives and office documents",
+        help="Esegue controlli pre-build leggeri su archivi e documenti office",
     )
     scan_parser.add_argument(
         "--no-stage-containers",
         action="store_true",
-        help="Skip container staging during scan",
+        help="Salta lo staging dei contenitori durante la scansione",
     )
     _add_progress_argument(scan_parser)
     scan_parser.set_defaults(func=run_scan_documents)
 
     integrity_parser = subparsers.add_parser(
         "document-integrity",
-        help="Create or verify source document integrity snapshots",
+        help="Crea o verifica snapshot di integrita' dei documenti sorgente",
     )
     _add_config_arguments(integrity_parser)
     integrity_parser.add_argument(
         "action",
         choices=("before", "after", "check"),
-        help="Snapshot phase or verification action",
+        help="Fase snapshot o azione di verifica",
     )
-    integrity_parser.add_argument("--patient", help="Only process one patient id")
+    integrity_parser.add_argument("--patient", help="Elabora solo un id paziente")
     integrity_parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("local-data"),
-        help="Directory for patient snapshot files",
+        help="Directory per i file snapshot dei pazienti",
     )
     integrity_parser.set_defaults(func=run_document_integrity)
 
     extract_parser = subparsers.add_parser(
         "extract-text",
-        help="Extract supported text from configured source documents",
+        help="Estrae il testo supportato dai documenti sorgente configurati",
     )
     _add_config_arguments(extract_parser)
-    extract_parser.add_argument("--patient", help="Only process one patient id")
+    extract_parser.add_argument("--patient", help="Elabora solo un id paziente")
     extract_parser.set_defaults(func=run_extract_text)
 
     dicom_parser = subparsers.add_parser(
         "process-dicom",
-        help="Catalog DICOM supports and manual expansion directories",
+        help="Cataloga supporti DICOM e directory di espansione manuale",
     )
     _add_config_arguments(dicom_parser)
-    dicom_parser.add_argument("--patient", help="Only process one patient id")
+    dicom_parser.add_argument("--patient", help="Elabora solo un id paziente")
     dicom_parser.set_defaults(func=run_process_dicom)
 
     database_parser = subparsers.add_parser(
         "build-database",
-        help="Build per-patient SQLite archive databases",
+        help="Costruisce database SQLite di archivio per paziente",
     )
     _add_config_arguments(database_parser)
-    database_parser.add_argument("--patient", help="Only build one patient id")
+    database_parser.add_argument("--patient", help="Costruisce solo un id paziente")
     database_parser.set_defaults(func=run_build_database)
 
     build_patient_parser = subparsers.add_parser(
         "build-patient",
-        help="Run the local build pipeline for one patient",
+        help="Esegue la pipeline di build locale per un paziente",
     )
     _add_config_arguments(build_patient_parser)
     build_patient_parser.add_argument("patient")
@@ -172,7 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     build_all_parser = subparsers.add_parser(
         "build-all",
-        help="Run the local build pipeline for all enabled patients",
+        help="Esegue la pipeline di build locale per tutti i pazienti abilitati",
     )
     _add_config_arguments(build_all_parser)
     build_all_parser.add_argument(
@@ -183,23 +183,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     update_parser = subparsers.add_parser(
         "update-archive",
-        help="Run the default incremental archive update",
+        help="Esegue l'aggiornamento incrementale predefinito dell'archivio",
     )
     _add_config_arguments(update_parser)
-    update_parser.add_argument("--patient", help="Only update one patient id")
+    update_parser.add_argument("--patient", help="Aggiorna solo un id paziente")
     update_parser.set_defaults(func=run_update_archive)
 
     proposals_parser = subparsers.add_parser(
         "generate-proposals",
-        help="Generate deterministic manual-review proposals",
+        help="Genera proposte deterministiche per revisione manuale",
     )
     _add_config_arguments(proposals_parser)
-    proposals_parser.add_argument("--patient", help="Only process one patient id")
+    proposals_parser.add_argument("--patient", help="Elabora solo un id paziente")
     proposals_parser.set_defaults(func=run_generate_proposals)
 
     review_parser = subparsers.add_parser(
         "review-proposal",
-        help="Approve or reject a stored proposal",
+        help="Approva o respinge una proposta salvata",
     )
     _add_config_arguments(review_parser)
     review_parser.add_argument("patient")
@@ -209,23 +209,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     exports_parser = subparsers.add_parser(
         "generate-exports",
-        help="Generate static JSON frontend/search/timeline exports",
+        help="Genera export JSON statici per frontend, ricerca e timeline",
     )
     _add_config_arguments(exports_parser)
-    exports_parser.add_argument("--patient", help="Only process one patient id")
+    exports_parser.add_argument("--patient", help="Elabora solo un id paziente")
     exports_parser.set_defaults(func=run_generate_exports)
 
     web_parser = subparsers.add_parser(
         "build-web",
-        help="Generate static frontend files",
+        help="Genera file frontend statici",
     )
     _add_config_arguments(web_parser)
-    web_parser.add_argument("--patient", help="Only process one patient id")
+    web_parser.add_argument("--patient", help="Elabora solo un id paziente")
     web_parser.set_defaults(func=run_build_web)
 
     export_parser = subparsers.add_parser(
         "export-usb",
-        help="Export generated artefacts to a USB layout directory",
+        help="Esporta gli artefatti generati in una directory layout USB",
     )
     _add_config_arguments(export_parser)
     export_parser.add_argument("target", type=Path)
@@ -234,14 +234,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     validate_usb_parser = subparsers.add_parser(
         "validate-usb",
-        help="Validate a generated USB layout directory",
+        help="Valida una directory layout USB generata",
     )
     validate_usb_parser.add_argument("target", type=Path)
     validate_usb_parser.set_defaults(func=run_validate_usb)
 
     deploy_parser = subparsers.add_parser(
         "deploy-usb",
-        help="Build all enabled patients and export them to a USB layout directory",
+        help="Costruisce tutti i pazienti abilitati e li esporta in un layout USB",
     )
     _add_config_arguments(deploy_parser)
     deploy_parser.add_argument("target", type=Path)
@@ -267,6 +267,7 @@ def run_info(_args: argparse.Namespace) -> int:
     print("project=sanikey")
     print("package=sanikey")
     print("cli=sanikey")
+    print(f"version={__version__}")
     return 0
 
 
@@ -285,12 +286,12 @@ def run_validate_config(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         validate_privacy(config, repo_root=args.repo_root)
         for person in config.enabled_people():
             load_curated_metadata(person.metadata_directory)
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     enabled = len(config.enabled_people())
     total = len(config.people)
@@ -316,14 +317,24 @@ def run_list_patients(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
-    selected = config.people if args.all else config.enabled_people()
+    selected = sorted(
+        config.people if args.all else config.enabled_people(),
+        key=lambda person: (
+            not person.enabled,
+            person.id.casefold(),
+        ),
+    )
+    id_width = max((len(person.id) for person in selected), default=0)
+    state_width = len("disabilitato") if args.all else len("abilitato")
     for person in selected:
-        state = "enabled" if person.enabled else "disabled"
-        print(f"{person.id}\t{state}\t{person.display_name}")
+        state = "abilitato" if person.enabled else "disabilitato"
+        print(
+            f"{person.id:<{id_width}}   {state:<{state_width}}   {person.display_name}"
+        )
     return 0
 
 
@@ -342,15 +353,15 @@ def run_scan_documents(args: argparse.Namespace) -> int:
     """
 
     if args.output is None and args.format is not None:
-        print("ERROR: --format is valid only with --output")
+        print("ERRORE: --format e' valido solo con --output")
         return 1
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         selected_people = _selected_people(config, args.patient)
         for person in selected_people:
             load_curated_metadata(person.metadata_directory)
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     output_rows: list[tuple[PersonConfig, DocumentRecord]] = []
     progress = _progress_from_args(args)
@@ -382,7 +393,7 @@ def run_scan_documents(args: argparse.Namespace) -> int:
             )
         print(summary)
         for warning in warning_messages:
-            print(f"WARNING: {warning}")
+            print(f"AVVISO: {warning}")
         if args.verbose:
             print(_format_scan_verbose(person, inspection.documents))
         output_rows.extend((person, document) for document in inspection.documents)
@@ -394,7 +405,7 @@ def run_scan_documents(args: argparse.Namespace) -> int:
                 output_format=args.format or "text",
             )
         except OSError as exc:
-            print(f"ERROR: cannot write scan output: {exc}")
+            print(f"ERRORE: impossibile scrivere l'output della scansione: {exc}")
             return 1
     return 0
 
@@ -414,10 +425,10 @@ def run_document_integrity(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         selected_people = _selected_people(config, args.patient)
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     status = 0
     for person in selected_people:
@@ -431,7 +442,7 @@ def run_document_integrity(args: argparse.Namespace) -> int:
             else:
                 result = check_source_snapshots(person, output_dir=args.output_dir)
         except OSError as exc:
-            print(f"ERROR: patient={person.id} {exc}")
+            print(f"ERRORE: patient={person.id} {exc}")
             status = 1
             continue
         print(
@@ -702,9 +713,9 @@ def run_extract_text(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     for person in _selected_people(config, args.patient):
         for document in scan_documents(person):
@@ -714,7 +725,7 @@ def run_extract_text(args: argparse.Namespace) -> int:
                 f"\twarnings={len(extracted.warnings)}"
             )
             for warning in extracted.warnings:
-                print(f"WARNING: {document.path}: {warning}")
+                print(f"AVVISO: {document.path}: {warning}")
     return 0
 
 
@@ -733,9 +744,9 @@ def run_process_dicom(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     for person in _selected_people(config, args.patient):
         studies = catalog_dicom_studies(person, scan_documents(person))
@@ -761,7 +772,7 @@ def run_process_dicom(args: argparse.Namespace) -> int:
                 )
             )
             for warning in study.warnings:
-                print(f"WARNING: {study.support_path}: {warning}")
+                print(f"AVVISO: {study.support_path}: {warning}")
     return 0
 
 
@@ -780,9 +791,9 @@ def run_build_database(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     for person in _selected_people(config, args.patient):
         documents = scan_documents(person)
@@ -811,10 +822,10 @@ def run_build_patient(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         selected = _selected_people(config, args.patient)
         if not selected:
-            print(f"ERROR: patient not found or disabled: {args.patient}")
+            print(f"ERRORE: paziente non trovato o disabilitato: {args.patient}")
             return 1
         _print_build_result(
             build_patient(
@@ -824,7 +835,7 @@ def run_build_patient(args: argparse.Namespace) -> int:
             )
         )
     except (SaniKeyError, ValueError) as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     return 0
 
@@ -844,7 +855,7 @@ def run_build_all(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         for result in build_all(
             config,
             mode=args.mode,
@@ -852,7 +863,7 @@ def run_build_all(args: argparse.Namespace) -> int:
         ):
             _print_build_result(result)
     except (SaniKeyError, ValueError) as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     return 0
 
@@ -911,12 +922,12 @@ def run_generate_proposals(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         for person in _selected_people(config, args.patient):
             proposals = generate_manual_proposals(person.metadata_directory)
             print(f"patient={person.id} proposals={len(proposals)}")
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     return 0
 
@@ -936,10 +947,10 @@ def run_review_proposal(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         selected = _selected_people(config, args.patient)
         if not selected:
-            print(f"ERROR: patient not found or disabled: {args.patient}")
+            print(f"ERRORE: paziente non trovato o disabilitato: {args.patient}")
             return 1
         updated = review_proposal(
             selected[0].metadata_directory,
@@ -948,7 +959,7 @@ def run_review_proposal(args: argparse.Namespace) -> int:
         )
         print(f"proposal={updated.id} status={updated.status}")
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     return 0
 
@@ -968,13 +979,13 @@ def run_generate_exports(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         for person in _selected_people(config, args.patient):
             metadata = load_curated_metadata(person.metadata_directory)
             result = generate_exports(person, scan_documents(person), metadata)
             print(f"patient={person.id} data={result.data_dir}")
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     return 0
 
@@ -994,12 +1005,12 @@ def run_build_web(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         for person in _selected_people(config, args.patient):
             result = build_frontend(person)
             print(f"patient={person.id} web={result.web_dir}")
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     return 0
 
@@ -1019,11 +1030,11 @@ def run_export_usb(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         result = export_usb(config, args.target, progress=_progress_from_args(args))
         print(f"usb={result.root} patients={result.patients} files={result.files}")
     except SaniKeyError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     return 0
 
@@ -1064,17 +1075,17 @@ def run_deploy_usb(args: argparse.Namespace) -> int:
     """
 
     try:
-        config = load_accounts(args.config)
+        config = load_accounts(_config_path(args))
         progress = _progress_from_args(args)
         for result in build_all(config, mode="incremental", progress=progress):
             _print_build_result(result)
         export = export_usb(config, args.target, progress=progress)
         print(f"usb={export.root} patients={export.patients} files={export.files}")
         if not validate_usb(args.target):
-            print("ERROR: USB validation failed")
+            print("ERRORE: validazione USB non riuscita")
             return 1
     except (SaniKeyError, ValueError) as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     return 0
 
@@ -1113,9 +1124,9 @@ def _print_build_result(result: PatientBuildResult) -> None:
     print(f"report={result.report}")
     for warning in result.warning_messages:
         if _should_print_build_warning(warning):
-            print(f"WARNING: {warning}")
+            print(f"AVVISO: {warning}")
     if result.warnings:
-        print("warning_messages=see report")
+        print("warning_messages=vedi report")
 
 
 def _should_print_build_warning(warning: str) -> bool:
@@ -1132,8 +1143,8 @@ def _should_print_build_warning(warning: str) -> bool:
         ``True`` for warnings that need immediate operator attention.
     """
 
-    return warning.startswith("duplicate document content skipped.") or (
-        "PyMuPDF could not extract PDF text" in warning
+    return warning.startswith("contenuto documento duplicato saltato.") or (
+        "PyMuPDF non ha potuto estrarre il testo PDF" in warning
     )
 
 
@@ -1151,16 +1162,24 @@ def _add_config_arguments(parser: argparse.ArgumentParser) -> None:
     """
 
     parser.add_argument(
-        "--config",
+        "config",
         type=Path,
+        nargs="?",
         default=default_accounts_path(),
-        help="Path to config/accounts.toml",
+        help="Percorso del file config [default: config/accounts.toml]",
+    )
+    parser.add_argument(
+        "--config",
+        dest="config_option",
+        type=Path,
+        default=None,
+        help="Percorso del file config [default: config/accounts.toml]",
     )
     parser.add_argument(
         "--repo-root",
         type=Path,
         default=Path.cwd(),
-        help="Repository root used for privacy checks",
+        help="Radice repository usata per i controlli privacy",
     )
 
 
@@ -1180,8 +1199,27 @@ def _add_progress_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-progress",
         action="store_true",
-        help="Disable interactive progress dots on stderr",
+        help="Disabilita i punti di avanzamento interattivi su stderr",
     )
+
+
+def _config_path(args: argparse.Namespace) -> Path:
+    """Return the effective configuration path from parsed arguments.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    pathlib.Path
+        Explicit ``--config`` value, positional value, or default config path.
+    """
+
+    if args.config_option is not None:
+        return cast("Path", args.config_option)
+    return cast("Path", args.config)
 
 
 def _selected_people(

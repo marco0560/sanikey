@@ -83,12 +83,12 @@ def build_parser() -> argparse.ArgumentParser:
     """
 
     parser = argparse.ArgumentParser(
-        description="Run the standard repository validation sequence.",
+        description="Esegue la sequenza standard di validazione repository.",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print delegated validation commands without executing them.",
+        help="Stampa i comandi di validazione delegati senza eseguirli.",
     )
     return parser
 

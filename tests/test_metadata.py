@@ -179,7 +179,7 @@ def test_load_curated_metadata_rejects_invalid_toml(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with pytest.raises(ConfigError, match="invalid TOML"):
+    with pytest.raises(ConfigError, match="TOML non valido"):
         load_curated_metadata(tmp_path)
 
 
@@ -263,7 +263,7 @@ medication_id = "drug-a"
         encoding="utf-8",
     )
 
-    with pytest.raises(ConfigError, match="duplicate therapy id: duplicate"):
+    with pytest.raises(ConfigError, match="id therapy duplicato: duplicate"):
         load_curated_metadata(tmp_path)
 
 
@@ -290,5 +290,5 @@ medication_id = "missing"
         encoding="utf-8",
     )
 
-    with pytest.raises(ConfigError, match="unknown medication_id missing"):
+    with pytest.raises(ConfigError, match="medication_id sconosciuto missing"):
         load_curated_metadata(tmp_path)

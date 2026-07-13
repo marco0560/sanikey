@@ -20,7 +20,7 @@ from typing import Any
 try:
     import tomllib
 except ImportError:  # pragma: no cover
-    print("ERROR: Python 3.11+ required (tomllib missing)", file=sys.stderr)
+    print("ERRORE: Python 3.11+ richiesto (tomllib mancante)", file=sys.stderr)
     raise SystemExit(2) from None
 
 
@@ -86,14 +86,14 @@ def check_project_table(data: dict[str, Any]) -> None:
 
     project = data.get("project")
     if not isinstance(project, dict):
-        fail("Missing [project] table")
+        fail("Tabella [project] mancante")
 
     required = ["name", "requires-python"]
     for field in required:
         if field not in project:
-            fail(f"[project] missing required field: {field}")
+            fail(f"[project] campo obbligatorio mancante: {field}")
 
-    ok("[project] required fields present")
+    ok("[project] campi obbligatori presenti")
 
 
 def check_license_rules(data: dict[str, Any]) -> None:
@@ -149,19 +149,19 @@ def check_dependencies(data: dict[str, Any]) -> None:
     project = data["project"]
     deps = project.get("dependencies", [])
     if not isinstance(deps, list):
-        fail("[project.dependencies] must be a list")
+        fail("[project.dependencies] deve essere una lista")
 
     seen: set[str] = set()
     for dep in deps:
         if not isinstance(dep, str):
-            fail(f"Invalid dependency entry (not string): {dep}")
+            fail(f"Voce dipendenza non valida (non stringa): {dep}")
 
         name = dep.split(">=")[0].split("==")[0]
         if name in seen:
-            fail(f"Duplicate dependency: {name}")
+            fail(f"Dipendenza duplicata: {name}")
         seen.add(name)
 
-    ok("dependencies valid")
+    ok("dipendenze valide")
 
 
 def check_optional_dependencies(data: dict[str, Any]) -> None:
@@ -186,17 +186,17 @@ def check_optional_dependencies(data: dict[str, Any]) -> None:
     optional = project.get("optional-dependencies", {})
 
     if not isinstance(optional, dict):
-        fail("[project.optional-dependencies] must be a table")
+        fail("[project.optional-dependencies] deve essere una tabella")
 
     for group, deps in optional.items():
         if not isinstance(deps, list):
-            fail(f"Optional group '{group}' must be a list")
+            fail(f"Gruppo opzionale '{group}' deve essere una lista")
 
         for dep in deps:
             if not isinstance(dep, str):
-                fail(f"Invalid dep in [{group}]: {dep}")
+                fail(f"Dipendenza non valida in [{group}]: {dep}")
 
-    ok("optional dependencies valid")
+    ok("dipendenze opzionali valide")
 
 
 def check_build_system(data: dict[str, Any]) -> None:
@@ -219,18 +219,18 @@ def check_build_system(data: dict[str, Any]) -> None:
 
     build = data.get("build-system")
     if not isinstance(build, dict):
-        fail("Missing [build-system]")
+        fail("[build-system] mancante")
 
     requires = build.get("requires")
     backend = build.get("build-backend")
 
     if not requires or not isinstance(requires, list):
-        fail("[build-system.requires] must be a list")
+        fail("[build-system.requires] deve essere una lista")
 
     if not backend or not isinstance(backend, str):
-        fail("[build-system.build-backend] missing or invalid")
+        fail("[build-system.build-backend] mancante o non valido")
 
-    ok("build-system valid")
+    ok("build-system valido")
 
 
 def check_tooling(data: dict[str, Any]) -> None:
@@ -254,12 +254,12 @@ def check_tooling(data: dict[str, Any]) -> None:
     tool = data.get("tool", {})
 
     if "ruff" not in tool:
-        fail("Missing [tool.ruff] configuration")
+        fail("Configurazione [tool.ruff] mancante")
 
     if "mypy" not in tool:
-        fail("Missing [tool.mypy] configuration")
+        fail("Configurazione [tool.mypy] mancante")
 
-    ok("tooling configuration present")
+    ok("configurazione tooling presente")
 
 
 def main() -> int:
@@ -282,7 +282,7 @@ def main() -> int:
 
     path = Path("pyproject.toml")
     if not path.exists():
-        fail("pyproject.toml not found")
+        fail("pyproject.toml non trovato")
 
     with path.open("rb") as handle:
         data = tomllib.load(handle)

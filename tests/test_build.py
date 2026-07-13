@@ -462,7 +462,9 @@ def test_build_patient_reports_image_ocr_provider_warnings(
 
     assert result.warnings == 1
     assert len(result.warning_messages) == 1
-    assert "Tesseract not installed; image OCR skipped" in result.warning_messages[0]
+    assert (
+        "Tesseract non installato; OCR immagine saltato" in result.warning_messages[0]
+    )
 
 
 def test_build_patient_stages_container_members_with_provenance(
@@ -520,7 +522,7 @@ def test_build_patient_stages_container_members_with_provenance(
     }
     assert dicom_count == 2
     assert not any(
-        "manual DICOM expansion directory not found" in warning
+        "directory di espansione DICOM manuale non trovata" in warning
         for warning in result.warning_messages
     )
 

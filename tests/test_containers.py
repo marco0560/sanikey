@@ -362,7 +362,7 @@ def test_stage_container_documents_warns_for_unsafe_zip_member(
     )
 
     assert result.documents == ()
-    assert "unsafe container member path" in result.warning_messages[0]
+    assert "percorso membro contenitore non sicuro" in result.warning_messages[0]
 
 
 def test_stage_container_documents_extracts_7z_archive(tmp_path: Path) -> None:
@@ -580,7 +580,7 @@ def test_stage_container_documents_warns_for_invalid_rar(tmp_path: Path) -> None
     )
 
     assert result.documents == ()
-    assert "container staging failed" in result.warning_messages[0]
+    assert "staging contenitore non riuscito" in result.warning_messages[0]
 
 
 def test_extract_with_7z_reports_missing_command(
@@ -603,7 +603,7 @@ def test_extract_with_7z_reports_missing_command(
 
     monkeypatch.setattr(containers_module.shutil, "which", lambda _name: None)
 
-    with pytest.raises(ValueError, match="7z command not installed"):
+    with pytest.raises(ValueError, match="comando 7z non installato"):
         _extract_with_7z(tmp_path / "image.iso", tmp_path / "target")
 
 
@@ -739,7 +739,7 @@ def test_extract_container_rejects_unsupported_suffix(tmp_path: Path) -> None:
     path.write_bytes(b"tar")
     document = _document(path, root)
 
-    with pytest.raises(ValueError, match="unsupported container format .tar"):
+    with pytest.raises(ValueError, match="formato contenitore non supportato .tar"):
         _extract_container(document, tmp_path / "target")
 
 
@@ -756,5 +756,5 @@ def test_safe_member_path_rejects_absolute_paths(tmp_path: Path) -> None:
     None
     """
 
-    with pytest.raises(ValueError, match="unsafe container member path"):
+    with pytest.raises(ValueError, match="percorso membro contenitore non sicuro"):
         _safe_member_path(tmp_path, "/absolute.txt")

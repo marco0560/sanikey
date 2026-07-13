@@ -60,14 +60,14 @@ def main() -> int:
     selected = rows[:WORST_COUNT]
 
     name_width = max(
-        len("Name (worst coverage files)"),
+        len("Nome (file con copertura peggiore)"),
         *(len(name) for name, _, _, _ in selected),
         len("TOTAL"),
     )
 
     print(
-        f"{'Name (worst coverage files)':<{name_width}}  "
-        f"{'Stmts':>7}  {'Miss':>5}  {'Cover':>5}"
+        f"{'Nome (file con copertura peggiore)':<{name_width}}  "
+        f"{'Stmt':>7}  {'Manc':>5}  {'Cop':>5}"
     )
 
     print("-" * (name_width + 23))

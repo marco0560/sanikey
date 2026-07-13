@@ -11,3 +11,4 @@ Decisioni successive:
 - [Hardening consultazione USB](adr-usb-consultation-hardening.md)
 - [Default globale UUID USB](adr-usb-uuid-global-default.md)
 - [Pattern di ingestione espliciti](adr-explicit-ingestion-patterns.md)
+- [Lingua italiana per errori e interfaccia](adr-italian-interface-language.md)

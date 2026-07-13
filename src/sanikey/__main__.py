@@ -27,10 +27,10 @@ def main() -> int:
     try:
         return int(func(args))
     except (SaniKeyError, ValueError) as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERRORE: {exc}")
         return 1
     except Exception as exc:  # noqa: BLE001
-        print(f"ERROR: unexpected failure: {exc}")
+        print(f"ERRORE: errore inatteso: {exc}")
         return 1
 
 

@@ -66,7 +66,7 @@ def test_inspect_patient_documents_preflight_reports_office_warnings(
 
     assert result.preflight_warning_messages
     assert str(path) in result.preflight_warning_messages[0]
-    assert "DOCX text extraction failed" in result.preflight_warning_messages[0]
+    assert "estrazione testo DOCX non riuscita" in result.preflight_warning_messages[0]
 
 
 def test_inspect_patient_documents_preflight_skips_non_lightweight_files(
@@ -125,7 +125,7 @@ def test_inspect_patient_documents_preflight_reports_image_ocr_warnings(
     result = inspect_patient_documents(person, preflight=True)
 
     assert result.preflight_warning_messages == (
-        f"{path}: Tesseract not installed; image OCR skipped",
+        f"{path}: Tesseract non installato; OCR immagine saltato",
     )
 
 
@@ -177,7 +177,7 @@ def test_extraction_warning_messages_filters_static_warnings(tmp_path: Path) -> 
         document_id=document.document_id,
         text="",
         warnings=(
-            "unsupported text extraction for .bin",
+            "estrazione testo non supportata per .bin",
             "custom extraction warning",
         ),
     )
