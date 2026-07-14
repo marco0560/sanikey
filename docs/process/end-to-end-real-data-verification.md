@@ -40,7 +40,8 @@ iniziare.
 Creare un'area privata non committata dal repository, per esempio:
 
 ```bash
-mkdir -p local-data/{usb-target,{marco,irene}/{documents,metadata},generated/{marco,irene}}
+mkdir -p local-data/{usb-target,{marco,irene}/{documents,metadata/observations},generated/{marco,irene}}
+mkdir -p local-data/{marco,irene}/documents/parametri
 ```
 
 con `local-data/` in `.gitignore`.
@@ -149,6 +150,30 @@ Creare metadati minimi in `local-data/marco/metadata` e
 la stessa struttura nella directory metadata di ogni paziente configurato,
 adattando id, nomi e contenuti.
 
+Prima di scrivere i contenuti, verificare quali TOML servono nel caso reale. La
+procedura deve coprire almeno l'inventario seguente:
+
+| File | Origine | Quando crearlo |
+| --- | --- | --- |
+| `config/accounts.toml` | manuale | sempre |
+| `config/search-dictionary.toml` | manuale | se `[global.search].dictionary` e' configurato |
+| `clinical_summary.toml` | manuale | sempre nella verifica reale |
+| `document_tags.toml` | manuale | se si vogliono tag per ricerca/UI |
+| `problems.toml` | manuale | se ci sono problemi clinici strutturati |
+| `medications.toml` | manuale | se ci sono farmaci strutturati |
+| `therapies.toml` | manuale | se ci sono terapie strutturate |
+| `procedures.toml` | manuale | se ci sono procedure/interventi strutturati |
+| `observations.toml` | manuale legacy | solo per osservazioni puntuali curate a mano |
+| `observation_imports.toml` | manuale | se si importano peso, pressione, glicemia, INR o altri parametri |
+| `timeline_events.toml` | manuale | se servono eventi timeline manuali |
+| `observations/series.toml` | generato | prodotto da `sanikey import-observations` |
+| `observations/*.toml` | generato | punti osservazione normalizzati, uno o piu' file per serie |
+| `observations/import_state.toml` | generato | hash di manifesto e sorgenti importati |
+
+Non modificare a mano i file generati sotto `metadata/observations/` durante la
+verifica: modificarli solo rigenerandoli da `observation_imports.toml` e dai
+file sorgente.
+
 `clinical_summary.toml` contiene una sintesi clinica libera. Per l'uso corrente
 può essere trattata come anamnesi/sommario narrativo: problemi rilevanti,
 interventi, terapie importanti, allergie note, avvertenze e contesto utile alla
@@ -228,6 +253,15 @@ sono stringhe libere e sono usati negli export JSON, nella ricerca e nel
 frontend. Per il riferimento completo dei file TOML vedere
 `docs/process/metadata-toml-reference.md`.
 
+Esempio opzionale `problems.toml`:
+
+```toml
+[[problem]]
+id = "ipertensione"
+title = "Ipertensione arteriosa"
+status = "active"
+```
+
 Esempio opzionale `medications.toml`:
 
 ```toml
@@ -282,6 +316,105 @@ forzare l'ordinamento: è meglio lasciare esplicitamente sconosciuto il dato.
 `id` è opzionale: se omesso viene generato da SaniKey. Se lo si indica
 manualmente deve essere univoco. `role` descrive il ruolo clinico della terapia,
 per esempio `antipertensivo`; più terapie possono avere lo stesso ruolo.
+
+Esempio opzionale `procedures.toml`:
+
+```toml
+[[procedure]]
+id = "colecistectomia-2021"
+title = "Colecistectomia laparoscopica"
+date = "2021-04-12"
+status = "completed"
+```
+
+Esempio opzionale `observations.toml` per osservazioni puntuali curate a mano:
+
+```toml
+[[observation]]
+id = "peso-riferito-2026-01"
+kind = "peso"
+value = "70 kg riferiti"
+date = "2026-01-03"
+```
+
+Preferire `observation_imports.toml` quando la stessa grandezza e' presente in
+file tabellari o in piu' periodi.
+
+Esempio opzionale `timeline_events.toml`:
+
+```toml
+[[event]]
+id = "ricovero-2024-09"
+title = "Ricovero per accertamenti"
+start_date = "2024-09-10"
+end_date = "2024-09-14"
+source = "manual"
+links = ["colecistectomia-2021"]
+```
+
+### Import osservazioni longitudinali
+
+Se sono disponibili file tabellari per peso, pressione, glicemia, INR o altri
+parametri, conservarli sotto `source_documents`, per esempio:
+
+```bash
+test -f local-data/marco/documents/parametri/peso-2025.xlsx
+test -f local-data/marco/documents/parametri/diario-pressorio.csv
+```
+
+Creare `local-data/marco/metadata/observation_imports.toml` con mapping esplicito
+tra file, serie e colonne. Esempio:
+
+```toml
+[[series]]
+id = "peso"
+name = "Peso"
+value_type = "numeric"
+unit = "kg"
+warn_duplicate_same_day = true
+
+[[source]]
+path = "parametri/peso-2025.xlsx"
+series_id = "peso"
+sheet = "Peso"
+source_reference = "peso-2025.xlsx"
+
+[source.columns]
+date = "Data"
+numeric_value = "Peso"
+note = "Note"
+
+[[series]]
+id = "pressione"
+name = "Pressione"
+value_type = "blood_pressure"
+unit = "mmHg"
+warn_duplicate_same_day = false
+
+[[source]]
+path = "parametri/diario-pressorio.csv"
+series_id = "pressione"
+source_reference = "diario-pressorio.csv"
+
+[source.columns]
+date = "Data"
+systolic = "Sistolica"
+diastolic = "Diastolica"
+pulse = "Frequenza"
+note = "Note"
+```
+
+Regole operative:
+
+- `path` relativo e' risolto rispetto a `source_documents`;
+- i formati accettati sono `.csv`, `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`;
+- il manifesto esplicito vince sempre;
+- eventuali convenzioni di path/sheet servono solo per preparare proposte future,
+  non per generare dati autorevoli;
+- una stessa serie può avere piu' `[[source]]`, anche con mapping diversi e
+  periodi diversi;
+- `warn_duplicate_same_day = false` e' normale per diari pressori o curve
+  glicemiche con piu' misurazioni nella stessa data.
 
 ## Esecuzione pipeline
 
@@ -358,6 +491,36 @@ Per conservare l'inventario completo in un file riprocessabile:
 uv run sanikey scan-documents --output local-data/scan-documents.tsv --format text
 uv run sanikey scan-documents --output local-data/scan-documents.csv --format csv
 ```
+
+Se esiste almeno un `observation_imports.toml`, importare le osservazioni prima
+della build:
+
+```bash
+uv run sanikey import-observations
+```
+
+Per isolare un paziente:
+
+```bash
+uv run sanikey import-observations marco
+uv run sanikey import-observations irene
+```
+
+Verificare che il comando abbia generato gli artefatti normalizzati attesi:
+
+```bash
+test ! -f local-data/marco/metadata/observation_imports.toml || test -f local-data/marco/metadata/observations/series.toml
+test ! -f local-data/marco/metadata/observation_imports.toml || test -f local-data/marco/metadata/observations/import_state.toml
+test ! -f local-data/marco/metadata/observation_imports.toml || find local-data/marco/metadata/observations -maxdepth 1 -type f -name '*.toml' | sort
+test ! -f local-data/irene/metadata/observation_imports.toml || test -f local-data/irene/metadata/observations/series.toml
+test ! -f local-data/irene/metadata/observation_imports.toml || test -f local-data/irene/metadata/observations/import_state.toml
+test ! -f local-data/irene/metadata/observation_imports.toml || find local-data/irene/metadata/observations -maxdepth 1 -type f -name '*.toml' | sort
+```
+
+Aprire `import_state.toml` e verificare che contenga `manifest_hash` e una
+tabella `[source_hashes]`. Se si modifica un file sorgente o
+`observation_imports.toml`, ripetere `import-observations`: la build deve
+fallire con un errore esplicito se gli artefatti sono stale.
 
 Se l'output contiene `duplicati=`, leggere eventuali righe `AVVISO:`. File con
 lo stesso SHA256 sono identici: SaniKey conserva solo la prima occorrenza
@@ -819,6 +982,24 @@ find local-data/usb-target \( -name cache -o -name logs -o -name tmp -o -name te
 
 Il comando non deve elencare directory operative non consultabili.
 
+Verificare anche i manifest prodotti dalla build e dall'export:
+
+```bash
+test -f local-data/generated/marco/manifests/container_staging.json
+test -f local-data/generated/marco/manifests/dicom_html_viewers.json
+test -f local-data/generated/marco/reports/build_report.json
+test -f local-data/generated/marco/checksums.sha256
+test -f local-data/generated/irene/manifests/container_staging.json
+test -f local-data/generated/irene/manifests/dicom_html_viewers.json
+test -f local-data/generated/irene/reports/build_report.json
+test -f local-data/generated/irene/checksums.sha256
+test -f exports/usb-image/SANIKEY-MANIFEST.json
+test -f local-data/usb-target/SANIKEY-MANIFEST.json
+```
+
+Se il paziente non ha viewer HTML DICOM, `dicom_html_viewers.json` deve comunque
+essere JSON valido con lista `viewers` vuota.
+
 ## Controlli sul contenuto
 
 Ispezionare i JSON statici:
@@ -867,6 +1048,8 @@ for patient in ("marco", "irene"):
         patient,
         "therapies", len(clinical["therapies"]),
         "medications", len(clinical["medications"]),
+        "observation_series", len(clinical.get("observation_series", [])),
+        "observation_points", len(clinical.get("observation_points", [])),
         "dicom_studies", len(clinical["dicom_studies"]),
     )
 PY
@@ -916,6 +1099,8 @@ Verificare il database:
 sqlite3 local-data/generated/marco/database/medical_archive.db '.tables'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM documents;'
 sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM document_text;'
+sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM observation_series;'
+sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM observation_points;'
 sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
 sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT support_kind, count(*) AS studies, sum(instance_count) AS instances FROM dicom_studies GROUP BY support_kind ORDER BY support_kind;"
 sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY CASE WHEN support_kind IN ('dicom_study','dicomdir_study') THEN 0 ELSE 1 END, instance_count DESC, support_path LIMIT 20;"
@@ -923,6 +1108,8 @@ sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT id, count
 sqlite3 local-data/generated/irene/database/medical_archive.db '.tables'
 sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM documents;'
 sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM document_text;'
+sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM observation_series;'
+sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM observation_points;'
 sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
 sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT support_kind, count(*) AS studies, sum(instance_count) AS instances FROM dicom_studies GROUP BY support_kind ORDER BY support_kind;"
 sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY CASE WHEN support_kind IN ('dicom_study','dicomdir_study') THEN 0 ELSE 1 END, instance_count DESC, support_path LIMIT 20;"
@@ -932,6 +1119,10 @@ sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT id, count
 La query su `document_text` deve essere maggiore di zero se nel set sono presenti
 documenti testuali, PDF con testo digitale, PDF OCR riusciti o documenti Office
 leggibili. Le immagini sorgente isolate non producono testo OCR diretto. La
+query su `observation_series` e `observation_points` deve essere maggiore di
+zero solo per i pazienti con `observation_imports.toml` importato; altrimenti
+può restituire `0`.
+La
 query FTS può restituire `0` se il
 termine scelto non esiste in titolo, categoria, tag o testo estratto. Ripetere
 con un termine realmente presente.
