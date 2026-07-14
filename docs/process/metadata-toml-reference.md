@@ -243,7 +243,7 @@ unit = "kg"
 warn_duplicate_same_day = false
 
 [[source]]
-path = "parametri/peso-2025.xlsx"
+path = "_Parametri/peso-2025.xlsx"
 series_id = "peso"
 sheet = "Peso"
 source_reference = "peso-2025.xlsx"
@@ -265,7 +265,7 @@ unit = "mmHg"
 warn_duplicate_same_day = false
 
 [[source]]
-path = "parametri/diario-pressorio.csv"
+path = "_Parametri/diario-pressorio.csv"
 series_id = "pressione"
 
 [source.columns]
@@ -305,7 +305,7 @@ Esempio con due serie dalla stessa riga e anno approssimato:
 
 ```toml
 [[source]]
-path = "parametri/peso-storico.xlsx"
+path = "_Parametri/peso-storico.xlsx"
 sheet = "Peso"
 header_row = 3
 
@@ -332,7 +332,7 @@ Esempio con pressione in una cella composta:
 
 ```toml
 [[source]]
-path = "parametri/pressione.csv"
+path = "_Parametri/pressione.csv"
 series_id = "pressione"
 
 [source.columns]

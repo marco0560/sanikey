@@ -55,7 +55,7 @@ def test_generate_exports_writes_frontend_data(tmp_path: Path) -> None:
 
     person = _person(tmp_path)
     person.source_documents.mkdir(parents=True)
-    laboratory = person.source_documents / "laboratory"
+    laboratory = person.source_documents / "_Parametri"
     laboratory.mkdir()
     (laboratory / "20260102 Report.txt").write_text(
         "synthetic",
@@ -81,7 +81,7 @@ summary = \"\"\"
     (person.metadata_directory / "document_tags.toml").write_text(
         """
 [tags]
-"laboratory/20260102 Report.txt" = ["report"]
+"_Parametri/20260102 Report.txt" = ["report"]
 """,
         encoding="utf-8",
     )
@@ -119,16 +119,17 @@ links = ["therapy-a"]
     document_by_title = {item["title"]: item for item in documents}
     assert [item["title"] for item in documents] == ["Summary", "Report"]
     assert document_by_title["Report"]["tags"] == ["report"]
-    assert document_by_title["Report"]["path"] == "laboratory/20260102 Report.txt"
+    assert document_by_title["Report"]["category"] == "Parametri"
+    assert document_by_title["Report"]["path"] == "_Parametri/20260102 Report.txt"
     assert document_by_title["Report"]["href"] == (
-        "../documents/laboratory/20260102 Report.txt"
+        "../documents/_Parametri/20260102 Report.txt"
     )
     assert not document_by_title["Report"]["href"].startswith("/")
     assert document_by_title["Summary"]["markdown_html"].startswith("<h1>Referto</h1>")
     assert "<script>" not in document_by_title["Summary"]["markdown_html"]
     assert "&lt;script&gt;" in document_by_title["Summary"]["markdown_html"]
-    assert search[0]["text"] == "Report laboratory report"
-    assert search[0]["href"] == "../documents/laboratory/20260102 Report.txt"
+    assert search[0]["text"] == "Report Parametri report"
+    assert search[0]["href"] == "../documents/_Parametri/20260102 Report.txt"
     assert [item["start_date"] for item in timeline] == [
         "2026-01-03",
         "2026-01-02",

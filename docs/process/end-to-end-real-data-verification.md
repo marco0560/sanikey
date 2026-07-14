@@ -41,7 +41,7 @@ Creare un'area privata non committata dal repository, per esempio:
 
 ```bash
 mkdir -p local-data/{usb-target,{marco,irene}/{documents,metadata/observations},generated/{marco,irene}}
-mkdir -p local-data/{marco,irene}/documents/parametri
+mkdir -p local-data/{marco,irene}/documents/{_Parametri,_Terapia}
 ```
 
 con `local-data/` in `.gitignore`.
@@ -355,11 +355,11 @@ links = ["colecistectomia-2021"]
 ### Import osservazioni longitudinali
 
 Se sono disponibili file tabellari per peso, pressione, glicemia, INR o altri
-parametri, conservarli sotto `source_documents`, per esempio:
+parametri, conservarli sotto `source_documents/_Parametri`, per esempio:
 
 ```bash
-test -f local-data/marco/documents/parametri/peso-2025.xlsx
-test -f local-data/marco/documents/parametri/diario-pressorio.csv
+test -f local-data/marco/documents/_Parametri/peso-2025.xlsx
+test -f local-data/marco/documents/_Parametri/diario-pressorio.csv
 ```
 
 Creare `local-data/marco/metadata/observation_imports.toml` con mapping esplicito
@@ -374,7 +374,7 @@ unit = "kg"
 warn_duplicate_same_day = true
 
 [[source]]
-path = "parametri/peso-2025.xlsx"
+path = "_Parametri/peso-2025.xlsx"
 series_id = "peso"
 sheet = "Peso"
 source_reference = "peso-2025.xlsx"
@@ -392,7 +392,7 @@ unit = "mmHg"
 warn_duplicate_same_day = false
 
 [[source]]
-path = "parametri/diario-pressorio.csv"
+path = "_Parametri/diario-pressorio.csv"
 series_id = "pressione"
 source_reference = "diario-pressorio.csv"
 
@@ -429,6 +429,8 @@ Regole operative:
   nelle intestazioni di colonna e le righe contengono fasce come mattino/sera;
 - `warn_duplicate_same_day = false` e' normale per diari pressori o curve
   glicemiche con piu' misurazioni nella stessa data.
+- i documenti PDF/DOCX della terapia corrente vanno in `source_documents/_Terapia`;
+  i piani terapeutici specialistici restano nella cartella della specialita'.
 
 ## Esecuzione pipeline
 

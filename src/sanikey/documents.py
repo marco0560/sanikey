@@ -383,7 +383,7 @@ def document_record_for_path(
     digest = _sha256(path)
     record_origin = provenance or DocumentRecordOrigin()
     relative = path.relative_to(root)
-    category = relative.parts[0] if len(relative.parts) > 1 else "uncategorized"
+    category = _document_category(relative)
     date, title = _title_from_name(path.stem)
     kind = _document_kind(path)
     document_id = digest
@@ -410,6 +410,26 @@ def document_record_for_path(
         container_id=record_origin.container_id,
         internal_path=record_origin.internal_path,
     )
+
+
+def _document_category(relative: Path) -> str:
+    """Return the display category for a source-relative document path.
+
+    Parameters
+    ----------
+    relative : pathlib.Path
+        Source-relative document path.
+
+    Returns
+    -------
+    str
+        Top-level category name. A leading underscore marks service
+        directories for sorting and is not part of the display category.
+    """
+
+    if len(relative.parts) <= 1:
+        return "uncategorized"
+    return relative.parts[0].lstrip("_") or "uncategorized"
 
 
 def _deduplicate_documents(

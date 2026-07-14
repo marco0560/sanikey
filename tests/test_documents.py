@@ -142,6 +142,35 @@ def test_scan_documents_builds_stable_records(tmp_path: Path) -> None:
     assert len(documents[0].sha256) == 64
 
 
+def test_scan_documents_hides_service_directory_prefix_from_category(
+    tmp_path: Path,
+) -> None:
+    """Verify service directory markers do not leak into document categories.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents / "_Parametri"
+    document_dir.mkdir(parents=True)
+    (document_dir / "20260102 Pressione.txt").write_text(
+        "pressione",
+        encoding="utf-8",
+    )
+
+    documents = scan_documents(person)
+
+    assert documents[0].category == "Parametri"
+    assert documents[0].path.name == "20260102 Pressione.txt"
+
+
 def test_scan_documents_applies_ingestion_exclusions(tmp_path: Path) -> None:
     """Verify configured source exclusions run before inventory creation.
 
