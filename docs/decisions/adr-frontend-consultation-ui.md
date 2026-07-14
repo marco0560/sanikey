@@ -26,13 +26,20 @@ La UI predefinita e' responsiva:
 - su schermi stretti adatta header, ricerca e controlli alla larghezza
   disponibile;
 - la ricerca base e quella avanzata usano lo stesso box e si alternano dal
-  frame superiore;
+  frame superiore, con accento visivo diverso e aiuto accanto al rispettivo
+  bottone;
 - gli aiuti della ricerca base e avanzata sono separati e si aprono in modal
-  locali;
+  locali richiudibili;
 - durante una ricerca l'utente vede subito i risultati, senza dover scorrere
   oltre la timeline;
 - la sezione clinica si chiama `Sintesi Clinica` e sposta i conteggi tecnici in
   fondo;
+- le terapie hanno anche un bottone diretto di primo livello quando presenti;
+- gli studi DICOM aggregati hanno una sezione autonoma quando sono apribili con
+  viewer HTML, separata dai documenti ordinari e dai supporti tecnici non
+  visualizzabili;
+- su schermi larghi la UI puo' mostrare due sezioni affiancate, con azioni
+  esplicite per aprire una sezione a sinistra o a destra;
 - la timeline e' mostrata per default in ordine cronologico inverso;
 - i link ai documenti originali nella chiavetta sono relativi al frontend
   esportato e non puntano mai ai percorsi sorgente del computer di build.

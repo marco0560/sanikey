@@ -21,10 +21,11 @@ La UI di consultazione deve essere federata:
 
 - la ricerca rapida interroga documenti e metadati clinici curati;
 - la ricerca avanzata interroga sia contenuti OCR/testo sia metadati clinici;
-- i risultati sono raggruppati per sezione e preceduti da link con conteggi;
+- i risultati sono raggruppati per sezione e includono link contestuali con
+  conteggi dentro il pannello dei risultati;
 - il riepilogo diventa una dashboard clinica sempre consultabile;
 - gli studi DICOM sono mostrati come schede sintetiche, non come elenco di ogni
-  istanza.
+  istanza, in una sezione autonoma quando presenti.
 
 Il payload `data.js` contiene un blocco `clinical` con problemi, farmaci,
 terapie, procedure, osservazioni e studi DICOM sintetici. Le terapie vengono

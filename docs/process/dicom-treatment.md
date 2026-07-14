@@ -23,17 +23,17 @@ Current SaniKey behavior is close only when the support contains a browser-opena
 - SaniKey scans the staged support for DICOM files and `DICOMDIR`.
 - It groups instances by `StudyInstanceUID` when possible.
 - If `DICOMDIR` has usable study records, those are used too.
-- The frontend shows an aggregated DICOM study card, with metadata such as support name, support type, date, UID and instance count.
+- The frontend shows aggregated DICOM study cards only for studies that have a browser-openable HTML viewer, with metadata such as date, UID and instance count.
 - If a recognized HTML viewer exists, especially IHE PDI paths such as `IHE_PDI/PAGES/STUDIES/*.HTM`, SaniKey copies the required viewer subtree to USB under:
   `patients/<id>/dicom-viewers/<study_id>/...`
 - The frontend exposes that as `Apri studio DICOM`.
 
 ## USB Export
 
-- The original source support, for example `Referto TAC.zip`, may still be copied under `patients/<id>/documents/` unless excluded by ingestion patterns.
+- The original source support, for example `Referto TAC.zip`, may still be copied under `patients/<id>/documents/` unless excluded by ingestion patterns, but the clinical `Studi DICOM` pane does not advertise archive downloads as the primary workflow.
 - Files excluded by `exclude_patterns` are not copied into `patients/<id>/documents/`.
 - Recognized DICOM HTML viewers are copied separately via the DICOM viewer manifest, even though technical viewer paths are not ordinary ingested documents.
-- Current UI prefers `Apri studio DICOM` when `viewer_href` exists, and keeps the original ZIP/support as secondary link.
+- Current UI shows `Apri studio DICOM` when `viewer_href` exists and omits non-viewable DICOM support records from the clinical pane.
 
 ## Differences From Inserting The CD
 
@@ -49,7 +49,7 @@ Current SaniKey behavior is close only when the support contains a browser-opena
 So the intended doctor workflow now is:
 
 1. Open USB `index.html`.
-2. Search or open `Sintesi Clinica`.
+2. Search or open `Studi DICOM` when the section is available.
 3. Click `Apri studio DICOM`.
 4. If an HTML viewer was recognized, it opens directly in a new browser tab.
-5. If no HTML viewer was recognized, the fallback is the original support archive, not a seamless CD-style viewer launch.
+5. If no HTML viewer was recognized, the study remains cataloged in generated technical artifacts, but it is not shown as a browser-viewable study in the clinical pane.

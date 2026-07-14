@@ -42,10 +42,17 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert result.material_script.is_file()
     assert result.material_stylesheet.is_file()
     assert "Patient A" in result.index.read_text(encoding="utf-8")
-    assert 'data-tab-button="documents"' in result.index.read_text(encoding="utf-8")
-    assert 'data-tab-button="summary"' in result.index.read_text(encoding="utf-8")
+    assert 'data-section-button="documents"' in result.index.read_text(encoding="utf-8")
+    assert 'data-section-button="summary"' in result.index.read_text(encoding="utf-8")
+    assert 'data-section-button="therapies"' in result.index.read_text(encoding="utf-8")
+    assert 'data-section-button="dicom"' in result.index.read_text(encoding="utf-8")
+    assert 'data-pane-target="right"' in result.index.read_text(encoding="utf-8")
+    assert "data-therapy-control hidden" in result.index.read_text(encoding="utf-8")
+    assert "data-dicom-control hidden" in result.index.read_text(encoding="utf-8")
     assert "Aiuto ricerca base" in result.index.read_text(encoding="utf-8")
     assert "Ricerca avanzata" in result.index.read_text(encoding="utf-8")
+    assert "search-mode-control" in result.index.read_text(encoding="utf-8")
+    assert "data-close-dialog" in result.index.read_text(encoding="utf-8")
     script = result.script.read_text(encoding="utf-8").lower()
     helper = result.helper.read_text(encoding="utf-8").lower()
     material = result.material_script.read_text(encoding="utf-8").lower()
@@ -78,7 +85,9 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "or" in script
     assert "not" in script
     assert "window.sanikeyui" in helper
-    assert "setuptabs" in helper
+    assert "setupsections" in helper
+    assert "showsection" in helper
+    assert "matchmedia" in helper
     assert "custom-elements" not in material
     assert "customElements.define".lower() in material
     assert "function formatdate(value)" in script
@@ -90,6 +99,13 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "item.href" in script
     assert "item.viewer_href" in script
     assert "apri studio dicom" in script
+    assert "scarica supporto originale" not in script
+    assert "renderdicomstudies" in script
+    assert "configuredicomnavigation" in script
+    assert "rendertherapies" in script
+    assert "configuretherapynavigation" in script
+    assert "viewabledicomstudies" in script
+    assert 'item.section !== "dicom" || item.viewer_href' in script
     assert "renderclinicaldashboard" in script
     assert "renderquicksearch" in script
     assert "rendersearchresults" in script
@@ -101,21 +117,26 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "terms.every" in script
     assert "item.path" in script
     assert ".markdown" in stylesheet
+    assert "overflow-wrap: anywhere" in stylesheet
+    assert "grid-row: 1" in stylesheet
     assert ".search-panel" in stylesheet
     assert ".help-dialog" in stylesheet
+    assert ".dialog-close" in stylesheet
+    assert "--search-basic-accent" in stylesheet
+    assert "--search-advanced-accent" in stylesheet
     assert ".badge" in stylesheet
     assert "has-background-image" in stylesheet
     assert "sintesi clinica" in index
-    assert "@media (min-width: 56rem)" in stylesheet
-    assert "section-jumps" in index
-    assert "function updatesectionjumps(sections)" in script
-    assert ".section-jumps" in stylesheet
-    desktop_css = stylesheet.split("@media (min-width: 56rem)", 1)[1].split(
+    assert "section-jumps" not in index
+    assert "function updatesectionjumps(sections)" not in script
+    assert ".section-jumps" not in stylesheet
+    assert "@media (min-width: 72rem)" in stylesheet
+    desktop_css = stylesheet.split("@media (min-width: 72rem)", 1)[1].split(
         "@media (max-width: 44rem)",
         1,
     )[0]
     assert ".tabs" not in desktop_css
-    assert "[data-tab-panel].is-active" in stylesheet
+    assert "[data-section-panel].is-active" in stylesheet
 
 
 def test_build_frontend_copies_configured_background_image(tmp_path: Path) -> None:

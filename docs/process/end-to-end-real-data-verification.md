@@ -662,8 +662,9 @@ Verificare anche il comportamento della UI di consultazione:
 
 - la pagina mostra il paziente corretto e l'eventuale sottotitolo configurato;
 - la ricerca porta immediatamente a risultati federati raggruppati per sezioni,
-  con link iniziali a `Documenti`, `Terapie`, `Farmaci`, `Problemi`,
-  `Procedure`, `Osservazioni` o `Studi DICOM` quando presenti;
+  con link contestuali a `Documenti`, `Terapie`, `Farmaci`, `Problemi`,
+  `Procedure`, `Osservazioni` o `Studi DICOM` dentro il pannello dei risultati
+  quando presenti;
 - una query con nome commerciale di un farmaco reale mostra il farmaco e le
   terapie collegate;
 - una query con principio attivo reale mostra farmaci o terapie collegate;
@@ -672,14 +673,20 @@ Verificare anche il comportamento della UI di consultazione:
 - il bottone `Ricerca avanzata` cambia il box di ricerca e permette una query
   su testo estratto/OCR, per esempio un valore di laboratorio realmente
   presente come `Creatinina`;
+- i punti interrogativi di aiuto della ricerca base e avanzata sono accanto al
+  rispettivo bottone, si aprono in modal locali e il bottone `Chiudi` libera la
+  navigazione;
 - una query booleana reale, per esempio `creatinina AND (2024 OR 2025) NOT urine`,
   mostra risultati comprensibili anche nei metadati clinici, oppure un messaggio
   di sintassi leggibile;
 - `Sintesi Clinica` mostra una dashboard clinica con problemi, terapie,
-  farmaci, osservazioni, procedure e studi DICOM sintetici quando presenti;
+  farmaci, osservazioni e procedure quando presenti;
+- `Studi DICOM` compare come sezione autonoma quando il payload contiene studi;
 - la timeline e' consultabile in ordine cronologico inverso salvo diversa
   configurazione;
-- su schermo largo i risultati e la timeline non si coprono;
+- su schermo largo e sufficiente la UI passa al layout a due sezioni, con
+  azioni esplicite per aprire una sezione nel pane sinistro o destro e timeline
+  inizialmente a destra;
 - su schermo stretto o riducendo la finestra header, ricerca e controlli
   restano utilizzabili;
 - i link `Apri originale` puntano a file sotto la chiavetta e non a percorsi

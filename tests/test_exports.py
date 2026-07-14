@@ -249,14 +249,20 @@ def test_generate_exports_writes_dicom_html_viewer_payload(
     )
 
     data_script = result.data_script.read_text(encoding="utf-8")
+    search = json.loads(result.search.read_text(encoding="utf-8"))
     manifest = json.loads(
         (person.local_build / "manifests" / "dicom_html_viewers.json").read_text(
             encoding="utf-8"
         )
     )
+    dicom_search = next(item for item in search if item["type"] == "dicom_study")
     assert (
         '"viewer_href": "../dicom-viewers/study-a/IHE_PDI/PAGES/STUDIES/STUDY1.HTM"'
         in data_script
+    )
+    assert (
+        dicom_search["viewer_href"]
+        == "../dicom-viewers/study-a/IHE_PDI/PAGES/STUDIES/STUDY1.HTM"
     )
     assert manifest["viewers"] == [
         {

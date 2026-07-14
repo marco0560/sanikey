@@ -1222,7 +1222,7 @@ def _entity_search_payload(
         JSON-serializable payload.
     """
 
-    return {
+    payload = {
         "id": item["id"],
         "type": item["type"],
         "section": section,
@@ -1233,6 +1233,10 @@ def _entity_search_payload(
         "tags": [],
         "fields": item.get("fields", []),
     }
+    for key in ("href", "viewer_href", "primary_href", "primary_action"):
+        if item.get(key):
+            payload[key] = item[key]
+    return payload
 
 
 def _entity_subtitle(item: dict[str, Any]) -> str:

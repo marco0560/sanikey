@@ -7441,7 +7441,10 @@ La selezione di un tag deve mostrare:
 
 ### 14.25 Accesso ai DICOM
 
-Quando disponibile, il frontend deve consentire l'accesso rapido agli studi diagnostici.
+Quando disponibile, il frontend deve consentire l'accesso rapido agli studi
+diagnostici consultabili dal browser. La sezione clinica `Studi DICOM` mostra
+solo studi con viewer HTML esportato; supporti e file tecnici non visualizzabili
+restano negli artefatti di audit e non occupano la vista principale.
 
 ---
 
@@ -8007,7 +8010,9 @@ JavaScript locale e non richiede `fetch()` o un server HTTP.
 
 `web/data.js` contiene inoltre un blocco `clinical` con problemi, farmaci,
 terapie, procedure, osservazioni e studi DICOM sintetici. Questi dati alimentano
-sia la dashboard clinica del riepilogo sia i risultati federati della ricerca.
+la dashboard clinica del riepilogo, il bottone diretto `Terapia` quando sono
+presenti terapie, la sezione autonoma `Studi DICOM` quando sono presenti studi
+visualizzabili e i risultati federati della ricerca.
 
 ---
 

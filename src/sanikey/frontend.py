@@ -124,17 +124,38 @@ def _index_html(person: PersonConfig) -> str:
         <p>{subtitle}</p>
       </div>
       <nav class="header-actions" aria-label="Sezioni archivio">
-        <md-text-button type="button" data-tab-button="documents">Documenti</md-text-button>
-        <md-text-button type="button" data-tab-button="timeline">Timeline</md-text-button>
-        <md-text-button type="button" data-tab-button="summary">Sintesi Clinica</md-text-button>
+        <span class="nav-control">
+          <md-text-button type="button" data-section-button="documents" data-pane-target="left">Documenti</md-text-button>
+          <md-icon-button type="button" data-section-button="documents" data-pane-target="right" aria-label="Apri Documenti a destra">&gt;</md-icon-button>
+        </span>
+        <span class="nav-control">
+          <md-text-button type="button" data-section-button="timeline" data-pane-target="left">Timeline</md-text-button>
+          <md-icon-button type="button" data-section-button="timeline" data-pane-target="right" aria-label="Apri Timeline a destra">&gt;</md-icon-button>
+        </span>
+        <span class="nav-control">
+          <md-text-button type="button" data-section-button="summary" data-pane-target="left">Sintesi Clinica</md-text-button>
+          <md-icon-button type="button" data-section-button="summary" data-pane-target="right" aria-label="Apri Sintesi Clinica a destra">&gt;</md-icon-button>
+        </span>
+        <span class="nav-control" data-therapy-control hidden>
+          <md-text-button type="button" data-section-button="therapies" data-pane-target="left">Terapia</md-text-button>
+          <md-icon-button type="button" data-section-button="therapies" data-pane-target="right" aria-label="Apri Terapia a destra">&gt;</md-icon-button>
+        </span>
+        <span class="nav-control" data-dicom-control hidden>
+          <md-text-button type="button" data-section-button="dicom" data-pane-target="left">Studi DICOM</md-text-button>
+          <md-icon-button type="button" data-section-button="dicom" data-pane-target="right" aria-label="Apri Studi DICOM a destra">&gt;</md-icon-button>
+        </span>
       </nav>
     </div>
     <div class="search-panel" data-search-mode="basic">
       <div class="search-toolbar" role="group" aria-label="Modalita' ricerca">
-        <md-filled-tonal-button type="button" id="basic-toggle">Ricerca base</md-filled-tonal-button>
-        <md-outlined-button type="button" id="advanced-toggle">Ricerca avanzata</md-outlined-button>
-        <md-icon-button type="button" id="basic-help-button" aria-label="Aiuto ricerca base">?</md-icon-button>
-        <md-icon-button type="button" id="advanced-help-button" aria-label="Aiuto ricerca avanzata">?</md-icon-button>
+        <span class="search-mode-control">
+          <md-filled-tonal-button type="button" id="basic-toggle">Ricerca base</md-filled-tonal-button>
+          <md-icon-button type="button" id="basic-help-button" aria-label="Aiuto ricerca base">?</md-icon-button>
+        </span>
+        <span class="search-mode-control">
+          <md-outlined-button type="button" id="advanced-toggle">Ricerca avanzata</md-outlined-button>
+          <md-icon-button type="button" id="advanced-help-button" aria-label="Aiuto ricerca avanzata">?</md-icon-button>
+        </span>
       </div>
       <div class="search-control" data-search-panel="basic">
         <label for="search">Cerca nell'archivio</label>
@@ -145,17 +166,16 @@ def _index_html(person: PersonConfig) -> str:
         <input id="advanced-search" type="search" placeholder='Esempio: creatinina AND (2024 OR 2025) NOT "urine"'>
       </div>
     </div>
-    <nav id="section-jumps" class="section-jumps" aria-label="Vai alla sezione"></nav>
   </header>
-  <main data-default-tab="{default_tab}">
-    <section id="documents" class="primary-pane" data-tab-panel="documents" aria-label="Documenti"></section>
-    <section id="advanced" class="primary-pane" data-tab-panel="advanced" aria-label="Ricerca avanzata">
+  <main data-default-section="{default_tab}">
+    <section id="documents" data-section-panel="documents" aria-label="Documenti"></section>
+    <section id="advanced" data-section-panel="advanced" aria-label="Ricerca avanzata">
       <div id="advanced-results" class="advanced-results"></div>
     </section>
-    <aside class="secondary-pane">
-      <section id="timeline" data-tab-panel="timeline" aria-label="Timeline"></section>
-      <section id="summary" data-tab-panel="summary" aria-label="Sintesi Clinica"></section>
-    </aside>
+    <section id="timeline" data-section-panel="timeline" aria-label="Timeline"></section>
+    <section id="summary" data-section-panel="summary" aria-label="Sintesi Clinica"></section>
+    <section id="therapies" data-section-panel="therapies" aria-label="Terapia"></section>
+    <section id="dicom" data-section-panel="dicom" aria-label="Studi DICOM"></section>
   </main>
   <dialog id="basic-help-dialog" class="help-dialog">
     <article>
@@ -163,7 +183,7 @@ def _index_html(person: PersonConfig) -> str:
       <p>Scrivi una o piu' parole presenti in titolo, categoria, tag, tipo,
       percorso o data. Esempi: <code>cardiologo 2024</code>,
       <code>analisi pdf</code>, <code>risonanza</code>.</p>
-      <form method="dialog"><md-filled-button>Chiudi</md-filled-button></form>
+      <button type="button" class="dialog-close" data-close-dialog="basic-help-dialog">Chiudi</button>
     </article>
   </dialog>
   <dialog id="advanced-help-dialog" class="help-dialog">
@@ -173,7 +193,7 @@ def _index_html(person: PersonConfig) -> str:
       <code>NOT</code> e parentesi. Le parole adiacenti valgono come
       <code>AND</code>. La ricerca non distingue maiuscole, minuscole o
       accenti e applica sinonimi configurati.</p>
-      <form method="dialog"><md-filled-button>Chiudi</md-filled-button></form>
+      <button type="button" class="dialog-close" data-close-dialog="advanced-help-dialog">Chiudi</button>
     </article>
   </dialog>
   <script src="data.js"></script>
@@ -210,7 +230,6 @@ def _app_js() -> str:
 };
 
 const SECTION_ORDER = ["documents", "therapies", "medications", "problems", "procedures", "observations", "dicom", "timeline"];
-
 function text(value) {
   return value === null || value === undefined ? "" : String(value);
 }
@@ -252,7 +271,7 @@ function applyUi(summary) {
     document.body.classList.add("has-background-image");
   }
   document.body.dataset.density = text(ui.density || "comfortable");
-  document.querySelector("main").dataset.defaultTab = text(ui.default_tab || "documents");
+  document.querySelector("main").dataset.defaultSection = text(ui.default_tab || "documents");
 }
 
 function renderSummary(summary, clinical = {}) {
@@ -278,18 +297,6 @@ function renderTimeline(timeline) {
   ).join("");
 }
 
-function updateSectionJumps(sections) {
-  const target = document.querySelector("#section-jumps");
-  const selected = sections.filter((section) => section && SECTION_LABELS[section.label]);
-  if (!selected.length) {
-    target.innerHTML = "";
-    return;
-  }
-  target.innerHTML = selected.map((section) =>
-    `<a href="#${attr(section.id)}">${escapeHtml(SECTION_LABELS[section.label])}${section.count === undefined ? "" : ` ${escapeHtml(section.count)}`}</a>`
-  ).join("");
-}
-
 function renderTimelineLinks(item) {
   const links = item.links || [];
   if (!links.length) {
@@ -300,7 +307,7 @@ function renderTimelineLinks(item) {
 
 function renderDocuments(documents, query = "") {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const selected = documents.filter((item) =>
+  const selected = documents.filter((item) => !item.viewer_href).filter((item) =>
     terms.every((term) => documentSearchText(item).includes(term))
   );
   const target = document.querySelector("#documents");
@@ -312,17 +319,11 @@ function renderDocuments(documents, query = "") {
       ${item.markdown_html ? `<div class="markdown">${html(item.markdown_html)}</div>` : ""}
       ${renderDocumentActions(item)}</article>`
   ).join("");
-  updateSectionJumps([
-    {id: "documents", label: "documents", count: selected.length},
-    {id: "timeline", label: "timeline"},
-    {id: "summary", label: "summary"},
-  ]);
 }
 
 function renderDocumentActions(item) {
   if (item.viewer_href) {
-    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a>
-      ${item.support_href ? `<a href="${attr(item.support_href)}">Scarica supporto originale</a>` : ""}</p>`;
+    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a></p>`;
   }
   if (item.href) {
     return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">Apri originale</a></p>`;
@@ -337,7 +338,6 @@ function renderClinicalDashboard(clinical) {
     ["medications", clinical.medications || []],
     ["observations", clinical.observations || []],
     ["procedures", clinical.procedures || []],
-    ["dicom", clinical.dicom_studies || []],
   ].filter(([, items]) => items.length);
   if (!sections.length) {
     return "";
@@ -350,6 +350,46 @@ function renderClinicalDashboard(clinical) {
   ).join("");
 }
 
+function renderDicomStudies(studies) {
+  const target = document.querySelector("#dicom");
+  const selected = viewableDicomStudies(studies);
+  target.innerHTML = `<h2>Studi DICOM</h2>` + (
+    selected.length
+      ? selected.map((item) => renderEntityCard(item, "dicom")).join("")
+      : '<p class="muted">Nessuno studio DICOM disponibile.</p>'
+  );
+}
+
+function renderTherapies(therapies) {
+  const target = document.querySelector("#therapies");
+  const selected = therapies || [];
+  target.innerHTML = `<h2>Terapia</h2>` + (
+    selected.length
+      ? selected.map((item) => renderEntityCard(item, "therapies")).join("")
+      : '<p class="muted">Nessuna terapia disponibile.</p>'
+  );
+}
+
+function configureDicomNavigation(studies) {
+  const hasDicom = viewableDicomStudies(studies).length > 0;
+  document.querySelectorAll("[data-dicom-control]").forEach((control) => {
+    control.hidden = !hasDicom;
+  });
+  document.querySelector("#dicom").hidden = !hasDicom;
+}
+
+function configureTherapyNavigation(therapies) {
+  const hasTherapy = (therapies || []).length > 0;
+  document.querySelectorAll("[data-therapy-control]").forEach((control) => {
+    control.hidden = !hasTherapy;
+  });
+  document.querySelector("#therapies").hidden = !hasTherapy;
+}
+
+function viewableDicomStudies(studies) {
+  return (studies || []).filter((item) => item.viewer_href);
+}
+
 function renderEntityCard(item, section) {
   return `<article id="entity-${attr(item.id)}"><h4>${escapeHtml(item.title)}</h4>
     ${item.date || item.start_date ? `<p>${escapeHtml(formatDate(item.date || item.start_date))}</p>` : ""}
@@ -359,8 +399,7 @@ function renderEntityCard(item, section) {
 
 function renderEntityActions(item, section) {
   if (section === "dicom" && item.viewer_href) {
-    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a>
-      ${item.href ? `<a href="${attr(item.href)}">Scarica supporto originale</a>` : ""}</p>`;
+    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a></p>`;
   }
   if (item.href) {
     return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">${section === "dicom" ? "Scarica supporto DICOM" : "Apri originale"}</a></p>`;
@@ -385,7 +424,6 @@ function renderSearchResults(target, records, heading, emptyMessage) {
     .map((section) => [section, grouped[section]]);
   if (!sections.length) {
     target.innerHTML = `<h2>${escapeHtml(heading)}</h2><p class="muted">${escapeHtml(emptyMessage)}</p>`;
-    updateSectionJumps([]);
     return;
   }
   const total = records.length;
@@ -393,14 +431,9 @@ function renderSearchResults(target, records, heading, emptyMessage) {
     <nav class="section-links" aria-label="Sezioni risultati">${sections.map(([section, items]) =>
       `<a href="#results-${attr(section)}">${escapeHtml(SECTION_LABELS[section])} ${items.length}</a>`
     ).join("")}</nav>` + sections.map(([section, items]) =>
-      `<section id="results-${attr(section)}"><h3>${escapeHtml(SECTION_LABELS[section])}</h3>
+    `<section id="results-${attr(section)}"><h3>${escapeHtml(SECTION_LABELS[section])}</h3>
         ${items.map((item) => renderResultCard(item, section)).join("")}</section>`
     ).join("");
-  updateSectionJumps(sections.map(([section, items]) => ({
-    id: `results-${section}`,
-    label: section,
-    count: items.length,
-  })));
 }
 
 function renderResultCard(item, section) {
@@ -713,14 +746,15 @@ function loadAdvancedSearchData() {
 function setSearchMode(mode) {
   const panel = document.querySelector(".search-panel");
   panel.dataset.searchMode = mode;
+  document.body.dataset.searchMode = mode;
   document.querySelector("#basic-toggle").classList.toggle("is-active", mode === "basic");
   document.querySelector("#advanced-toggle").classList.toggle("is-active", mode === "advanced");
   if (mode === "basic") {
     document.querySelector("#search").focus();
-    window.SaniKeyUi.showTab("documents");
+    window.SaniKeyUi.showSection("documents", "left");
   } else {
     document.querySelector("#advanced-search").focus();
-    window.SaniKeyUi.showTab("advanced");
+    window.SaniKeyUi.showSection("advanced", "left");
   }
 }
 
@@ -733,11 +767,20 @@ function openHelpDialog(id) {
   }
 }
 
+function closeHelpDialog(id) {
+  const dialog = document.querySelector(`#${id}`);
+  if (dialog.close) {
+    dialog.close();
+  } else {
+    dialog.removeAttribute("open");
+  }
+}
+
 function advancedDocumentRecord(item, terms, expansions) {
   return {
     id: item.id,
     type: "document",
-    section: "documents",
+    section: item.viewer_href ? "dicom" : "documents",
     title: item.title,
     subtitle: [formatDate(item.date), item.category, item.kind].filter(Boolean).join(" "),
     date: item.date,
@@ -792,23 +835,34 @@ function main() {
   const summary = data.summary || {};
   const timeline = data.timeline || [];
   const documents = data.documents || [];
-  const clinicalRecords = (data.search || []).filter((item) => item.type !== "document");
-  const quickRecords = data.search || [];
+  const dicomStudies = (data.clinical || {}).dicom_studies || [];
+  const therapies = (data.clinical || {}).therapies || [];
+  const searchRecords = (data.search || []).filter((item) => item.section !== "dicom" || item.viewer_href);
+  const clinicalRecords = searchRecords.filter((item) => item.type !== "document");
+  const quickRecords = searchRecords;
   applyUi(summary);
   renderSummary(summary, data.clinical || {});
   renderTimeline(timeline);
+  renderTherapies(therapies);
+  configureTherapyNavigation(therapies);
+  renderDicomStudies(dicomStudies);
+  configureDicomNavigation(dicomStudies);
   renderDocuments(documents);
   const advancedInput = document.querySelector("#advanced-search");
   const advancedResults = document.querySelector("#advanced-results");
   advancedResults.innerHTML = '<p class="muted">La ricerca avanzata carica il testo estratto al primo uso.</p>';
-  window.SaniKeyUi.setupTabs({
-    defaultTab: document.querySelector("main").dataset.defaultTab || "documents",
+  window.SaniKeyUi.setupSections({
+    defaultSection: document.querySelector("main").dataset.defaultSection || "documents",
+    defaultRight: "timeline",
   });
   setSearchMode("basic");
   document.querySelector("#basic-toggle").addEventListener("click", () => setSearchMode("basic"));
   document.querySelector("#advanced-toggle").addEventListener("click", () => setSearchMode("advanced"));
   document.querySelector("#basic-help-button").addEventListener("click", () => openHelpDialog("#basic-help-dialog"));
   document.querySelector("#advanced-help-button").addEventListener("click", () => openHelpDialog("#advanced-help-dialog"));
+  document.querySelectorAll("[data-close-dialog]").forEach((button) => {
+    button.addEventListener("click", () => closeHelpDialog(button.dataset.closeDialog));
+  });
   document.querySelector("#search").addEventListener("input", (event) => {
     setSearchMode("basic");
     if (event.target.value.trim()) {
@@ -816,7 +870,7 @@ function main() {
     } else {
       renderDocuments(documents);
     }
-    window.SaniKeyUi.showTab("documents");
+    window.SaniKeyUi.showSection("documents", "left");
   });
   advancedInput.addEventListener("input", (event) => {
     setSearchMode("advanced");
@@ -826,7 +880,7 @@ function main() {
       .catch((error) => {
         advancedResults.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
       });
-    window.SaniKeyUi.showTab("advanced");
+    window.SaniKeyUi.showSection("advanced", "left");
   });
 }
 
@@ -852,26 +906,95 @@ def _ui_helper_js() -> str:
     """
 
     return r"""window.SaniKeyUi = (() => {
-  function showTab(name) {
-    document.body.dataset.activeTab = name;
-    document.querySelectorAll("[data-tab-button]").forEach((button) => {
-      const selected = button.dataset.tabButton === name;
-      button.classList.toggle("is-active", selected);
-      button.setAttribute("aria-selected", selected ? "true" : "false");
+  const wideLayout = window.matchMedia("(min-width: 72rem)");
+  const state = {
+    left: "documents",
+    right: "timeline",
+  };
+
+  function isDualLayout() {
+    return wideLayout.matches;
+  }
+
+  function fallbackSection(excluded) {
+    return ["documents", "timeline", "summary", "therapies", "dicom", "advanced"]
+      .find((section) => section !== excluded && isSectionAvailable(section)) || "documents";
+  }
+
+  function isSectionAvailable(name) {
+    const panel = document.querySelector(`[data-section-panel="${name}"]`);
+    return Boolean(panel && !panel.hidden);
+  }
+
+  function normalizeSection(name) {
+    return isSectionAvailable(name) ? name : fallbackSection(name);
+  }
+
+  function showSection(name, target = "left") {
+    const selected = normalizeSection(name);
+    if (!isDualLayout() || target !== "right") {
+      if (state.right === selected) {
+        state.right = fallbackSection(selected);
+      }
+      state.left = selected;
+      applyPanes();
+      return;
+    }
+    if (state.left === selected) {
+      state.left = fallbackSection(selected);
+    }
+    state.right = selected;
+    applyPanes();
+  }
+
+  function applyPanes() {
+    const dual = isDualLayout();
+    state.left = normalizeSection(state.left);
+    state.right = normalizeSection(state.right);
+    if (state.left === state.right) {
+      state.right = fallbackSection(state.left);
+    }
+    document.body.dataset.layout = dual ? "dual" : "single";
+    document.body.dataset.leftPane = state.left;
+    document.body.dataset.rightPane = dual ? state.right : "";
+    document.querySelectorAll("[data-section-panel]").forEach((panel) => {
+      let role = "none";
+      if (panel.dataset.sectionPanel === state.left) {
+        role = "left";
+      } else if (dual && panel.dataset.sectionPanel === state.right) {
+        role = "right";
+      }
+      panel.dataset.paneRole = role;
+      panel.classList.toggle("is-active", role !== "none");
     });
-    document.querySelectorAll("[data-tab-panel]").forEach((panel) => {
-      panel.classList.toggle("is-active", panel.dataset.tabPanel === name);
+    document.querySelectorAll("[data-section-button]").forEach((button) => {
+      const selected = button.dataset.sectionButton;
+      const target = button.dataset.paneTarget || "left";
+      const active = target === "right"
+        ? dual && state.right === selected
+        : state.left === selected;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
     });
   }
 
-  function setupTabs({defaultTab = "documents"} = {}) {
-    document.querySelectorAll("[data-tab-button]").forEach((button) => {
-      button.addEventListener("click", () => showTab(button.dataset.tabButton));
+  function setupSections({defaultSection = "documents", defaultRight = "timeline"} = {}) {
+    state.left = normalizeSection(defaultSection === "timeline" ? "documents" : defaultSection);
+    state.right = normalizeSection(defaultRight);
+    document.querySelectorAll("[data-section-button]").forEach((button) => {
+      button.addEventListener("click", () => {
+        showSection(button.dataset.sectionButton, button.dataset.paneTarget || "left");
+      });
     });
-    showTab(defaultTab);
+    if (wideLayout.addEventListener) {
+      wideLayout.addEventListener("change", applyPanes);
+    } else {
+      wideLayout.addListener(applyPanes);
+    }
+    applyPanes();
   }
 
-  return {setupTabs, showTab};
+  return {setupSections, showSection};
 })();
 """
 
@@ -1000,6 +1123,9 @@ def _style_css() -> str:
   --background-image: none;
   --background-opacity: 0.1;
   --border: #d8e0ea;
+  --search-basic-accent: #0f766e;
+  --search-advanced-accent: #9a5b00;
+  --search-current-accent: var(--search-basic-accent);
   --surface: #f6f8fb;
   --text: #1f2933;
   --muted: #617083;
@@ -1007,6 +1133,10 @@ def _style_css() -> str:
 
 * {
   box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 body {
@@ -1067,9 +1197,33 @@ header p {
   gap: 0.45rem;
 }
 
+.nav-control,
+.search-mode-control {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.nav-control[hidden] {
+  display: none;
+}
+
 .search-panel {
+  border: 2px solid var(--search-current-accent);
+  border-radius: 8px;
   display: grid;
   gap: 0.65rem;
+  padding: 0.75rem;
+}
+
+body[data-search-mode="basic"] .search-panel,
+.search-panel[data-search-mode="basic"] {
+  --search-current-accent: var(--search-basic-accent);
+}
+
+body[data-search-mode="advanced"] .search-panel,
+.search-panel[data-search-mode="advanced"] {
+  --search-current-accent: var(--search-advanced-accent);
 }
 
 .search-control {
@@ -1102,26 +1256,19 @@ input {
   width: 100%;
 }
 
-.section-links,
-.section-jumps {
+.section-links {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin: 0.75rem 0;
 }
 
-.section-links a,
-.section-jumps a {
+.section-links a {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--accent);
   padding: 0.25rem 0.6rem;
   text-decoration: none;
-}
-
-.section-jumps {
-  grid-column: 1 / -1;
-  margin: 0;
 }
 
 .primary-action {
@@ -1153,6 +1300,18 @@ input {
 .help-dialog article {
   border: 0;
   padding: 1rem;
+}
+
+.dialog-close {
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 2.4rem;
+  padding: 0.35rem 0.85rem;
 }
 
 article {
@@ -1205,7 +1364,26 @@ dd {
 }
 
 .markdown {
-  max-width: 64rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown img,
+.markdown table,
+.markdown pre,
+.markdown code {
+  max-width: 100%;
+}
+
+.markdown pre {
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.markdown table {
+  display: block;
+  overflow-x: auto;
 }
 
 .markdown h1,
@@ -1234,42 +1412,37 @@ body[data-density="compact"] md-text-button {
   padding-top: 0.45rem;
 }
 
-[data-tab-panel] {
+[data-section-panel] {
   display: none;
 }
 
-[data-tab-panel].is-active {
+[data-section-panel].is-active {
   display: block;
 }
 
-@media (min-width: 56rem) {
-  main {
-    grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.65fr);
+@media (min-width: 72rem) {
+  body[data-layout="dual"] main {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
-  .secondary-pane {
+  body[data-layout="dual"] [data-pane-role="left"] {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  body[data-layout="dual"] [data-pane-role="right"] {
     border-left: 1px solid var(--border);
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
     padding-left: 1rem;
   }
 
-  #advanced {
-    display: none;
-  }
-
-  body[data-active-tab="advanced"] main {
-    grid-template-columns: 1fr;
-  }
-
-  body[data-active-tab="advanced"] #documents,
-  body[data-active-tab="advanced"] .secondary-pane {
-    display: none;
-  }
-
-  body[data-active-tab="advanced"] #advanced {
-    display: block;
-  }
-
-  #timeline {
+  body[data-layout="dual"] #timeline,
+  body[data-layout="dual"] #summary,
+  body[data-layout="dual"] #therapies,
+  body[data-layout="dual"] #dicom {
     max-height: calc(100vh - 8rem);
     overflow: auto;
   }
@@ -1286,6 +1459,13 @@ body[data-density="compact"] md-text-button {
     align-items: stretch;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nav-control,
+  .search-mode-control {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }
 

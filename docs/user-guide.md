@@ -375,8 +375,9 @@ loro volta. I file DICOM interni sono catalogati come DICOM e non passano
 dall'OCR o dall'estrazione testo ordinaria.
 Nel frontend non vengono mostrati i singoli file DICOM: la consultazione mostra
 schede aggregate per studio, con numero istanze, UID quando disponibile e link
-al supporto esportato se il supporto e' un documento sorgente copiato sulla
-chiavetta.
+di apertura del viewer HTML. I supporti privi di viewer HTML restano catalogati
+nei dati tecnici, ma non occupano la sezione clinica principale perché non sono
+consultabili direttamente dal browser.
 Per le immagini disco SaniKey prova prima il comando `7z`; se il file è un ISO
 valido ma `7z` non riesce ad aprirlo, ritenta con `bsdtar` quando disponibile.
 Quando le istanze DICOM sono leggibili, SaniKey usa `pydicom` per raggrupparle
@@ -476,28 +477,33 @@ necessari alla prima schermata sono esportati anche in `web/data.js`, caricato
 come script locale, così Chrome e gli altri browser non devono usare `fetch()`
 su URL `file://`.
 La ricerca rapida nel box in alto cerca in documenti, farmaci, terapie,
-problemi, procedure, osservazioni e studi DICOM sintetici. I risultati vengono
-raggruppati per sezione e mostrano link iniziali con conteggi, in modo che il
-medico possa saltare subito alla parte utile.
+problemi, procedure, osservazioni e studi DICOM visualizzabili. I risultati vengono
+raggruppati per sezione e mostrano link contestuali con conteggi dentro il
+pannello dei risultati, in modo che il medico possa saltare subito alla parte
+utile senza una seconda barra di navigazione sotto la ricerca.
 Il bottone `Ricerca avanzata` cambia lo stesso box di ricerca e carica al primo
 uso `web/content-search.js`, cercando
 anche nel testo estratto da PDF, immagini OCR, documenti Office e file testuali.
 La ricerca avanzata combina quei risultati documentali con gli stessi metadati
 clinici della ricerca rapida. Gli aiuti di ricerca base e avanzata sono
-separati e si aprono in finestre modali locali.
+separati, restano accanto al rispettivo bottone e si aprono in finestre modali
+locali richiudibili.
 
 La sintassi della ricerca avanzata è case-insensitive e accent-insensitive.
 Supporta parole, frasi tra virgolette, `AND`, `OR`, `NOT` e parentesi. Parole
 adiacenti equivalgono a `AND`, quindi `creatinina 2024` è equivalente a
 `creatinina AND 2024`.
 
-La sezione `Sintesi Clinica` mostra una dashboard clinica sempre consultabile. Include,
-quando presenti, problemi, terapie, farmaci, osservazioni, procedure e studi
-DICOM sintetici. Le terapie sono arricchite con nome commerciale, principio
-attivo, dosaggio, schedula, istruzioni, periodo e ruolo. Gli studi DICOM sono
-schede sintetiche con supporto, tipo, data/UID quando disponibili e numero di
-istanze; non viene mostrata la lista di ogni singola slice. Il riepilogo
-tecnico con conteggi e' in fondo alla sintesi clinica.
+La sezione `Sintesi Clinica` mostra una dashboard clinica sempre consultabile.
+Include, quando presenti, problemi, terapie, farmaci, osservazioni e procedure.
+Le terapie sono arricchite con nome commerciale, principio attivo, dosaggio,
+schedula, istruzioni, periodo e ruolo. Quando sono presenti, hanno anche un
+bottone di primo livello `Terapia` per l'accesso diretto senza passare dalla
+sintesi generale. Gli studi DICOM hanno una sezione autonoma `Studi DICOM`,
+visibile solo quando il payload contiene studi apribili con viewer HTML, con
+schede sintetiche per data/UID quando disponibili e numero di istanze; non
+viene mostrata la lista di ogni singola slice. Il riepilogo tecnico con conteggi
+e' in fondo alla sintesi clinica.
 
 ### Personalizzare la Consultazione
 
