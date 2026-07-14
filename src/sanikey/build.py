@@ -18,6 +18,7 @@ from .inspection import (
     static_document_warning_messages,
 )
 from .metadata import load_curated_metadata
+from .observation_imports import ensure_observation_imports_current
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -173,6 +174,7 @@ def build_patient(
         raise ValueError(msg)
     documents = (*inspection.documents, *staging.documents)
     dicom_studies = inspection.dicom_studies
+    ensure_observation_imports_current(person)
     metadata = load_curated_metadata(person.metadata_directory)
     extraction_documents = tuple(
         document for document in documents if not document.kind.startswith("dicom_")

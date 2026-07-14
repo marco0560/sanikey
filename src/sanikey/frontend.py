@@ -140,6 +140,26 @@ def _index_html(person: PersonConfig) -> str:
           <md-text-button type="button" data-section-button="therapies" data-pane-target="left">Terapia</md-text-button>
           <md-icon-button type="button" data-section-button="therapies" data-pane-target="right" aria-label="Apri Terapia a destra">&gt;</md-icon-button>
         </span>
+        <span class="nav-control" data-observation-control="weight" hidden>
+          <md-text-button type="button" data-section-button="weight" data-pane-target="left">Peso</md-text-button>
+          <md-icon-button type="button" data-section-button="weight" data-pane-target="right" aria-label="Apri Peso a destra">&gt;</md-icon-button>
+        </span>
+        <span class="nav-control" data-observation-control="pressure" hidden>
+          <md-text-button type="button" data-section-button="pressure" data-pane-target="left">Pressione</md-text-button>
+          <md-icon-button type="button" data-section-button="pressure" data-pane-target="right" aria-label="Apri Pressione a destra">&gt;</md-icon-button>
+        </span>
+        <span class="nav-control" data-observation-control="glucose" hidden>
+          <md-text-button type="button" data-section-button="glucose" data-pane-target="left">Glicemia</md-text-button>
+          <md-icon-button type="button" data-section-button="glucose" data-pane-target="right" aria-label="Apri Glicemia a destra">&gt;</md-icon-button>
+        </span>
+        <span class="nav-control" data-observation-control="inr" hidden>
+          <md-text-button type="button" data-section-button="inr" data-pane-target="left">INR</md-text-button>
+          <md-icon-button type="button" data-section-button="inr" data-pane-target="right" aria-label="Apri INR a destra">&gt;</md-icon-button>
+        </span>
+        <span class="nav-control" data-observation-control="parameters" hidden>
+          <md-text-button type="button" data-section-button="parameters" data-pane-target="left">Parametri</md-text-button>
+          <md-icon-button type="button" data-section-button="parameters" data-pane-target="right" aria-label="Apri Parametri a destra">&gt;</md-icon-button>
+        </span>
         <span class="nav-control" data-dicom-control hidden>
           <md-text-button type="button" data-section-button="dicom" data-pane-target="left">Studi DICOM</md-text-button>
           <md-icon-button type="button" data-section-button="dicom" data-pane-target="right" aria-label="Apri Studi DICOM a destra">&gt;</md-icon-button>
@@ -175,6 +195,11 @@ def _index_html(person: PersonConfig) -> str:
     <section id="timeline" data-section-panel="timeline" aria-label="Timeline"></section>
     <section id="summary" data-section-panel="summary" aria-label="Sintesi Clinica"></section>
     <section id="therapies" data-section-panel="therapies" aria-label="Terapia"></section>
+    <section id="weight" data-section-panel="weight" aria-label="Peso" hidden></section>
+    <section id="pressure" data-section-panel="pressure" aria-label="Pressione" hidden></section>
+    <section id="glucose" data-section-panel="glucose" aria-label="Glicemia" hidden></section>
+    <section id="inr" data-section-panel="inr" aria-label="INR" hidden></section>
+    <section id="parameters" data-section-panel="parameters" aria-label="Parametri" hidden></section>
     <section id="dicom" data-section-panel="dicom" aria-label="Studi DICOM"></section>
   </main>
   <dialog id="basic-help-dialog" class="help-dialog">
@@ -224,12 +249,27 @@ def _app_js() -> str:
   problems: "Problemi",
   procedures: "Procedure",
   observations: "Osservazioni",
+  weight: "Peso",
+  pressure: "Pressione",
+  glucose: "Glicemia",
+  inr: "INR",
+  parameters: "Parametri",
   dicom: "Studi DICOM",
   timeline: "Timeline",
   summary: "Sintesi Clinica",
 };
 
-const SECTION_ORDER = ["documents", "therapies", "medications", "problems", "procedures", "observations", "dicom", "timeline"];
+const OBSERVATION_SECTION_BY_ID = {
+  peso: "weight",
+  weight: "weight",
+  pressione: "pressure",
+  pressure: "pressure",
+  glicemia: "glucose",
+  glucose: "glucose",
+  inr: "inr",
+};
+
+const SECTION_ORDER = ["documents", "therapies", "medications", "problems", "procedures", "observations", "weight", "pressure", "glucose", "inr", "parameters", "dicom", "timeline"];
 function text(value) {
   return value === null || value === undefined ? "" : String(value);
 }
@@ -358,6 +398,50 @@ function renderDicomStudies(studies) {
       ? selected.map(renderDicomStudyCard).join("")
       : '<p class="muted">Nessuno studio DICOM disponibile.</p>'
   );
+}
+
+function observationSectionForSeries(series) {
+  return OBSERVATION_SECTION_BY_ID[text(series.id).toLowerCase()] || "parameters";
+}
+
+function renderObservationSections(clinical) {
+  const series = clinical.observation_series || [];
+  const points = clinical.observation_points || [];
+  const bySeries = new Map(series.map((item) => [item.id, item]));
+  const grouped = {
+    weight: [],
+    pressure: [],
+    glucose: [],
+    inr: [],
+    parameters: [],
+  };
+  points.forEach((point) => {
+    const itemSeries = bySeries.get(point.series_id) || {id: point.series_id, name: point.series_id};
+    grouped[observationSectionForSeries(itemSeries)].push({series: itemSeries, point});
+  });
+  Object.entries(grouped).forEach(([section, items]) => renderObservationSection(section, items));
+  configureObservationNavigation(grouped);
+}
+
+function renderObservationSection(section, items) {
+  const target = document.querySelector(`#${section}`);
+  const sorted = [...items].sort((left, right) => text(right.point.date).localeCompare(text(left.point.date)));
+  target.innerHTML = `<h2>${escapeHtml(SECTION_LABELS[section])}</h2>` + (
+    sorted.length
+      ? `<table class="observation-table"><thead><tr><th>Data</th><th>Serie</th><th>Valore</th><th>Fonte</th></tr></thead><tbody>${sorted.map(({series, point}) =>
+          `<tr id="entity-${attr(point.id)}"><td>${escapeHtml(formatDate(point.date))}</td><td>${escapeHtml(series.name || series.id)}</td><td>${escapeHtml(point.value)}</td><td>${escapeHtml(point.source_reference)}</td></tr>`
+        ).join("")}</tbody></table>`
+      : '<p class="muted">Nessuna misurazione disponibile.</p>'
+  );
+}
+
+function configureObservationNavigation(grouped) {
+  Object.entries(grouped).forEach(([section, items]) => {
+    document.querySelectorAll(`[data-observation-control="${section}"]`).forEach((control) => {
+      control.hidden = !items.length;
+    });
+    document.querySelector(`#${section}`).hidden = !items.length;
+  });
 }
 
 function renderTherapies(therapies) {
@@ -871,6 +955,7 @@ function main() {
   configureTherapyNavigation(therapies);
   renderDicomStudies(dicomStudies);
   configureDicomNavigation(dicomStudies);
+  renderObservationSections(data.clinical || {});
   renderDocuments(documents);
   const advancedInput = document.querySelector("#advanced-search");
   const advancedResults = document.querySelector("#advanced-results");
@@ -941,7 +1026,7 @@ def _ui_helper_js() -> str:
   }
 
   function fallbackSection(excluded) {
-    return ["documents", "timeline", "summary", "therapies", "dicom", "advanced"]
+    return ["documents", "timeline", "summary", "therapies", "weight", "pressure", "glucose", "inr", "parameters", "dicom", "advanced"]
       .find((section) => section !== excluded && isSectionAvailable(section)) || "documents";
   }
 
@@ -1410,6 +1495,19 @@ dd {
   overflow-x: auto;
 }
 
+.observation-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.observation-table th,
+.observation-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.45rem 0.35rem;
+  text-align: left;
+  vertical-align: top;
+}
+
 .markdown h1,
 .markdown h2,
 .markdown h3 {
@@ -1473,6 +1571,11 @@ body[data-density="compact"] md-text-button {
   body[data-layout="dual"] #timeline,
   body[data-layout="dual"] #summary,
   body[data-layout="dual"] #therapies,
+  body[data-layout="dual"] #weight,
+  body[data-layout="dual"] #pressure,
+  body[data-layout="dual"] #glucose,
+  body[data-layout="dual"] #inr,
+  body[data-layout="dual"] #parameters,
   body[data-layout="dual"] #dicom {
     max-height: calc(100vh - 8rem);
     overflow: auto;

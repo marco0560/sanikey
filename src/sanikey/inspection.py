@@ -222,7 +222,7 @@ def _preflight_document_warnings(document: DocumentRecord) -> tuple[str, ...]:
     suffix = document.path.suffix.lower()
     if suffix == ".pdf" or document.kind.startswith("dicom_"):
         return ()
-    if suffix in {".doc", ".xls"}:
+    if suffix == ".doc":
         return ()
     if document.kind not in {"archive", "office"}:
         return ()

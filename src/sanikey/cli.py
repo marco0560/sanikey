@@ -22,6 +22,7 @@ from .frontend import build_frontend
 from .inspection import inspect_patient_documents
 from .integrity import check_source_snapshots, write_source_snapshot
 from .metadata import load_curated_metadata
+from .observation_imports import import_observations
 from .privacy import validate_privacy
 from .progress import ProgressDots
 from .proposals import generate_manual_proposals, review_proposal
@@ -204,6 +205,18 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(extract_parser)
     extract_parser.add_argument("--patient", help="Elabora solo un id paziente")
     extract_parser.set_defaults(func=run_extract_text)
+
+    observations_parser = subparsers.add_parser(
+        "import-observations",
+        help="Importa misurazioni longitudinali da CSV e fogli di calcolo",
+    )
+    _add_config_arguments(observations_parser, allow_config_flag=True)
+    observations_parser.add_argument(
+        "patient",
+        nargs="?",
+        help="Importa solo un id paziente",
+    )
+    observations_parser.set_defaults(func=run_import_observations)
 
     dicom_parser = subparsers.add_parser(
         "process-dicom",
@@ -898,6 +911,40 @@ def run_build_patient(args: argparse.Namespace) -> int:
             )
         )
     except (SaniKeyError, ValueError) as exc:
+        print(f"ERRORE: {exc}")
+        return 1
+    return 0
+
+
+def run_import_observations(args: argparse.Namespace) -> int:
+    """Run observation import for configured patients.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(_config_path(args))
+        selected = _selected_people(config, args.patient)
+        if args.patient and not selected:
+            print(f"ERRORE: paziente non trovato o disabilitato: {args.patient}")
+            return 1
+        for person in selected:
+            result = import_observations(person)
+            print(
+                f"paziente={result.patient_id} serie={result.series} "
+                f"punti={result.points}"
+            )
+            for warning in result.warnings:
+                print(f"AVVISO: {warning}")
+    except SaniKeyError as exc:
         print(f"ERRORE: {exc}")
         return 1
     return 0

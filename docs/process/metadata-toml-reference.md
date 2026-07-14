@@ -227,6 +227,64 @@ value = "70 kg"
 date = "2026-01-03"
 ```
 
+## `observation_imports.toml`
+
+Contiene il protocollo di import per osservazioni longitudinali da CSV UTF-8 e
+fogli di calcolo `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`.
+
+Esempio:
+
+```toml
+[[series]]
+id = "peso"
+name = "Peso"
+value_type = "numeric"
+unit = "kg"
+warn_duplicate_same_day = false
+
+[[source]]
+path = "parametri/peso-2025.xlsx"
+series_id = "peso"
+sheet = "Peso"
+source_reference = "peso-2025.xlsx"
+
+[source.columns]
+date = "Data"
+numeric_value = "Peso"
+note = "Note"
+```
+
+Per la pressione:
+
+```toml
+[[series]]
+id = "pressione"
+name = "Pressione"
+value_type = "blood_pressure"
+unit = "mmHg"
+warn_duplicate_same_day = false
+
+[[source]]
+path = "parametri/diario-pressorio.csv"
+series_id = "pressione"
+
+[source.columns]
+date = "Data"
+systolic = "Sistolica"
+diastolic = "Diastolica"
+pulse = "Frequenza"
+```
+
+I path relativi sono risolti rispetto alla directory documenti sorgente del
+paziente. Dopo ogni modifica al manifesto o ai file sorgente eseguire:
+
+```bash
+uv run sanikey import-observations PATIENT
+```
+
+La build fallisce se gli artefatti in `metadata/observations/` sono assenti o
+stale rispetto al manifesto.
+
 ## `timeline_events.toml`
 
 Contiene eventi manuali da mostrare nella timeline.

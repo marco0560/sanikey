@@ -767,6 +767,13 @@ def _clinical_payload(
         "observations": [
             _observation_payload(observation) for observation in metadata.observations
         ],
+        "observation_series": [
+            _observation_series_payload(series)
+            for series in metadata.observation_series
+        ],
+        "observation_points": [
+            _observation_point_payload(point) for point in metadata.observation_points
+        ],
         "dicom_studies": [
             _dicom_study_payload(person, study) for study in dicom_studies
         ],
@@ -972,6 +979,95 @@ def _observation_payload(observation: Observation) -> dict[str, Any]:
             if field["value"]
         ],
     }
+
+
+def _observation_series_payload(series: Any) -> dict[str, Any]:
+    """Build one observation series frontend payload.
+
+    Parameters
+    ----------
+    series : Any
+        Observation series model.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    return {
+        "id": series.id,
+        "type": "observation_series",
+        "title": series.name,
+        "name": series.name,
+        "value_type": series.value_type,
+        "unit": series.unit,
+        "description": series.description,
+        "text": " ".join(
+            item for item in (series.name, series.value_type, series.unit) if item
+        ).strip(),
+    }
+
+
+def _observation_point_payload(point: Any) -> dict[str, Any]:
+    """Build one observation point frontend payload.
+
+    Parameters
+    ----------
+    point : Any
+        Observation point model.
+
+    Returns
+    -------
+    dict[str, Any]
+        JSON-serializable payload.
+    """
+
+    value = _observation_point_value(point)
+    return {
+        "id": point.id,
+        "type": "observation_point",
+        "series_id": point.series_id,
+        "date": point.observation_date,
+        "value": value,
+        "source_reference": point.source_reference,
+        "note": point.note,
+        "text": " ".join(
+            item
+            for item in (
+                point.series_id,
+                point.observation_date,
+                value,
+                point.source_reference,
+                point.note,
+            )
+            if item
+        ).strip(),
+    }
+
+
+def _observation_point_value(point: Any) -> str:
+    """Return a display value for one observation point.
+
+    Parameters
+    ----------
+    point : Any
+        Observation point model.
+
+    Returns
+    -------
+    str
+        Display value.
+    """
+
+    if point.systolic is not None and point.diastolic is not None:
+        value = f"{point.systolic:g}/{point.diastolic:g}"
+        if point.pulse is not None:
+            value = f"{value} FC {point.pulse:g}"
+        return value
+    if point.numeric_value is not None:
+        return f"{point.numeric_value:g}"
+    return point.text_value or ""
 
 
 def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, Any]:
@@ -1199,6 +1295,8 @@ def _metadata_search_payloads(
         "therapies": "therapies",
         "procedures": "procedures",
         "observations": "observations",
+        "observation_series": "observations",
+        "observation_points": "observations",
         "dicom_studies": "dicom",
     }
     for key, section in section_by_type.items():

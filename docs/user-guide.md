@@ -353,9 +353,23 @@ Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 - `.md`: contenuto testuale diretto e rendering HTML Markdown nel frontend;
 - `.pdf`: testo digitale con PyMuPDF e OCR con OCRmyPDF quando necessario;
 - `.jpg`, `.jpeg`, `.png`: documento immagine consultabile, senza OCR diretto;
-- `.docx`, `.xlsx`, `.odt`, `.ods`: testo e celle tramite librerie Python;
-- `.doc`, `.xls`: conversione tramite LibreOffice o `soffice`, se disponibile;
+- `.docx`, `.odt`: testo tramite librerie Python;
+- `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`: celle tramite `python-calamine`;
+- `.doc`: conversione tramite LibreOffice o `soffice`, se disponibile;
 - `.zip`, `.7z`, `.rar`: inventario dei file contenuti nell'archivio.
+
+Le misurazioni longitudinali come peso, pressione, glicemia e INR si importano
+con un passaggio esplicito:
+
+```bash
+uv run sanikey import-observations PATIENT
+uv run sanikey build-patient PATIENT
+```
+
+Il manifesto `metadata/observation_imports.toml` associa ogni file sorgente a
+una serie clinica e mappa le colonne. Sono accettati CSV UTF-8 e fogli
+`.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`. Se manifesto o sorgenti cambiano,
+la build chiede di rieseguire `import-observations`.
 
 Durante `scan-documents` e `build-patient`, gli archivi e le immagini disco
 supportate vengono anche estratti in una staging area generata sotto

@@ -11,6 +11,8 @@ from .models import (
     CuratedMetadata,
     Medication,
     Observation,
+    ObservationPoint,
+    ObservationSeries,
     Procedure,
     TherapyEpisode,
     TimelineEvent,
@@ -71,6 +73,12 @@ def load_curated_metadata(metadata_dir: Path) -> CuratedMetadata:
             "observation",
             _observation_from_table,
         ),
+        observation_series=_load_items(
+            metadata_dir / "observations" / "series.toml",
+            "series",
+            _observation_series_from_table,
+        ),
+        observation_points=_load_observation_points(metadata_dir / "observations"),
         timeline_events=_load_items(
             metadata_dir / "timeline_events.toml",
             "event",
@@ -306,6 +314,103 @@ def _observation_from_table(
     )
 
 
+def _observation_series_from_table(
+    item: dict[str, Any], path: Path, index: int
+) -> ObservationSeries:
+    """Parse one observation series.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw item table.
+    path : pathlib.Path
+        Source file path.
+    index : int
+        Item index.
+
+    Returns
+    -------
+    ObservationSeries
+        Parsed observation series.
+    """
+
+    return ObservationSeries(
+        id=_required_string(item, "id", path, index),
+        name=_required_string(item, "name", path, index),
+        value_type=_required_string(item, "value_type", path, index),
+        unit=_optional_string(item, "unit"),
+        description=_optional_string(item, "description"),
+        warn_duplicate_same_day=_optional_bool(
+            item,
+            "warn_duplicate_same_day",
+            default=True,
+            path=path,
+            index=index,
+        ),
+    )
+
+
+def _load_observation_points(directory: Path) -> tuple[ObservationPoint, ...]:
+    """Load normalized observation point files.
+
+    Parameters
+    ----------
+    directory : pathlib.Path
+        Observation metadata directory.
+
+    Returns
+    -------
+    tuple[ObservationPoint, ...]
+        Parsed observation points.
+    """
+
+    if not directory.exists():
+        return ()
+    if not directory.is_dir():
+        _fail(f"directory osservazioni non valida: {directory}")
+    points: list[ObservationPoint] = []
+    for path in sorted(directory.glob("*.toml")):
+        if path.name in {"series.toml", "import_state.toml"}:
+            continue
+        points.extend(_load_items(path, "point", _observation_point_from_table))
+    return tuple(points)
+
+
+def _observation_point_from_table(
+    item: dict[str, Any], path: Path, index: int
+) -> ObservationPoint:
+    """Parse one normalized observation point.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw item table.
+    path : pathlib.Path
+        Source file path.
+    index : int
+        Item index.
+
+    Returns
+    -------
+    ObservationPoint
+        Parsed observation point.
+    """
+
+    return ObservationPoint(
+        id=_required_string(item, "id", path, index),
+        series_id=_required_string(item, "series_id", path, index),
+        observation_date=_required_string(item, "observation_date", path, index),
+        source_type=_required_string(item, "source_type", path, index),
+        source_reference=_required_string(item, "source_reference", path, index),
+        numeric_value=_optional_float(item, "numeric_value", path, index),
+        text_value=_optional_string(item, "text_value"),
+        systolic=_optional_float(item, "systolic", path, index),
+        diastolic=_optional_float(item, "diastolic", path, index),
+        pulse=_optional_float(item, "pulse", path, index),
+        note=_optional_string(item, "note"),
+    )
+
+
 def _timeline_event_from_table(
     item: dict[str, Any], path: Path, index: int
 ) -> TimelineEvent:
@@ -430,6 +535,22 @@ def _validate_curated_metadata(metadata: CuratedMetadata, metadata_dir: Path) ->
         (item.id for item in metadata.observations),
         metadata_dir / "observations.toml",
     )
+    series_ids = _validate_unique_ids(
+        "observation_series",
+        (item.id for item in metadata.observation_series),
+        metadata_dir / "observations" / "series.toml",
+    )
+    _validate_unique_ids(
+        "observation_point",
+        (item.id for item in metadata.observation_points),
+        metadata_dir / "observations",
+    )
+    for point in metadata.observation_points:
+        if point.series_id not in series_ids:
+            _fail(
+                f"{metadata_dir / 'observations'}: observation point {point.id} "
+                f"referenzia series_id sconosciuto {point.series_id}",
+            )
     _validate_unique_ids(
         "event",
         (item.id for item in metadata.timeline_events),
@@ -551,6 +672,73 @@ def _optional_string(item: dict[str, Any], field: str) -> str | None:
     if not isinstance(value, str):
         _fail(f"campo {field} deve essere una stringa")
     return cast("str", value).strip()
+
+
+def _optional_bool(
+    item: dict[str, Any],
+    field: str,
+    *,
+    default: bool,
+    path: Path,
+    index: int,
+) -> bool:
+    """Return an optional boolean field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Item table.
+    field : str
+        Field name.
+    default : bool
+        Default value when absent.
+    path : pathlib.Path
+        Source file path.
+    index : int
+        Item index.
+
+    Returns
+    -------
+    bool
+        Parsed boolean value.
+    """
+
+    value = item.get(field)
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        _fail(f"{path}: elemento {index} campo {field} deve essere booleano")
+    return cast("bool", value)
+
+
+def _optional_float(
+    item: dict[str, Any], field: str, path: Path, index: int
+) -> float | None:
+    """Return an optional numeric field.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Item table.
+    field : str
+        Field name.
+    path : pathlib.Path
+        Source file path.
+    index : int
+        Item index.
+
+    Returns
+    -------
+    float | None
+        Parsed numeric value when present.
+    """
+
+    value = item.get(field)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        _fail(f"{path}: elemento {index} campo {field} deve essere numerico")
+    return float(value)
 
 
 def _string_tuple(value: Any, path: Path, field: str, index: int) -> tuple[str, ...]:

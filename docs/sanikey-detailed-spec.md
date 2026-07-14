@@ -2531,10 +2531,11 @@ trattati come documenti derivati ordinari.
 
 #### 6.11.2 Documenti Office e OpenDocument
 
-Il sistema può estrarre testo da documenti `.docx`, `.xlsx`, `.odt` e `.ods`.
+Il sistema può estrarre testo da documenti `.docx` e `.odt`, e celle dai fogli
+di calcolo `.xlsx`, `.xlsm`, `.xlsb`, `.xls` e `.ods` tramite `python-calamine`.
 
-Per documenti legacy `.doc` e `.xls`, l'estrazione richiede LibreOffice o
-`soffice` disponibile come comando di sistema.
+Per documenti legacy `.doc`, l'estrazione richiede LibreOffice o `soffice`
+disponibile come comando di sistema.
 
 Se l'estrazione non è possibile, il documento deve restare catalogato e il
 problema deve essere registrato come warning.
@@ -9792,8 +9793,8 @@ sono considerati formati supportati.
 
 Per `ZIP`, `7Z`, `RAR` e `DICOM ISO`, il supporto include l'inventario del
 contenitore e la staging dei membri estratti come artefatti generati.
-Per `DOC` e `XLS` il supporto dipende dalla presenza di LibreOffice o `soffice`
-nel sistema locale di build.
+Per `DOC` il supporto dipende dalla presenza di LibreOffice o `soffice` nel
+sistema locale di build.
 
 ---
 

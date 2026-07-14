@@ -26,10 +26,10 @@ TEXT_EXTENSIONS = {".txt", ".md"}
 IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 ARCHIVE_EXTENSIONS = {".7z", ".rar", ".zip"}
 DOCX_EXTENSIONS = {".docx"}
-LEGACY_OFFICE_EXTENSIONS = {".doc", ".xls"}
-ODF_EXTENSIONS = {".ods", ".odt"}
+LEGACY_OFFICE_EXTENSIONS = {".doc"}
+ODF_EXTENSIONS = {".odt"}
 OFFICE_EXTENSIONS = DOCX_EXTENSIONS | LEGACY_OFFICE_EXTENSIONS | ODF_EXTENSIONS
-XLSX_EXTENSIONS = {".xlsx"}
+SPREADSHEET_EXTENSIONS = {".ods", ".xls", ".xlsb", ".xlsm", ".xlsx"}
 MIN_PDF_TEXT_CHARACTERS = 40
 
 
@@ -332,8 +332,8 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
         return _extract_archive_text(document)
     if suffix in DOCX_EXTENSIONS:
         return _extract_docx_text(document)
-    if suffix in XLSX_EXTENSIONS:
-        return _extract_xlsx_text(document)
+    if suffix in SPREADSHEET_EXTENSIONS:
+        return _extract_spreadsheet_text(document)
     if suffix in ODF_EXTENSIONS:
         return _extract_odf_text(document)
     if suffix in LEGACY_OFFICE_EXTENSIONS:
@@ -507,7 +507,7 @@ def _document_kind(path: Path) -> str:
         return "image"
     if suffix in ARCHIVE_EXTENSIONS:
         return "archive"
-    if suffix in OFFICE_EXTENSIONS | XLSX_EXTENSIONS:
+    if suffix in OFFICE_EXTENSIONS | SPREADSHEET_EXTENSIONS:
         return "office"
     return "binary"
 
@@ -812,13 +812,13 @@ def _extract_docx_text(document: DocumentRecord) -> ExtractedText:
     return ExtractedText(document_id=document.document_id, text="\n".join(parts))
 
 
-def _extract_xlsx_text(document: DocumentRecord) -> ExtractedText:
-    """Extract text from an XLSX workbook.
+def _extract_spreadsheet_text(document: DocumentRecord) -> ExtractedText:
+    """Extract text from a spreadsheet workbook.
 
     Parameters
     ----------
     document : DocumentRecord
-        XLSX document.
+        Spreadsheet document.
 
     Returns
     -------
@@ -827,34 +827,34 @@ def _extract_xlsx_text(document: DocumentRecord) -> ExtractedText:
     """
 
     try:
-        import openpyxl
-        from openpyxl.utils.exceptions import InvalidFileException
+        from python_calamine import CalamineError, load_workbook
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            workbook = openpyxl.load_workbook(
-                document.path,
-                read_only=True,
-                data_only=True,
-            )
-            parts = []
-            for worksheet in workbook.worksheets:
-                parts.append(f"[{worksheet.title}]")
-                for row in worksheet.iter_rows(values_only=True):
-                    values = [str(value) for value in row if value is not None]
-                    if values:
-                        parts.append("\t".join(values))
-            workbook.close()
-    except (InvalidFileException, OSError, ValueError, zipfile.BadZipFile) as exc:
+            workbook = load_workbook(document.path)
+            try:
+                parts = []
+                for sheet_name in workbook.sheet_names:
+                    worksheet = workbook.get_sheet_by_name(sheet_name)
+                    parts.append(f"[{sheet_name}]")
+                    for row in worksheet.to_python(skip_empty_area=False):
+                        values = [
+                            str(value) for value in row if value not in (None, "")
+                        ]
+                        if values:
+                            parts.append("\t".join(values))
+            finally:
+                workbook.close()
+    except (CalamineError, OSError, ValueError, zipfile.BadZipFile) as exc:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"estrazione testo XLSX non riuscita: {exc}",),
+            warnings=(f"estrazione testo foglio di calcolo non riuscita: {exc}",),
         )
     warning_messages = tuple(
         dict.fromkeys(
-            "testo XLSX estratto; funzionalita' di compatibilita' cartella "
-            "non preservata: "
+            "testo foglio di calcolo estratto; funzionalita' di compatibilita' "
+            "cartella non preservata: "
             f"{item.message}"
             for item in caught
         )
@@ -913,12 +913,12 @@ def _extract_odf_text(document: DocumentRecord) -> ExtractedText:
 
 
 def _extract_legacy_office_text(document: DocumentRecord) -> ExtractedText:
-    """Extract text from legacy Office documents through LibreOffice.
+    """Extract text from legacy Word documents through LibreOffice.
 
     Parameters
     ----------
     document : DocumentRecord
-        Legacy ``.doc`` or ``.xls`` document.
+        Legacy ``.doc`` document.
 
     Returns
     -------
@@ -933,8 +933,6 @@ def _extract_legacy_office_text(document: DocumentRecord) -> ExtractedText:
             text="",
             warnings=("LibreOffice non installato; estrazione Office legacy saltata",),
         )
-    suffix = document.path.suffix.lower()
-    output_filter = "csv" if suffix == ".xls" else "txt:Text"
     with tempfile.TemporaryDirectory(prefix="sanikey-office-") as directory:
         output_dir = Path(directory)
         try:
@@ -943,7 +941,7 @@ def _extract_legacy_office_text(document: DocumentRecord) -> ExtractedText:
                     executable,
                     "--headless",
                     "--convert-to",
-                    output_filter,
+                    "txt:Text",
                     "--outdir",
                     str(output_dir),
                     str(document.path),

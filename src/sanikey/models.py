@@ -203,6 +203,77 @@ class Observation:
 
 
 @dataclass(frozen=True)
+class ObservationSeries:
+    """Represent one longitudinal observation series.
+
+    Parameters
+    ----------
+    id : str
+        Stable series identifier.
+    name : str
+        Human-readable series name.
+    value_type : str
+        Value type, for example ``numeric`` or ``blood_pressure``.
+    unit : str | None, optional
+        Measurement unit.
+    description : str | None, optional
+        Free-text description.
+    warn_duplicate_same_day : bool
+        Whether same-day duplicates should be reported during import.
+    """
+
+    id: str
+    name: str
+    value_type: str
+    unit: str | None = None
+    description: str | None = None
+    warn_duplicate_same_day: bool = True
+
+
+@dataclass(frozen=True)
+class ObservationPoint:
+    """Represent one normalized observation point.
+
+    Parameters
+    ----------
+    id : str
+        Stable point identifier.
+    series_id : str
+        Referenced observation series id.
+    observation_date : str
+        ISO observation date.
+    source_type : str
+        Source kind, for example ``spreadsheet``.
+    source_reference : str
+        Human-readable source reference.
+    numeric_value : float | None, optional
+        Numeric value for numeric series.
+    text_value : str | None, optional
+        Textual value for text or categorical series.
+    systolic : float | None, optional
+        Systolic pressure value.
+    diastolic : float | None, optional
+        Diastolic pressure value.
+    pulse : float | None, optional
+        Pulse value.
+    note : str | None, optional
+        Optional free-text note.
+    """
+
+    id: str
+    series_id: str
+    observation_date: str
+    source_type: str
+    source_reference: str
+    numeric_value: float | None = None
+    text_value: str | None = None
+    systolic: float | None = None
+    diastolic: float | None = None
+    pulse: float | None = None
+    note: str | None = None
+
+
+@dataclass(frozen=True)
 class TimelineEvent:
     """Represent a timeline event or interval.
 
@@ -246,6 +317,10 @@ class CuratedMetadata:
         Curated procedures.
     observations : tuple[Observation, ...]
         Curated observations.
+    observation_series : tuple[ObservationSeries, ...]
+        Normalized longitudinal observation series.
+    observation_points : tuple[ObservationPoint, ...]
+        Normalized longitudinal observation points.
     timeline_events : tuple[TimelineEvent, ...]
         Curated manual timeline events.
     document_tags : dict[str, tuple[str, ...]]
@@ -259,6 +334,8 @@ class CuratedMetadata:
     therapies: tuple[TherapyEpisode, ...] = ()
     procedures: tuple[Procedure, ...] = ()
     observations: tuple[Observation, ...] = ()
+    observation_series: tuple[ObservationSeries, ...] = ()
+    observation_points: tuple[ObservationPoint, ...] = ()
     timeline_events: tuple[TimelineEvent, ...] = ()
     document_tags: dict[str, tuple[str, ...]] = field(default_factory=dict)
     clinical_summary: str | None = None

@@ -45,6 +45,71 @@ def _person(tmp_path: Path) -> PersonConfig:
     )
 
 
+def _write_xlsx(path: Path, rows: tuple[tuple[str, ...], ...]) -> None:
+    """Write a minimal XLSX workbook for extraction tests.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Output workbook path.
+    rows : tuple[tuple[str, ...], ...]
+        Worksheet rows to write as inline strings.
+
+    Returns
+    -------
+    None
+    """
+
+    row_xml = []
+    for row_index, row in enumerate(rows, start=1):
+        cells = []
+        for column_index, value in enumerate(row, start=1):
+            column = chr(ord("A") + column_index - 1)
+            cells.append(
+                f'<c r="{column}{row_index}" t="inlineStr"><is><t>{value}</t></is></c>'
+            )
+        row_xml.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>""",
+        )
+        archive.writestr(
+            "_rels/.rels",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>""",
+        )
+        archive.writestr(
+            "xl/workbook.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="Vitals" sheetId="1" r:id="rId1"/></sheets>
+</workbook>""",
+        )
+        archive.writestr(
+            "xl/_rels/workbook.xml.rels",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>""",
+        )
+        archive.writestr(
+            "xl/worksheets/sheet1.xml",
+            f"""<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetData>{"".join(row_xml)}</sheetData>
+</worksheet>""",
+        )
+
+
 def test_scan_documents_builds_stable_records(tmp_path: Path) -> None:
     """Verify scanner derives category, date, title, kind, and digest.
 
@@ -476,18 +541,11 @@ def test_extract_text_reads_xlsx_workbooks(tmp_path: Path) -> None:
     None
     """
 
-    import openpyxl
-
     person = _person(tmp_path)
     document_dir = person.source_documents
     document_dir.mkdir(parents=True)
     path = document_dir / "20260102 Workbook.xlsx"
-    workbook = openpyxl.Workbook()
-    worksheet = workbook.active
-    worksheet.title = "Vitals"
-    worksheet["A1"] = "Peso"
-    worksheet["B1"] = "70 kg"
-    workbook.save(path)
+    _write_xlsx(path, (("Peso", "70 kg"),))
     document = scan_documents(person)[0]
 
     extracted = extract_text(document)
@@ -517,7 +575,7 @@ def test_extract_text_captures_xlsx_library_warnings(
 
     import warnings
 
-    import openpyxl
+    import python_calamine
 
     class FakeWorksheet:
         """Minimal worksheet for XLSX extraction tests.
@@ -531,24 +589,22 @@ def test_extract_text_captures_xlsx_library_warnings(
         None
         """
 
-        title = "Sheet"
-
-        def iter_rows(self, *, values_only: bool):
+        def to_python(self, *, skip_empty_area: bool):
             """Return synthetic row values.
 
             Parameters
             ----------
-            values_only : bool
-                Whether cell values are requested.
+            skip_empty_area : bool
+                Whether leading empty cells should be skipped.
 
             Returns
             -------
-            tuple[tuple[str]]
+            list[list[str]]
                 Synthetic rows.
             """
 
-            assert values_only is True
-            return (("Synthetic cell",),)
+            assert skip_empty_area is False
+            return [["Synthetic cell"]]
 
     class FakeWorkbook:
         """Minimal workbook for XLSX extraction tests.
@@ -562,7 +618,24 @@ def test_extract_text_captures_xlsx_library_warnings(
         None
         """
 
-        worksheets = (FakeWorksheet(),)
+        sheet_names = ["Sheet"]
+
+        def get_sheet_by_name(self, name: str) -> FakeWorksheet:
+            """Return a synthetic worksheet by name.
+
+            Parameters
+            ----------
+            name : str
+                Requested worksheet name.
+
+            Returns
+            -------
+            FakeWorksheet
+                Synthetic worksheet.
+            """
+
+            assert name == "Sheet"
+            return FakeWorksheet()
 
         def close(self) -> None:
             """Close the fake workbook.
@@ -601,14 +674,14 @@ def test_extract_text_captures_xlsx_library_warnings(
     path = document_dir / "20260102 Workbook.xlsx"
     path.write_bytes(b"xlsx")
     document = scan_documents(person)[0]
-    monkeypatch.setattr(openpyxl, "load_workbook", fake_load_workbook)
+    monkeypatch.setattr(python_calamine, "load_workbook", fake_load_workbook)
 
     extracted = extract_text(document)
 
     assert "Synthetic cell" in extracted.text
     assert extracted.warnings == (
-        "testo XLSX estratto; funzionalita' di compatibilita' cartella "
-        "non preservata: "
+        "testo foglio di calcolo estratto; funzionalita' di compatibilita' "
+        "cartella non preservata: "
         "Data Validation extension is not supported",
     )
 
@@ -668,7 +741,7 @@ def test_extract_text_reads_ods_spreadsheets(tmp_path: Path) -> None:
     document_file = OpenDocumentSpreadsheet()
     table = Table(name="Sheet1")
     row = TableRow()
-    cell = TableCell()
+    cell = TableCell(valuetype="string")
     cell.addElement(P(text="Synthetic ODS text"))
     row.addElement(cell)
     table.addElement(row)
@@ -724,7 +797,7 @@ def test_extract_text_reads_legacy_office_through_libreoffice(
     assert extracted.warnings == ()
 
 
-@pytest.mark.parametrize("extension", [".docx", ".xlsx", ".odt"])
+@pytest.mark.parametrize("extension", [".docx", ".xlsx", ".xls", ".ods", ".odt"])
 def test_extract_text_warns_for_corrupt_office_documents(
     tmp_path: Path,
     extension: str,

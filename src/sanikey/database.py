@@ -184,6 +184,30 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             observation_date TEXT
         );
 
+        CREATE TABLE observation_series (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            value_type TEXT NOT NULL,
+            unit TEXT,
+            description TEXT,
+            warn_duplicate_same_day INTEGER NOT NULL
+        );
+
+        CREATE TABLE observation_points (
+            id TEXT PRIMARY KEY,
+            series_id TEXT NOT NULL,
+            observation_date TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            source_reference TEXT NOT NULL,
+            numeric_value REAL,
+            text_value TEXT,
+            systolic REAL,
+            diastolic REAL,
+            pulse REAL,
+            note TEXT,
+            FOREIGN KEY (series_id) REFERENCES observation_series(id)
+        );
+
         CREATE TABLE timeline_events (
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
@@ -340,6 +364,48 @@ def _insert_metadata(connection: sqlite3.Connection, metadata: CuratedMetadata) 
     connection.executemany(
         "INSERT INTO observations(id, kind, value, observation_date) VALUES (?, ?, ?, ?)",
         ((item.id, item.kind, item.value, item.date) for item in metadata.observations),
+    )
+    connection.executemany(
+        """
+        INSERT INTO observation_series(
+            id, name, value_type, unit, description, warn_duplicate_same_day
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            (
+                item.id,
+                item.name,
+                item.value_type,
+                item.unit,
+                item.description,
+                int(item.warn_duplicate_same_day),
+            )
+            for item in metadata.observation_series
+        ),
+    )
+    connection.executemany(
+        """
+        INSERT INTO observation_points(
+            id, series_id, observation_date, source_type, source_reference,
+            numeric_value, text_value, systolic, diastolic, pulse, note
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            (
+                item.id,
+                item.series_id,
+                item.observation_date,
+                item.source_type,
+                item.source_reference,
+                item.numeric_value,
+                item.text_value,
+                item.systolic,
+                item.diastolic,
+                item.pulse,
+                item.note,
+            )
+            for item in metadata.observation_points
+        ),
     )
     connection.executemany(
         """
