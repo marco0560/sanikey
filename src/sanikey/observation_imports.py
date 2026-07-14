@@ -225,6 +225,11 @@ def _load_manifest(person: PersonConfig, path: Path) -> _Manifest:
     -------
     _Manifest
         Parsed manifest.
+
+    Raises
+    ------
+    ConfigError
+        If the manifest is invalid or references missing sources.
     """
 
     try:
@@ -349,6 +354,11 @@ def _read_table(source: _SourceSpec) -> list[dict[str, Any]]:
     -------
     list[dict[str, Any]]
         Rows keyed by header.
+
+    Raises
+    ------
+    ConfigError
+        If the source format is unsupported or cannot be read.
     """
 
     suffix = source.path.suffix.lower()
