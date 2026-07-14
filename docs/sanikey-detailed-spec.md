@@ -2452,12 +2452,12 @@ Questa distinzione serve esclusivamente a determinare il metodo di estrazione de
 I file immagine `.jpg`, `.jpeg` e `.png` presenti nei documenti sorgente sono
 documenti di tipo `image`.
 
-Durante l'ingestione Linux il testo viene estratto tramite il comando di sistema
-`tesseract`. Quando i language pack `ita` ed `eng` sono disponibili, la pipeline
-usa `ita+eng`; in caso contrario usa la lingua predefinita di Tesseract.
+Durante l'ingestione il testo non viene estratto direttamente dalle immagini
+sorgente tramite Tesseract. L'immagine resta catalogata come documento
+consultabile e apribile, ma non alimenta `document_text` o la ricerca avanzata.
 
-Se Tesseract non e' disponibile o fallisce, l'immagine resta catalogata e il
-problema viene registrato come warning di OCR immagine saltato.
+I PDF scansionati restano invece documenti testuali potenziali e possono essere
+processati con OCRmyPDF quando il testo digitale non e' sufficiente.
 
 ---
 
@@ -9704,10 +9704,10 @@ Possono essere sostituite senza modificare il modello del sistema.
 
 ### 20.6 OCR
 
-Versione iniziale:
+Versione iniziale per PDF scansionati:
 
 ```text
-Tesseract OCR
+OCRmyPDF con motore Tesseract
 ```
 
 è la soluzione raccomandata.

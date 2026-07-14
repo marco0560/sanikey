@@ -98,11 +98,11 @@ def test_inspect_patient_documents_preflight_skips_non_lightweight_files(
     assert result.preflight_warning_messages == ()
 
 
-def test_inspect_patient_documents_preflight_reports_image_ocr_warnings(
+def test_inspect_patient_documents_preflight_skips_source_image_ocr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify preflight reports missing image OCR providers.
+    """Verify preflight does not require OCR providers for source images.
 
     Parameters
     ----------
@@ -124,9 +124,7 @@ def test_inspect_patient_documents_preflight_reports_image_ocr_warnings(
 
     result = inspect_patient_documents(person, preflight=True)
 
-    assert result.preflight_warning_messages == (
-        f"{path}: Tesseract non installato; OCR immagine saltato",
-    )
+    assert result.preflight_warning_messages == ()
 
 
 def test_inspect_patient_documents_can_stage_containers(tmp_path: Path) -> None:

@@ -340,9 +340,9 @@ build lunga:
 uv run sanikey scan-documents --preflight
 ```
 
-Il preflight controlla archivi, immagini e documenti Office moderni/OpenDocument
-senza eseguire OCR PDF e senza convertire documenti legacy Office. Per le
-immagini verifica anche la disponibilita' del provider OCR `tesseract`. Se
+Il preflight controlla archivi e documenti Office moderni/OpenDocument senza
+eseguire OCR PDF, senza convertire documenti legacy Office e senza richiedere
+OCR diretto per immagini sorgente `.jpg`, `.jpeg` o `.png`. Se
 compaiono avvisi inattesi, fermarsi e risolverli o annotarli prima di
 proseguire.
 
@@ -930,8 +930,9 @@ sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT id, count
 ```
 
 La query su `document_text` deve essere maggiore di zero se nel set sono presenti
-documenti testuali, PDF con testo digitale, PDF OCR riusciti, immagini OCR
-riuscite o documenti Office leggibili. La query FTS può restituire `0` se il
+documenti testuali, PDF con testo digitale, PDF OCR riusciti o documenti Office
+leggibili. Le immagini sorgente isolate non producono testo OCR diretto. La
+query FTS può restituire `0` se il
 termine scelto non esiste in titolo, categoria, tag o testo estratto. Ripetere
 con un termine realmente presente.
 Per i DICOM, `support_kind='dicom_study'` o `support_kind='dicomdir_study'`

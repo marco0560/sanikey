@@ -352,7 +352,7 @@ Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 - `.txt`: contenuto testuale diretto;
 - `.md`: contenuto testuale diretto e rendering HTML Markdown nel frontend;
 - `.pdf`: testo digitale con PyMuPDF e OCR con OCRmyPDF quando necessario;
-- `.jpg`, `.jpeg`, `.png`: OCR immagine tramite `tesseract`;
+- `.jpg`, `.jpeg`, `.png`: documento immagine consultabile, senza OCR diretto;
 - `.docx`, `.xlsx`, `.odt`, `.ods`: testo e celle tramite librerie Python;
 - `.doc`, `.xls`: conversione tramite LibreOffice o `soffice`, se disponibile;
 - `.zip`, `.7z`, `.rar`: inventario dei file contenuti nell'archivio.
@@ -427,10 +427,10 @@ I documenti `.md` e i campi TOML documentati come Markdown, incluso
 grezzo presente nel Markdown viene escapato; il frontend usa solo l'HTML
 generato dalla pipeline.
 
-Per le immagini, SaniKey usa il comando di sistema `tesseract`. Quando sono
-disponibili i language pack `ita` ed `eng`, usa `ita+eng`; altrimenti ricade
-sulla lingua predefinita di Tesseract. Se `tesseract` non e' installato,
-l'immagine resta catalogata e il report contiene un avviso di OCR saltato.
+Le immagini sorgente `.jpg`, `.jpeg` e `.png` restano documenti consultabili e
+apribili dal frontend, ma SaniKey non esegue OCR diretto con Tesseract su questi
+file. Questa scelta evita testo rumoroso e tempi di build non necessari. I PDF
+scansionati restano invece gestiti dalla pipeline PDF con OCRmyPDF quando serve.
 
 ## Costruire un Archivio
 
@@ -484,7 +484,7 @@ pannello dei risultati, in modo che il medico possa saltare subito alla parte
 utile senza una seconda barra di navigazione sotto la ricerca.
 Il bottone `Ricerca avanzata` cambia lo stesso box di ricerca e carica al primo
 uso `web/content-search.js`, cercando
-anche nel testo estratto da PDF, immagini OCR, documenti Office e file testuali.
+anche nel testo estratto da PDF, documenti Office e file testuali.
 La ricerca avanzata combina quei risultati documentali con gli stessi metadati
 clinici della ricerca rapida. Gli aiuti di ricerca base e avanzata sono
 separati, restano accanto al rispettivo bottone e si aprono in finestre modali

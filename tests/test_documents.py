@@ -293,11 +293,11 @@ def test_extract_text_reads_text_files(tmp_path: Path) -> None:
     assert extracted.warnings == ()
 
 
-def test_extract_text_reads_images_with_tesseract(
+def test_extract_text_skips_source_image_ocr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify image OCR uses Tesseract with preferred Italian and English.
+    """Verify source images are catalog-only for text extraction.
 
     Parameters
     ----------
@@ -311,88 +311,24 @@ def test_extract_text_reads_images_with_tesseract(
     None
     """
 
-    commands: list[list[str]] = []
-
-    def fake_run(command, **_kwargs):
-        """Return synthetic Tesseract command results.
+    def fail_run(*_args, **_kwargs):
+        """Fail if image extraction tries to execute a subprocess.
 
         Parameters
         ----------
-        command : list[str]
-            Command under test.
+        *_args : object
+            Positional arguments ignored by the fake.
         **_kwargs : object
             Keyword arguments ignored by the fake.
 
         Returns
         -------
-        subprocess.CompletedProcess[str]
-            Synthetic command result.
+        None
+            This helper always raises.
         """
 
-        commands.append(list(command))
-        if command[1:] == ["--list-langs"]:
-            return subprocess.CompletedProcess(command, 0, "eng\nita\n", "")
-        assert command[-2:] == ["-l", "ita+eng"]
-        return subprocess.CompletedProcess(command, 0, "ocr text\n", "")
-
-    person = _person(tmp_path)
-    document_dir = person.source_documents
-    document_dir.mkdir(parents=True)
-    path = document_dir / "20260102 Photo.jpg"
-    path.write_bytes(b"image")
-    document = scan_documents(person)[0]
-    monkeypatch.setattr(
-        documents_module.shutil, "which", lambda _: "/usr/bin/tesseract"
-    )
-    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
-
-    extracted = extract_text(document)
-
-    assert extracted.text == "ocr text"
-    assert extracted.warnings == ()
-    assert commands[0] == ["/usr/bin/tesseract", "--list-langs"]
-
-
-def test_extract_text_falls_back_to_default_tesseract_language(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Verify image OCR omits language arguments when packs are unavailable.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Temporary directory provided by pytest.
-    monkeypatch : pytest.MonkeyPatch
-        Pytest monkeypatch fixture.
-
-    Returns
-    -------
-    None
-    """
-
-    commands: list[list[str]] = []
-
-    def fake_run(command, **_kwargs):
-        """Return synthetic Tesseract command results.
-
-        Parameters
-        ----------
-        command : list[str]
-            Command under test.
-        **_kwargs : object
-            Keyword arguments ignored by the fake.
-
-        Returns
-        -------
-        subprocess.CompletedProcess[str]
-            Synthetic command result.
-        """
-
-        commands.append(list(command))
-        if command[1:] == ["--list-langs"]:
-            return subprocess.CompletedProcess(command, 0, "eng\n", "")
-        return subprocess.CompletedProcess(command, 0, "default text\n", "")
+        msg = "image OCR must not invoke subprocesses"
+        raise AssertionError(msg)
 
     person = _person(tmp_path)
     document_dir = person.source_documents
@@ -400,47 +336,12 @@ def test_extract_text_falls_back_to_default_tesseract_language(
     path = document_dir / "20260102 Photo.png"
     path.write_bytes(b"image")
     document = scan_documents(person)[0]
-    monkeypatch.setattr(
-        documents_module.shutil, "which", lambda _: "/usr/bin/tesseract"
-    )
-    monkeypatch.setattr(documents_module.subprocess, "run", fake_run)
-
-    extracted = extract_text(document)
-
-    assert extracted.text == "default text"
-    assert "-l" not in commands[1]
-
-
-def test_extract_text_warns_when_tesseract_is_missing(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Verify missing Tesseract produces an actionable image OCR warning.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Temporary directory provided by pytest.
-    monkeypatch : pytest.MonkeyPatch
-        Pytest monkeypatch fixture.
-
-    Returns
-    -------
-    None
-    """
-
-    person = _person(tmp_path)
-    document_dir = person.source_documents
-    document_dir.mkdir(parents=True)
-    path = document_dir / "20260102 Photo.jpeg"
-    path.write_bytes(b"image")
-    document = scan_documents(person)[0]
-    monkeypatch.setattr(documents_module.shutil, "which", lambda _: None)
+    monkeypatch.setattr(documents_module.subprocess, "run", fail_run)
 
     extracted = extract_text(document)
 
     assert extracted.text == ""
-    assert extracted.warnings == ("Tesseract non installato; OCR immagine saltato",)
+    assert extracted.warnings == ()
 
 
 def test_extract_text_dicom_is_catalog_only_without_warning(tmp_path: Path) -> None:

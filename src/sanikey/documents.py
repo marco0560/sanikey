@@ -339,7 +339,7 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
     if suffix in LEGACY_OFFICE_EXTENSIONS:
         return _extract_legacy_office_text(document)
     if suffix in IMAGE_EXTENSIONS:
-        return _extract_image_text(document)
+        return ExtractedText(document_id=document.document_id, text="")
     if document.kind.startswith("dicom_"):
         return ExtractedText(
             document_id=document.document_id,
@@ -532,91 +532,6 @@ def _has_dicom_magic(path: Path) -> bool:
             return handle.read(4) == b"DICM"
     except OSError:
         return False
-
-
-def _extract_image_text(document: DocumentRecord) -> ExtractedText:
-    """Extract text from an image using the system Tesseract CLI.
-
-    Parameters
-    ----------
-    document : DocumentRecord
-        Image document.
-
-    Returns
-    -------
-    ExtractedText
-        Extracted OCR text or warning.
-    """
-
-    executable = shutil.which("tesseract")
-    if executable is None:
-        return ExtractedText(
-            document_id=document.document_id,
-            text="",
-            warnings=("Tesseract non installato; OCR immagine saltato",),
-        )
-    command = [
-        executable,
-        str(document.path),
-        "stdout",
-        *_tesseract_language_arguments(executable),
-    ]
-    try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return ExtractedText(
-            document_id=document.document_id,
-            text="",
-            warnings=(f"Tesseract non riuscito; OCR immagine saltato: {exc}",),
-        )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "errore sconosciuto"
-        return ExtractedText(
-            document_id=document.document_id,
-            text="",
-            warnings=(f"Tesseract non riuscito; OCR immagine saltato: {detail}",),
-        )
-    return ExtractedText(document_id=document.document_id, text=result.stdout.strip())
-
-
-def _tesseract_language_arguments(executable: str) -> tuple[str, ...]:
-    """Return preferred Tesseract language arguments when available.
-
-    Parameters
-    ----------
-    executable : str
-        Tesseract executable path.
-
-    Returns
-    -------
-    tuple[str, ...]
-        ``("-l", "ita+eng")`` when both languages are available, otherwise empty.
-    """
-
-    try:
-        result = subprocess.run(
-            [executable, "--list-langs"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return ()
-    available = {
-        line.strip()
-        for line in (*result.stdout.splitlines(), *result.stderr.splitlines())
-        if line.strip() and not line.startswith("List of available languages")
-    }
-    if {"ita", "eng"}.issubset(available):
-        return ("-l", "ita+eng")
-    return ()
 
 
 def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:

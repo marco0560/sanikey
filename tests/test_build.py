@@ -435,11 +435,11 @@ def test_build_patient_skips_duplicate_content_with_warning(tmp_path: Path) -> N
     assert report["warning_messages"] == list(result.warning_messages)
 
 
-def test_build_patient_reports_image_ocr_provider_warnings(
+def test_build_patient_skips_source_image_ocr_without_provider_warning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify image OCR provider warnings are reported once.
+    """Verify source images do not trigger OCR provider warnings.
 
     Parameters
     ----------
@@ -460,11 +460,8 @@ def test_build_patient_reports_image_ocr_provider_warnings(
 
     result = build_patient(person, mode="full")
 
-    assert result.warnings == 1
-    assert len(result.warning_messages) == 1
-    assert (
-        "Tesseract non installato; OCR immagine saltato" in result.warning_messages[0]
-    )
+    assert result.warnings == 0
+    assert result.warning_messages == ()
 
 
 def test_build_patient_stages_container_members_with_provenance(

@@ -160,10 +160,10 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-143 | Le evoluzioni future non devono compromettere la longevità degli archivi. | 21 |  |
 | DA-144 | La semplicità operativa rimane un criterio prioritario nella valutazione delle nuove funzionalità. | 21 |  |
 | DA-145 | I DICOM sono catalogati e non inviati alla pipeline OCR/testo ordinaria. | 8 |  |
-| DA-146 | Le immagini sorgente sono documenti OCR tramite Tesseract durante l'ingestione Linux. | 8 |  |
+| DA-146 | Le immagini sorgente sono documenti consultabili ma non vengono inviate a OCR diretto tramite Tesseract. | 8 | [adr-source-image-ocr-policy.md](adr-source-image-ocr-policy.md) |
 | DA-147 | I path tecnici generici dei viewer restano manifest-only; gli entrypoint HTML DICOM consultabili vengono esportati come subtree relative dedicate. | 8 |  |
 | DA-148 | Il riepilogo build distingue documenti sorgente, derivati, istanze DICOM e record totali. | 15 |  |
-| DA-149 | L'OCR immagini preferisce `ita+eng` quando disponibile e ricade sul default Tesseract. | 20 |  |
+| DA-149 | L'OCR diretto delle immagini sorgente e' disabilitato; i PDF scansionati restano gestiti da OCRmyPDF. | 20 | [adr-source-image-ocr-policy.md](adr-source-image-ocr-policy.md) |
 | DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. | 8 |  |
 | DA-151 | Il progresso dei comandi lunghi e' diagnostica interattiva su `stderr`. | 15 |  |
 | DA-152 | I supporti DICOM annidati nei contenitori vengono espansi ricorsivamente in staging. | 8 |  |
@@ -177,6 +177,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-160 | Il frontend di consultazione usa un layout statico responsive con split view sui monitor larghi, tab sugli schermi stretti e configurazione UI validata in `accounts.toml`. | 12 | [adr-frontend-consultation-ui.md](adr-frontend-consultation-ui.md) |
 | DA-161 | La ricerca avanzata offline usa un indice contenuto separato, caricato on-demand da JavaScript locale, con parser booleano e sinonimi configurabili. | 12 | [adr-advanced-offline-search.md](adr-advanced-offline-search.md) |
 | DA-162 | La UI di consultazione deve rendere cercabili e visibili documenti, metadati clinici curati e studi DICOM sintetici con risultati federati raggruppati. | 12 | [adr-federated-clinical-search-ui.md](adr-federated-clinical-search-ui.md) |
+| DA-163 | Le immagini sorgente restano documenti consultabili ma non generano testo OCR diretto. | 8 | [adr-source-image-ocr-policy.md](adr-source-image-ocr-policy.md) |
 
 ---
 
@@ -252,7 +253,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-039 | Ogni fase della pipeline deve poter essere rieseguita senza effetti collaterali. |  |
 | DA-040 | Ogni informazione derivata deve conservare la propria provenienza. |  |
 | DA-145 | I DICOM sono catalogati e non inviati alla pipeline OCR/testo ordinaria. |  |
-| DA-146 | Le immagini sorgente sono documenti OCR tramite Tesseract durante l'ingestione Linux. |  |
+| DA-146 | Le immagini sorgente sono documenti consultabili ma non vengono inviate a OCR diretto tramite Tesseract. | [adr-source-image-ocr-policy.md](adr-source-image-ocr-policy.md) |
 | DA-147 | I path tecnici generici dei viewer restano manifest-only; gli entrypoint HTML DICOM consultabili vengono esportati come subtree relative dedicate. |  |
 | DA-150 | Gli archivi vengono promossi a supporti DICOM solo in base al contenuto. |  |
 | DA-152 | I supporti DICOM annidati nei contenitori vengono espansi ricorsivamente in staging. |  |
@@ -313,6 +314,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-069 | La ricerca deve rimanere utilizzabile anche in assenza completa di funzionalità semantiche. |  |
 | DA-161 | La ricerca avanzata offline usa un indice contenuto separato, caricato on-demand da JavaScript locale, con parser booleano e sinonimi configurabili. | [adr-advanced-offline-search.md](adr-advanced-offline-search.md) |
 | DA-162 | La UI di consultazione deve rendere cercabili e visibili documenti, metadati clinici curati e studi DICOM sintetici con risultati federati raggruppati. | [adr-federated-clinical-search-ui.md](adr-federated-clinical-search-ui.md) |
+| DA-163 | Le immagini sorgente restano documenti consultabili ma non generano testo OCR diretto. | [adr-source-image-ocr-policy.md](adr-source-image-ocr-policy.md) |
 
 ### Timeline Clinica
 
@@ -425,7 +427,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-136 | exFAT è il filesystem raccomandato per la distribuzione USB. |  |
 | DA-137 | Le librerie specifiche possono essere sostituite senza modificare l'architettura. |  |
 | DA-138 | La longevità dei dati prevale sulle scelte tecnologiche di implementazione. |  |
-| DA-149 | L'OCR immagini preferisce `ita+eng` quando disponibile e ricade sul default Tesseract. |  |
+| DA-149 | L'OCR diretto delle immagini sorgente e' disabilitato; i PDF scansionati restano gestiti da OCRmyPDF. | [adr-source-image-ocr-policy.md](adr-source-image-ocr-policy.md) |
 
 ### Questioni Aperte e Possibili Evoluzioni
 
