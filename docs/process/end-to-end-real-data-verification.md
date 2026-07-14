@@ -413,6 +413,20 @@ Regole operative:
   non per generare dati autorevoli;
 - una stessa serie può avere piu' `[[source]]`, anche con mapping diversi e
   periodi diversi;
+- una stessa sorgente puo' avere piu' `[[source.extract]]` quando una riga
+  alimenta piu' serie, per esempio peso e BMI;
+- usare `header_row`, `header_rows` e `data_start_row` per fogli con titolo,
+  note o intestazioni su piu' righe prima dei dati;
+- usare `fill_down = ["date"]` quando righe successive ereditano la data dalla
+  riga precedente;
+- usare `note_columns` e `static_note` per conservare evento, farmaci, fascia
+  oraria o motivazione della normalizzazione senza creare nuove serie;
+- usare `date_policy = "year_start"` o `date_policy = "period_start"` solo
+  quando il foglio non contiene una data completa: il punto viene datato a
+  `YYYY-01-01` e la nota conserva il valore originale;
+- usare `compound_value` con regex nominata per celle come `113/65 54`;
+- usare `layout = "repeating_matrix"` per diari pressori in cui le date sono
+  nelle intestazioni di colonna e le righe contengono fasce come mattino/sera;
 - `warn_duplicate_same_day = false` e' normale per diari pressori o curve
   glicemiche con piu' misurazioni nella stessa data.
 

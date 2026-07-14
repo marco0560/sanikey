@@ -285,6 +285,93 @@ uv run sanikey import-observations PATIENT
 La build fallisce se gli artefatti in `metadata/observations/` sono assenti o
 stale rispetto al manifesto.
 
+Opzioni supportate per sorgenti reali non normalizzate:
+
+| Campo | Uso |
+| --- | --- |
+| `header_row` | riga 1-based che contiene l'intestazione |
+| `header_rows` | righe 1-based da combinare per intestazioni su piu' righe |
+| `data_start_row` | prima riga dati 1-based, se non e' subito dopo l'header |
+| `fill_down` | campi logici che ereditano il valore non vuoto precedente |
+| `[[source.extract]]` | estrazioni multiple dalla stessa riga o sorgente |
+| `note_columns` | colonne da concatenare in `note` |
+| `static_note` | nota fissa da aggiungere a ogni punto |
+| `date_policy` | `exact`, `year_start` o `period_start` |
+| `skip_invalid_dates` | salta righe non-dato con data non valida |
+| `compound_value` | colonna e regex con gruppi nominati per valori composti |
+| `layout = "repeating_matrix"` | layout con date in intestazione e misure in righe ripetute |
+
+Esempio con due serie dalla stessa riga e anno approssimato:
+
+```toml
+[[source]]
+path = "parametri/peso-storico.xlsx"
+sheet = "Peso"
+header_row = 3
+
+[[source.extract]]
+series_id = "peso"
+date_policy = "year_start"
+note_columns = ["Evento", "Farmaci"]
+
+[source.extract.columns]
+date = "Anno"
+numeric_value = "Peso"
+
+[[source.extract]]
+series_id = "bmi"
+date_policy = "year_start"
+static_note = "BMI da foglio peso"
+
+[source.extract.columns]
+date = "Anno"
+numeric_value = "BMI"
+```
+
+Esempio con pressione in una cella composta:
+
+```toml
+[[source]]
+path = "parametri/pressione.csv"
+series_id = "pressione"
+
+[source.columns]
+date = "Data"
+
+[source.compound_value]
+column = "Misura"
+pattern = '^(?P<systolic>\d+)/(?P<diastolic>\d+)\s+(?P<pulse>\d+)$'
+```
+
+Esempio per layout a matrice ripetuta:
+
+```toml
+[[source]]
+path = "Cardiologo/20080900 Pressione.xls"
+layout = "repeating_matrix"
+
+[source.matrix]
+year = 2008
+start_month = 9
+block_height = 3
+date_column_start = 2
+value_rows = ["mattino", "pomeriggio"]
+date_column = "Data"
+value_column = "Misura"
+label_column = "Fascia"
+
+[[source.extract]]
+series_id = "pressione"
+note_columns = ["Fascia"]
+
+[source.extract.columns]
+date = "Data"
+
+[source.extract.compound_value]
+column = "Misura"
+pattern = '^(?P<systolic>\d+)/(?P<diastolic>\d+)\s+(?P<pulse>\d+)$'
+```
+
 ## `timeline_events.toml`
 
 Contiene eventi manuali da mostrare nella timeline.

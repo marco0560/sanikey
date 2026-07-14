@@ -84,22 +84,71 @@ class _SourceSpec:
         Resolved source path.
     raw_path : str
         Manifest path value.
-    series_id : str
-        Target series id.
-    columns : dict[str, str]
-        Logical field to source column mapping.
+    extracts : tuple[_ExtractSpec, ...]
+        Target point extractions.
     sheet : str | None
         Optional worksheet name.
-    source_reference : str
-        Source reference written into points.
+    header_rows : tuple[int, ...]
+        One-based row indexes used to build column headers.
+    data_start_row : int | None
+        One-based first data row. Defaults after the last header row.
+    fill_down : tuple[str, ...]
+        Logical fields whose previous non-empty value is reused.
+    layout : str
+        Source layout strategy.
+    matrix : dict[str, Any]
+        Matrix layout options for ``repeating_matrix`` sources.
     """
 
     path: Path
     raw_path: str
+    extracts: tuple[_ExtractSpec, ...]
+    sheet: str | None
+    header_rows: tuple[int, ...]
+    data_start_row: int | None
+    fill_down: tuple[str, ...]
+    layout: str
+    matrix: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _ExtractSpec:
+    """Represent one point extraction declared for a source.
+
+    Parameters
+    ----------
+    series_id : str
+        Target series id.
+    columns : dict[str, str]
+        Logical field to source column mapping.
+    source_reference : str
+        Source reference written into points.
+    note_columns : tuple[str, ...]
+        Additional source columns appended to the point note.
+    note_join : str
+        Separator used when composing multiple note fragments.
+    static_note : str | None
+        Optional note fragment appended to every point.
+    date_policy : str
+        Date normalization policy.
+    skip_invalid_dates : bool
+        Whether rows with invalid dates are skipped.
+    compound_column : str | None
+        Column containing a compound textual value.
+    compound_pattern : str | None
+        Regular expression with named groups extracted from the compound value.
+    """
+
     series_id: str
     columns: dict[str, str]
-    sheet: str | None
     source_reference: str
+    note_columns: tuple[str, ...]
+    note_join: str
+    static_note: str | None
+    date_policy: str
+    skip_invalid_dates: bool
+    compound_column: str | None
+    compound_pattern: str | None
 
 
 @dataclass(frozen=True)
@@ -122,6 +171,22 @@ class _Manifest:
     sources: tuple[_SourceSpec, ...]
     manifest_hash: str
     source_hashes: dict[str, str]
+
+
+@dataclass(frozen=True)
+class _ExtractState:
+    """Represent per-extract row state during point construction.
+
+    Parameters
+    ----------
+    previous_values : dict[tuple[int, str], Any]
+        Previous field values used for fill-down.
+    extract_index : int
+        Extraction index in the source.
+    """
+
+    previous_values: dict[tuple[int, str], Any]
+    extract_index: int
 
 
 def import_observations(person: PersonConfig) -> ObservationImportResult:
@@ -156,7 +221,8 @@ def import_observations(person: PersonConfig) -> ObservationImportResult:
     for source_index, source in enumerate(manifest.sources):
         rows = _read_table(source)
         points = _points_from_rows(source, rows, source_index)
-        points_by_series[source.series_id].extend(points)
+        for point in points:
+            points_by_series[cast("str", point["series_id"])].append(point)
     for series in manifest.series:
         series_points = sorted(
             points_by_series[series.id],
@@ -250,11 +316,12 @@ def _load_manifest(person: PersonConfig, path: Path) -> _Manifest:
     if len(series_ids) != len(series):
         _fail(f"{path}: id serie osservazioni duplicato")
     for source in sources:
-        if source.series_id not in series_ids:
-            _fail(
-                f"{path}: source {source.raw_path} referenzia series_id sconosciuto "
-                f"{source.series_id}"
-            )
+        for extract in source.extracts:
+            if extract.series_id not in series_ids:
+                _fail(
+                    f"{path}: source {source.raw_path} referenzia "
+                    f"series_id sconosciuto {extract.series_id}"
+                )
         if not source.path.exists():
             _fail(f"{path}: sorgente osservazioni non trovata: {source.path}")
     source_hashes = {source.raw_path: _sha256(source.path) for source in sources}
@@ -329,17 +396,165 @@ def _source_from_table(
     source_path = Path(raw_path)
     if not source_path.is_absolute():
         source_path = person.source_documents / source_path
-    columns = item.get("columns")
-    if not isinstance(columns, dict):
-        _fail(f"{path}: source {index} deve contenere [source.columns]")
+    extracts = _extracts_from_table(item, path, index)
+    header_rows = _header_rows_from_table(item, path, index)
     return _SourceSpec(
         path=source_path,
         raw_path=raw_path,
+        extracts=extracts,
+        sheet=_optional_string(item, "sheet"),
+        header_rows=header_rows,
+        data_start_row=_optional_int(item, "data_start_row", path, index),
+        fill_down=_optional_string_tuple(item, "fill_down", path, index),
+        layout=_optional_string(item, "layout") or "table",
+        matrix=_optional_table(item, "matrix", path, index),
+    )
+
+
+def _extracts_from_table(
+    item: dict[str, Any],
+    path: Path,
+    index: int,
+) -> tuple[_ExtractSpec, ...]:
+    """Parse source extraction tables.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw source table.
+    path : pathlib.Path
+        Manifest path.
+    index : int
+        Source table index.
+
+    Returns
+    -------
+    tuple[_ExtractSpec, ...]
+        Parsed extraction specs.
+    """
+
+    raw_extracts = item.get("extract")
+    if raw_extracts is None:
+        return (_legacy_extract_from_table(item, path, index),)
+    if not isinstance(raw_extracts, list):
+        _fail(f"{path}: source {index} campo extract deve essere un array")
+    return tuple(
+        _extract_from_table(
+            _table(raw, path, "source.extract", offset), item, path, index
+        )
+        for offset, raw in enumerate(raw_extracts)
+    )
+
+
+def _legacy_extract_from_table(
+    item: dict[str, Any],
+    path: Path,
+    index: int,
+) -> _ExtractSpec:
+    """Parse a legacy source as one extraction.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw source table.
+    path : pathlib.Path
+        Manifest path.
+    index : int
+        Source table index.
+
+    Returns
+    -------
+    _ExtractSpec
+        Parsed extraction spec.
+    """
+
+    return _extract_from_table(item, item, path, index)
+
+
+def _extract_from_table(
+    item: dict[str, Any],
+    source_item: dict[str, Any],
+    path: Path,
+    index: int,
+) -> _ExtractSpec:
+    """Parse one source extraction table.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw extraction table.
+    source_item : dict[str, Any]
+        Parent source table.
+    path : pathlib.Path
+        Manifest path.
+    index : int
+        Source table index.
+
+    Returns
+    -------
+    _ExtractSpec
+        Parsed extraction spec.
+    """
+
+    columns = item.get("columns")
+    if not isinstance(columns, dict):
+        _fail(f"{path}: source {index} deve contenere [source.columns]")
+    compound = _optional_table(item, "compound_value", path, index)
+    return _ExtractSpec(
         series_id=_required_string(item, "series_id", path, index),
         columns={str(key): str(value) for key, value in columns.items()},
-        sheet=_optional_string(item, "sheet"),
-        source_reference=_optional_string(item, "source_reference") or raw_path,
+        source_reference=(
+            _optional_string(item, "source_reference")
+            or _optional_string(source_item, "source_reference")
+            or _required_string(source_item, "path", path, index)
+        ),
+        note_columns=_optional_string_tuple(item, "note_columns", path, index),
+        note_join=_optional_string(item, "note_join") or "; ",
+        static_note=_optional_string(item, "static_note"),
+        date_policy=_optional_string(item, "date_policy") or "exact",
+        skip_invalid_dates=_optional_bool(
+            item,
+            "skip_invalid_dates",
+            default=False,
+            path=path,
+            index=index,
+        ),
+        compound_column=_optional_string(compound, "column"),
+        compound_pattern=_optional_string(compound, "pattern"),
     )
+
+
+def _header_rows_from_table(
+    item: dict[str, Any],
+    path: Path,
+    index: int,
+) -> tuple[int, ...]:
+    """Return configured one-based header rows.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw source table.
+    path : pathlib.Path
+        Manifest path.
+    index : int
+        Source table index.
+
+    Returns
+    -------
+    tuple[int, ...]
+        Header row indexes.
+    """
+
+    raw_rows = item.get("header_rows")
+    if raw_rows is not None:
+        if not isinstance(raw_rows, list) or not raw_rows:
+            _fail(f"{path}: source {index} campo header_rows non valido")
+        return tuple(
+            _positive_int(value, path, "header_rows", index) for value in raw_rows
+        )
+    header_row = _optional_int(item, "header_row", path, index)
+    return (header_row or 1,)
 
 
 def _read_table(source: _SourceSpec) -> list[dict[str, Any]]:
@@ -364,7 +579,8 @@ def _read_table(source: _SourceSpec) -> list[dict[str, Any]]:
     suffix = source.path.suffix.lower()
     if suffix in CSV_SUFFIXES:
         with source.path.open(encoding="utf-8", newline="") as handle:
-            return [dict(row) for row in csv.DictReader(handle)]
+            raw_rows = [row for row in csv.reader(handle)]
+        return _rows_to_dicts(source, raw_rows)
     if suffix not in SPREADSHEET_SUFFIXES:
         _fail(f"formato osservazioni non supportato: {source.path}")
     try:
@@ -378,17 +594,150 @@ def _read_table(source: _SourceSpec) -> list[dict[str, Any]]:
     except (CalamineError, OSError, ValueError) as exc:
         message = f"lettura osservazioni non riuscita per {source.path}: {exc}"
         raise ConfigError(message) from exc
+    return _rows_to_dicts(source, rows)
+
+
+def _rows_to_dicts(source: _SourceSpec, rows: list[list[Any]]) -> list[dict[str, Any]]:
+    """Convert raw table rows to dictionaries.
+
+    Parameters
+    ----------
+    source : _SourceSpec
+        Source specification.
+    rows : list[list[Any]]
+        Raw table rows.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        Rows keyed by header.
+    """
+
+    if source.layout == "repeating_matrix":
+        return _read_repeating_matrix(source, rows)
+    if source.layout != "table":
+        _fail(f"layout osservazioni non supportato: {source.layout}")
     if not rows:
         return []
-    headers = [str(value).strip() for value in rows[0]]
+    headers = _headers_from_rows(rows, source.header_rows)
+    start_row = source.data_start_row or max(source.header_rows) + 1
     return [
         {
             header: row[index] if index < len(row) else None
             for index, header in enumerate(headers)
             if header
         }
-        for row in rows[1:]
+        for row in rows[start_row - 1 :]
     ]
+
+
+def _headers_from_rows(
+    rows: list[list[Any]], header_rows: tuple[int, ...]
+) -> list[str]:
+    """Build column headers from one or more worksheet rows.
+
+    Parameters
+    ----------
+    rows : list[list[Any]]
+        Raw worksheet rows.
+    header_rows : tuple[int, ...]
+        One-based header row indexes.
+
+    Returns
+    -------
+    list[str]
+        Header names by column.
+    """
+
+    max_index = max(header_rows) - 1
+    if max_index >= len(rows):
+        return []
+    width = max((len(rows[row - 1]) for row in header_rows), default=0)
+    carried_rows: list[list[str]] = []
+    for row_number in header_rows:
+        raw = rows[row_number - 1] if row_number - 1 < len(rows) else []
+        carried: list[str] = []
+        previous = ""
+        for column in range(width):
+            text = _text_value(raw[column] if column < len(raw) else None) or ""
+            if text:
+                previous = text
+            carried.append(previous)
+        carried_rows.append(carried)
+    headers: list[str] = []
+    for column in range(width):
+        parts: list[str] = []
+        for carried in carried_rows:
+            part = carried[column]
+            if part and part not in parts:
+                parts.append(part)
+        headers.append(" ".join(parts).strip() or f"column_{column + 1}")
+    return headers
+
+
+def _read_repeating_matrix(
+    source: _SourceSpec,
+    rows: list[list[Any]],
+) -> list[dict[str, Any]]:
+    """Read a repeating matrix source into row dictionaries.
+
+    Parameters
+    ----------
+    source : _SourceSpec
+        Source specification.
+    rows : list[list[Any]]
+        Raw worksheet rows.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        Matrix values normalized as row dictionaries.
+    """
+
+    if not rows:
+        return []
+    year = _required_int(source.matrix, "year", source.raw_path)
+    month = _required_int(source.matrix, "start_month", source.raw_path)
+    block_height = _optional_int(
+        source.matrix, "block_height", Path(source.raw_path), 0
+    )
+    value_rows = _optional_string_tuple(
+        source.matrix, "value_rows", Path(source.raw_path), 0
+    )
+    if not value_rows:
+        _fail(f"{source.raw_path}: matrix.value_rows deve contenere almeno una riga")
+    block_height = block_height or len(value_rows) + 1
+    date_column_start = _required_int(
+        source.matrix, "date_column_start", source.raw_path
+    )
+    value_column = _optional_string(source.matrix, "value_column") or "value"
+    date_column = _optional_string(source.matrix, "date_column") or "Data"
+    label_column = _optional_string(source.matrix, "label_column") or "label"
+    normalized: list[dict[str, Any]] = []
+    previous_day: int | None = None
+    for block_start in range(0, len(rows), block_height):
+        header = rows[block_start] if block_start < len(rows) else []
+        block_days: list[tuple[int, int, date]] = []
+        for column in range(date_column_start - 1, len(header)):
+            day = _day_from_text(header[column])
+            if day is None:
+                continue
+            if previous_day is not None and day < previous_day:
+                month += 1
+            previous_day = day
+            block_days.append((column, day, date(year, month, day)))
+        for offset, label in enumerate(value_rows, start=1):
+            row_index = block_start + offset
+            row = rows[row_index] if row_index < len(rows) else []
+            for column, _day, observation_date in block_days:
+                normalized.append(
+                    {
+                        date_column: observation_date,
+                        label_column: label,
+                        value_column: row[column] if column < len(row) else None,
+                    }
+                )
+    return normalized
 
 
 def _points_from_rows(
@@ -411,48 +760,91 @@ def _points_from_rows(
     -------
     list[dict[str, Any]]
         Normalized points.
+
+    Raises
+    ------
+    ConfigError
+        If a row value cannot be normalized.
     """
 
     points: list[dict[str, Any]] = []
+    previous_values: dict[tuple[int, str], Any] = {}
     for row_index, row in enumerate(rows, start=2):
-        observation_date = _date_value(_mapped_value(source, row, "date"))
-        if observation_date is None:
-            continue
-        point: dict[str, Any] = {
-            "id": f"{_slug(source.series_id)}-{observation_date}-{source_index + 1}-{row_index}",
-            "series_id": source.series_id,
-            "observation_date": observation_date,
-            "source_type": "spreadsheet",
-            "source_reference": source.source_reference,
-        }
-        for field in ("numeric_value", "systolic", "diastolic", "pulse"):
-            value = _number_value(_mapped_value(source, row, field))
-            if value is not None:
-                point[field] = value
-        text_value = _text_value(
-            _mapped_value(source, row, "text_value")
-            or _mapped_value(source, row, "value")
-        )
-        if text_value is not None:
-            point["text_value"] = text_value
-        note = _text_value(_mapped_value(source, row, "note"))
-        if note is not None:
-            point["note"] = note
-        points.append(point)
+        for extract_index, extract in enumerate(source.extracts):
+            state = _ExtractState(
+                previous_values=previous_values,
+                extract_index=extract_index,
+            )
+            try:
+                observation_date, date_note = _date_with_policy(
+                    _mapped_value(source, extract, row, "date", state),
+                    extract.date_policy,
+                )
+            except ConfigError:
+                if extract.skip_invalid_dates:
+                    continue
+                raise
+            if observation_date is None:
+                continue
+            point: dict[str, Any] = {
+                "id": (
+                    f"{_slug(extract.series_id)}-{observation_date}-"
+                    f"{source_index + 1}-{extract_index + 1}-{row_index}"
+                ),
+                "series_id": extract.series_id,
+                "observation_date": observation_date,
+                "source_type": "spreadsheet",
+                "source_reference": extract.source_reference,
+            }
+            compound = _compound_values(source, extract, row)
+            for field in ("numeric_value", "systolic", "diastolic", "pulse"):
+                raw_value = _mapped_value(source, extract, row, field, state)
+                value = _number_value(
+                    raw_value if raw_value is not None else compound.get(field)
+                )
+                if value is not None:
+                    point[field] = value
+            text_value = _text_value(
+                _mapped_value(source, extract, row, "text_value", state)
+                or _mapped_value(source, extract, row, "value", state)
+                or compound.get("text_value")
+                or compound.get("value")
+            )
+            if text_value is not None:
+                point["text_value"] = text_value
+            if not any(
+                field in point
+                for field in ("numeric_value", "systolic", "diastolic", "text_value")
+            ):
+                continue
+            note = _point_note(source, extract, row, date_note)
+            if note is not None:
+                point["note"] = note
+            points.append(point)
     return points
 
 
-def _mapped_value(source: _SourceSpec, row: dict[str, Any], field: str) -> Any:
+def _mapped_value(
+    source: _SourceSpec,
+    extract: _ExtractSpec,
+    row: dict[str, Any],
+    field: str,
+    state: _ExtractState | None = None,
+) -> Any:
     """Return a mapped row value.
 
     Parameters
     ----------
     source : _SourceSpec
         Source specification.
+    extract : _ExtractSpec
+        Extraction specification.
     row : dict[str, Any]
         Source row.
     field : str
         Logical field name.
+    state : _ExtractState | None
+        Optional per-extract state used for fill-down fields.
 
     Returns
     -------
@@ -460,10 +852,99 @@ def _mapped_value(source: _SourceSpec, row: dict[str, Any], field: str) -> Any:
         Mapped value or ``None``.
     """
 
-    column = source.columns.get(field)
+    column = extract.columns.get(field)
     if column is None:
         return None
-    return row.get(column)
+    value = row.get(column)
+    if state is None:
+        return value
+    key = (state.extract_index, field)
+    if value in (None, "") and field in source.fill_down:
+        return state.previous_values.get(key)
+    if value not in (None, ""):
+        state.previous_values[key] = value
+    return value
+
+
+def _compound_values(
+    source: _SourceSpec,
+    extract: _ExtractSpec,
+    row: dict[str, Any],
+) -> dict[str, str]:
+    """Return values parsed from a compound source column.
+
+    Parameters
+    ----------
+    source : _SourceSpec
+        Source specification.
+    extract : _ExtractSpec
+        Extraction specification.
+    row : dict[str, Any]
+        Source row.
+
+    Returns
+    -------
+    dict[str, str]
+        Named regex groups parsed from the compound value.
+    """
+
+    if extract.compound_column is None or extract.compound_pattern is None:
+        return {}
+    raw_value = _text_value(row.get(extract.compound_column))
+    if raw_value is None:
+        return {}
+    match = re.search(extract.compound_pattern, raw_value)
+    if match is None:
+        _fail(
+            f"{source.raw_path}: valore composto non valido per "
+            f"{extract.compound_column}: {raw_value}"
+        )
+    return {key: value for key, value in match.groupdict().items() if value is not None}
+
+
+def _point_note(
+    source: _SourceSpec,
+    extract: _ExtractSpec,
+    row: dict[str, Any],
+    date_note: str | None,
+) -> str | None:
+    """Compose the note for one imported point.
+
+    Parameters
+    ----------
+    source : _SourceSpec
+        Source specification.
+    extract : _ExtractSpec
+        Extraction specification.
+    row : dict[str, Any]
+        Source row.
+    date_note : str | None
+        Optional date normalization note.
+
+    Returns
+    -------
+    str | None
+        Composed note.
+    """
+
+    fragments: list[str] = []
+    for value in (
+        _text_value(row.get(column))
+        for column in extract.note_columns
+        if row.get(column) not in (None, "")
+    ):
+        if value is not None:
+            fragments.append(value)
+    mapped_note = _text_value(row.get(extract.columns.get("note", "")))
+    if mapped_note is not None:
+        fragments.append(mapped_note)
+    if extract.static_note is not None:
+        fragments.append(extract.static_note)
+    if date_note is not None:
+        fragments.append(date_note)
+    if not fragments:
+        return None
+    return extract.note_join.join(fragments)
 
 
 def _write_series(path: Path, series: tuple[_SeriesSpec, ...]) -> None:
@@ -713,6 +1194,195 @@ def _optional_bool(
     return value
 
 
+def _optional_int(
+    item: dict[str, Any],
+    field: str,
+    path: Path,
+    index: int,
+) -> int | None:
+    """Return an optional positive integer.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        TOML table.
+    field : str
+        Field name.
+    path : pathlib.Path
+        Source path.
+    index : int
+        Table index.
+
+    Returns
+    -------
+    int | None
+        Parsed integer.
+    """
+
+    value = item.get(field)
+    if value is None:
+        return None
+    return _positive_int(value, path, field, index)
+
+
+def _required_int(item: dict[str, Any], field: str, source: str) -> int:
+    """Return a required positive integer.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        TOML table.
+    field : str
+        Field name.
+    source : str
+        Source label for diagnostics.
+
+    Returns
+    -------
+    int
+        Parsed integer.
+    """
+
+    value = item.get(field)
+    if value is None:
+        _fail(f"{source}: campo {field} obbligatorio")
+    return _positive_int(value, Path(source), field, 0)
+
+
+def _positive_int(value: Any, path: Path, field: str, index: int) -> int:
+    """Return a positive integer value.
+
+    Parameters
+    ----------
+    value : Any
+        Raw value.
+    path : pathlib.Path
+        Source path.
+    field : str
+        Field name.
+    index : int
+        Table index.
+
+    Returns
+    -------
+    int
+        Parsed positive integer.
+    """
+
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        _fail(f"{path}: elemento {index} campo {field} deve essere intero positivo")
+    return value
+
+
+def _optional_table(
+    item: dict[str, Any],
+    field: str,
+    path: Path,
+    index: int,
+) -> dict[str, Any]:
+    """Return an optional nested table.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        TOML table.
+    field : str
+        Field name.
+    path : pathlib.Path
+        Source path.
+    index : int
+        Table index.
+
+    Returns
+    -------
+    dict[str, Any]
+        Parsed table or an empty mapping.
+    """
+
+    value = item.get(field, {})
+    if not isinstance(value, dict):
+        _fail(f"{path}: elemento {index} campo {field} deve essere tabella")
+    return cast("dict[str, Any]", value)
+
+
+def _optional_string_tuple(
+    item: dict[str, Any],
+    field: str,
+    path: Path,
+    index: int,
+) -> tuple[str, ...]:
+    """Return an optional list of strings as a tuple.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        TOML table.
+    field : str
+        Field name.
+    path : pathlib.Path
+        Source path.
+    index : int
+        Table index.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Parsed strings.
+    """
+
+    value = item.get(field, [])
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        _fail(f"{path}: elemento {index} campo {field} deve essere lista")
+    result: list[str] = []
+    for offset, item_value in enumerate(value):
+        if not isinstance(item_value, str) or not item_value.strip():
+            _fail(
+                f"{path}: elemento {index} campo {field}[{offset}] deve essere stringa"
+            )
+        result.append(item_value.strip())
+    return tuple(result)
+
+
+def _date_with_policy(value: Any, policy: str) -> tuple[str | None, str | None]:
+    """Return an ISO date and optional normalization note.
+
+    Parameters
+    ----------
+    value : Any
+        Raw cell value.
+    policy : str
+        Date normalization policy.
+
+    Returns
+    -------
+    tuple[str | None, str | None]
+        ISO date and optional note.
+    """
+
+    if policy == "exact":
+        return _date_value(value), None
+    text = _text_value(value)
+    if text is None:
+        return None, None
+    if policy == "year_start":
+        year = _year_from_text(text)
+        if year is None:
+            _fail(f"anno osservazione non valido: {text}")
+        return f"{year:04d}-01-01", f"data approssimata: solo anno nel foglio ({text})"
+    if policy == "period_start":
+        year = _year_from_text(text)
+        if year is None:
+            _fail(f"periodo osservazione non valido: {text}")
+        return (
+            f"{year:04d}-01-01",
+            f"data approssimata: inizio periodo nel foglio ({text})",
+        )
+    _fail(f"politica data osservazione non supportata: {policy}")
+    return None, None
+
+
 def _date_value(value: Any) -> str | None:
     """Return an ISO date string from a cell value.
 
@@ -743,6 +1413,52 @@ def _date_value(value: Any) -> str | None:
             continue
     _fail(f"data osservazione non valida: {text}")
     return None
+
+
+def _year_from_text(value: str) -> int | None:
+    """Return the first four-digit year in text.
+
+    Parameters
+    ----------
+    value : str
+        Raw text value.
+
+    Returns
+    -------
+    int | None
+        Parsed year.
+    """
+
+    match = re.search(r"\b(19\d{2}|20\d{2})\b", value)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def _day_from_text(value: Any) -> int | None:
+    """Return the first day-of-month number in text.
+
+    Parameters
+    ----------
+    value : Any
+        Raw cell value.
+
+    Returns
+    -------
+    int | None
+        Parsed day.
+    """
+
+    text = _text_value(value)
+    if text is None:
+        return None
+    match = re.search(r"\b(\d{1,2})\b", text)
+    if match is None:
+        return None
+    day = int(match.group(1))
+    if not 1 <= day <= 31:
+        return None
+    return day
 
 
 def _number_value(value: Any) -> float | None:
