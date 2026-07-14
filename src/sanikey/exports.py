@@ -999,7 +999,14 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
         {"label": "Data", "value": study.study_date},
         {"label": "UID", "value": study.study_instance_uid},
         {"label": "Istanze", "value": str(study.instance_count)},
-        {"label": "Viewer HTML", "value": "disponibile" if viewer_href else None},
+        {
+            "label": "Viewer HTML",
+            "value": "disponibile" if viewer_href else "non rilevato",
+        },
+        {
+            "label": "Anomalia",
+            "value": "viewer HTML non rilevato" if viewer_href is None else None,
+        },
     ]
     return {
         "id": study.study_id,
@@ -1021,7 +1028,7 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
                 study.support_kind,
                 study.study_date,
                 study.study_instance_uid,
-                "viewer html" if viewer_href else None,
+                "viewer html" if viewer_href else "viewer html non rilevato",
                 str(study.instance_count),
             )
             if item

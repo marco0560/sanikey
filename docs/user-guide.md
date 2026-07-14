@@ -375,9 +375,10 @@ loro volta. I file DICOM interni sono catalogati come DICOM e non passano
 dall'OCR o dall'estrazione testo ordinaria.
 Nel frontend non vengono mostrati i singoli file DICOM: la consultazione mostra
 schede aggregate per studio, con numero istanze, UID quando disponibile e link
-di apertura del viewer HTML. I supporti privi di viewer HTML restano catalogati
-nei dati tecnici, ma non occupano la sezione clinica principale perché non sono
-consultabili direttamente dal browser.
+di apertura del viewer HTML quando rilevato. I supporti e i file tecnici non
+vengono presentati come documenti clinici ordinari. Se uno studio DICOM viene
+catalogato senza viewer HTML, resta nella sezione `Studi DICOM` come anomalia
+da verificare.
 Per le immagini disco SaniKey prova prima il comando `7z`; se il file è un ISO
 valido ma `7z` non riesce ad aprirlo, ritenta con `bsdtar` quando disponibile.
 Quando le istanze DICOM sono leggibili, SaniKey usa `pydicom` per raggrupparle
@@ -477,7 +478,7 @@ necessari alla prima schermata sono esportati anche in `web/data.js`, caricato
 come script locale, così Chrome e gli altri browser non devono usare `fetch()`
 su URL `file://`.
 La ricerca rapida nel box in alto cerca in documenti, farmaci, terapie,
-problemi, procedure, osservazioni e studi DICOM visualizzabili. I risultati vengono
+problemi, procedure, osservazioni e studi DICOM. I risultati vengono
 raggruppati per sezione e mostrano link contestuali con conteggi dentro il
 pannello dei risultati, in modo che il medico possa saltare subito alla parte
 utile senza una seconda barra di navigazione sotto la ricerca.
@@ -500,10 +501,10 @@ Le terapie sono arricchite con nome commerciale, principio attivo, dosaggio,
 schedula, istruzioni, periodo e ruolo. Quando sono presenti, hanno anche un
 bottone di primo livello `Terapia` per l'accesso diretto senza passare dalla
 sintesi generale. Gli studi DICOM hanno una sezione autonoma `Studi DICOM`,
-visibile solo quando il payload contiene studi apribili con viewer HTML, con
-schede sintetiche per data/UID quando disponibili e numero di istanze; non
-viene mostrata la lista di ogni singola slice. Il riepilogo tecnico con conteggi
-e' in fondo alla sintesi clinica.
+visibile quando il payload contiene studi catalogati, con schede sintetiche per
+data/UID quando disponibili e numero di istanze. Gli studi senza viewer HTML
+sono segnalati come anomalie, mentre non viene mostrata la lista di ogni singola
+slice. Il riepilogo tecnico con conteggi e' in fondo alla sintesi clinica.
 
 ### Personalizzare la Consultazione
 

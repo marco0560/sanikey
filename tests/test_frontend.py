@@ -104,8 +104,11 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "configuredicomnavigation" in script
     assert "rendertherapies" in script
     assert "configuretherapynavigation" in script
-    assert "viewabledicomstudies" in script
-    assert 'item.section !== "dicom" || item.viewer_href' in script
+    assert "sortdicomstudies" in script
+    assert "renderdicomstudycard" in script
+    assert "isdicomtechnicaldocument" in script
+    assert "anomalia: viewer dicom html non rilevato" in script
+    assert "supporto originale per verifica tecnica" in script
     assert "renderclinicaldashboard" in script
     assert "renderquicksearch" in script
     assert "rendersearchresults" in script
@@ -122,6 +125,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert ".search-panel" in stylesheet
     assert ".help-dialog" in stylesheet
     assert ".dialog-close" in stylesheet
+    assert ".warning" in stylesheet
     assert "--search-basic-accent" in stylesheet
     assert "--search-advanced-accent" in stylesheet
     assert ".badge" in stylesheet

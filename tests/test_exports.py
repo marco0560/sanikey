@@ -479,9 +479,15 @@ def test_generate_exports_includes_synthetic_dicom_study_cards(
     assert dicom_search["section"] == "dicom"
     assert dicom_search["title"] == "TAC torace"
     assert "1.2.3" in dicom_search["text"]
+    assert "viewer html non rilevato" in dicom_search["text"]
     assert dicom_card["instance_count"] == 42
     assert dicom_card["href"] == "../documents/20260102 TAC.zip"
     assert {"label": "Istanze", "value": "42"} in dicom_card["fields"]
+    assert {"label": "Viewer HTML", "value": "non rilevato"} in dicom_card["fields"]
+    assert {
+        "label": "Anomalia",
+        "value": "viewer HTML non rilevato",
+    } in dicom_card["fields"]
 
 
 def test_generate_exports_hides_technical_dicom_documents(tmp_path: Path) -> None:

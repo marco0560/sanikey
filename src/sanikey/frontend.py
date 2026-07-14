@@ -307,7 +307,7 @@ function renderTimelineLinks(item) {
 
 function renderDocuments(documents, query = "") {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const selected = documents.filter((item) => !item.viewer_href).filter((item) =>
+  const selected = documents.filter((item) => !isDicomTechnicalDocument(item)).filter((item) =>
     terms.every((term) => documentSearchText(item).includes(term))
   );
   const target = document.querySelector("#documents");
@@ -352,10 +352,10 @@ function renderClinicalDashboard(clinical) {
 
 function renderDicomStudies(studies) {
   const target = document.querySelector("#dicom");
-  const selected = viewableDicomStudies(studies);
+  const selected = sortDicomStudies(studies);
   target.innerHTML = `<h2>Studi DICOM</h2>` + (
     selected.length
-      ? selected.map((item) => renderEntityCard(item, "dicom")).join("")
+      ? selected.map(renderDicomStudyCard).join("")
       : '<p class="muted">Nessuno studio DICOM disponibile.</p>'
   );
 }
@@ -371,7 +371,7 @@ function renderTherapies(therapies) {
 }
 
 function configureDicomNavigation(studies) {
-  const hasDicom = viewableDicomStudies(studies).length > 0;
+  const hasDicom = (studies || []).length > 0;
   document.querySelectorAll("[data-dicom-control]").forEach((control) => {
     control.hidden = !hasDicom;
   });
@@ -386,8 +386,32 @@ function configureTherapyNavigation(therapies) {
   document.querySelector("#therapies").hidden = !hasTherapy;
 }
 
-function viewableDicomStudies(studies) {
-  return (studies || []).filter((item) => item.viewer_href);
+function sortDicomStudies(studies) {
+  return [...(studies || [])].sort((left, right) =>
+    Number(!left.viewer_href) - Number(!right.viewer_href)
+  );
+}
+
+function renderDicomStudyCard(item) {
+  const anomaly = item.viewer_href
+    ? ""
+    : '<p class="warning">Anomalia: viewer DICOM HTML non rilevato; studio catalogato ma non apribile dal frontend.</p>';
+  return renderEntityCard(item, "dicom").replace("</article>", `${anomaly}</article>`);
+}
+
+function recordKind(item) {
+  if (item.kind) {
+    return text(item.kind);
+  }
+  const typeField = (item.fields || []).find((field) => field.label === "Tipo");
+  return typeField ? text(typeField.value) : "";
+}
+
+function isDicomTechnicalDocument(item) {
+  if (item.type !== "document") {
+    return false;
+  }
+  return recordKind(item).startsWith("dicom_");
 }
 
 function renderEntityCard(item, section) {
@@ -402,7 +426,7 @@ function renderEntityActions(item, section) {
     return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a></p>`;
   }
   if (item.href) {
-    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">${section === "dicom" ? "Scarica supporto DICOM" : "Apri originale"}</a></p>`;
+    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">${section === "dicom" ? "Supporto originale per verifica tecnica" : "Apri originale"}</a></p>`;
   }
   return "";
 }
@@ -837,7 +861,7 @@ function main() {
   const documents = data.documents || [];
   const dicomStudies = (data.clinical || {}).dicom_studies || [];
   const therapies = (data.clinical || {}).therapies || [];
-  const searchRecords = (data.search || []).filter((item) => item.section !== "dicom" || item.viewer_href);
+  const searchRecords = (data.search || []).filter((item) => !isDicomTechnicalDocument(item));
   const clinicalRecords = searchRecords.filter((item) => item.type !== "document");
   const quickRecords = searchRecords;
   applyUi(summary);
@@ -1401,6 +1425,13 @@ dd {
 .error {
   color: #9b1c1c;
   padding: 1rem;
+}
+
+.warning {
+  background: #fff7ed;
+  border-left: 4px solid #c2410c;
+  color: #7c2d12;
+  padding: 0.65rem 0.75rem;
 }
 
 body[data-density="compact"] article,

@@ -35,9 +35,9 @@ La UI predefinita e' responsiva:
 - la sezione clinica si chiama `Sintesi Clinica` e sposta i conteggi tecnici in
   fondo;
 - le terapie hanno anche un bottone diretto di primo livello quando presenti;
-- gli studi DICOM aggregati hanno una sezione autonoma quando sono apribili con
-  viewer HTML, separata dai documenti ordinari e dai supporti tecnici non
-  visualizzabili;
+- gli studi DICOM aggregati hanno una sezione autonoma, separata dai documenti
+  ordinari e dai supporti tecnici non visualizzabili; gli studi senza viewer
+  HTML vengono mostrati come anomalie da verificare;
 - su schermi larghi la UI puo' mostrare due sezioni affiancate, con azioni
   esplicite per aprire una sezione a sinistra o a destra;
 - la timeline e' mostrata per default in ordine cronologico inverso;
