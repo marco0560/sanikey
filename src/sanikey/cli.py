@@ -137,6 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_arguments(list_parser)
     list_parser.add_argument(
+        "-a",
         "--all",
         action="store_true",
         help="Include i pazienti disabilitati",
@@ -148,7 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Scansiona i documenti sorgente configurati",
     )
     _add_config_arguments(scan_parser)
-    scan_parser.add_argument("--patient", help="Scansiona solo un id paziente")
+    scan_parser.add_argument("-p", "--patient", help="Scansiona solo un id paziente")
     scan_parser.add_argument(
         "-v",
         "--verbose",
@@ -156,22 +157,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Stampa una lista leggibile dei documenti acquisiti",
     )
     scan_parser.add_argument(
+        "-o",
         "--output",
         type=Path,
         help="Scrive la lista dei documenti acquisiti in un file",
     )
     scan_parser.add_argument(
+        "-f",
         "--format",
         choices=("text", "csv"),
         default=None,
         help="Formato del file di output, valido solo con --output",
     )
     scan_parser.add_argument(
+        "-P",
         "--preflight",
         action="store_true",
         help="Esegue controlli pre-build leggeri su archivi e documenti office",
     )
     scan_parser.add_argument(
+        "-S",
         "--no-stage-containers",
         action="store_true",
         help="Salta lo staging dei contenitori durante la scansione",
@@ -189,8 +194,9 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("before", "after", "check"),
         help="Fase snapshot o azione di verifica",
     )
-    integrity_parser.add_argument("--patient", help="Elabora solo un id paziente")
+    integrity_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
     integrity_parser.add_argument(
+        "-o",
         "--output-dir",
         type=Path,
         default=Path("local-data"),
@@ -203,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Estrae il testo supportato dai documenti sorgente configurati",
     )
     _add_config_arguments(extract_parser)
-    extract_parser.add_argument("--patient", help="Elabora solo un id paziente")
+    extract_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
     extract_parser.set_defaults(func=run_extract_text)
 
     observations_parser = subparsers.add_parser(
@@ -223,7 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cataloga supporti DICOM e directory di espansione manuale",
     )
     _add_config_arguments(dicom_parser)
-    dicom_parser.add_argument("--patient", help="Elabora solo un id paziente")
+    dicom_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
     dicom_parser.set_defaults(func=run_process_dicom)
 
     database_parser = subparsers.add_parser(
@@ -231,7 +237,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Costruisce database SQLite di archivio per paziente",
     )
     _add_config_arguments(database_parser)
-    database_parser.add_argument("--patient", help="Costruisce solo un id paziente")
+    database_parser.add_argument(
+        "-p", "--patient", help="Costruisce solo un id paziente"
+    )
     database_parser.set_defaults(func=run_build_database)
 
     build_patient_parser = subparsers.add_parser(
@@ -241,7 +249,10 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(build_patient_parser, allow_config_flag=True)
     build_patient_parser.add_argument("patient")
     build_patient_parser.add_argument(
-        "--mode", choices=("full", "incremental", "validation"), default="incremental"
+        "-m",
+        "--mode",
+        choices=("full", "incremental", "validation"),
+        default="incremental",
     )
     _add_progress_argument(build_patient_parser)
     build_patient_parser.set_defaults(func=run_build_patient)
@@ -252,7 +263,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_arguments(build_all_parser)
     build_all_parser.add_argument(
-        "--mode", choices=("full", "incremental", "validation"), default="incremental"
+        "-m",
+        "--mode",
+        choices=("full", "incremental", "validation"),
+        default="incremental",
     )
     _add_progress_argument(build_all_parser)
     build_all_parser.set_defaults(func=run_build_all)
@@ -262,7 +276,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Esegue l'aggiornamento incrementale predefinito dell'archivio",
     )
     _add_config_arguments(update_parser)
-    update_parser.add_argument("--patient", help="Aggiorna solo un id paziente")
+    update_parser.add_argument("-p", "--patient", help="Aggiorna solo un id paziente")
     update_parser.set_defaults(func=run_update_archive)
 
     proposals_parser = subparsers.add_parser(
@@ -270,7 +284,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Genera proposte deterministiche per revisione manuale",
     )
     _add_config_arguments(proposals_parser)
-    proposals_parser.add_argument("--patient", help="Elabora solo un id paziente")
+    proposals_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
     proposals_parser.set_defaults(func=run_generate_proposals)
 
     review_parser = subparsers.add_parser(
@@ -288,7 +302,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Genera export JSON statici per frontend, ricerca e timeline",
     )
     _add_config_arguments(exports_parser)
-    exports_parser.add_argument("--patient", help="Elabora solo un id paziente")
+    exports_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
     exports_parser.set_defaults(func=run_generate_exports)
 
     web_parser = subparsers.add_parser(
@@ -296,7 +310,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Genera file frontend statici",
     )
     _add_config_arguments(web_parser)
-    web_parser.add_argument("--patient", help="Elabora solo un id paziente")
+    web_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
     web_parser.set_defaults(func=run_build_web)
 
     export_parser = subparsers.add_parser(
@@ -1281,6 +1295,7 @@ def _add_config_arguments(
     if allow_config_flag:
         parser.set_defaults(config=default_accounts_path())
         parser.add_argument(
+            "-c",
             "--config",
             dest="config_option",
             type=Path,
@@ -1296,6 +1311,7 @@ def _add_config_arguments(
             help="Percorso del file config [default: config/accounts.toml]",
         )
     parser.add_argument(
+        "-r",
         "--repo-root",
         type=Path,
         default=Path.cwd(),
@@ -1317,6 +1333,7 @@ def _add_progress_argument(parser: argparse.ArgumentParser) -> None:
     """
 
     parser.add_argument(
+        "-q",
         "--no-progress",
         action="store_true",
         help="Disabilita i punti di avanzamento interattivi su stderr",

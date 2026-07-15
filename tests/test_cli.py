@@ -141,6 +141,95 @@ def test_short_version_flag_runs() -> None:
     assert result.stdout.strip() == f"sanikey {__version__}"
 
 
+def test_all_sanikey_long_options_have_short_aliases() -> None:
+    """Verify every SaniKey long option exposes a short alias.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    def walk_parsers(parser: argparse.ArgumentParser) -> list[argparse.ArgumentParser]:
+        parsers = [parser]
+        for action in parser._actions:
+            choices = getattr(action, "choices", None)
+            if isinstance(choices, dict):
+                parsers.extend(
+                    child
+                    for child in choices.values()
+                    if isinstance(child, argparse.ArgumentParser)
+                )
+        return parsers
+
+    missing: list[str] = []
+    for parser in walk_parsers(build_parser()):
+        for action in parser._actions:
+            option_strings = tuple(getattr(action, "option_strings", ()))
+            long_options = tuple(
+                item for item in option_strings if item.startswith("--")
+            )
+            short_options = tuple(
+                item
+                for item in option_strings
+                if item.startswith("-") and not item.startswith("--")
+            )
+            if long_options and not short_options:
+                missing.extend(long_options)
+
+    assert not missing
+
+
+def test_short_option_aliases_parse_like_long_options() -> None:
+    """Verify representative short option aliases preserve destinations.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    parser = build_parser()
+
+    list_args = parser.parse_args(["list-patients", "-a"])
+    assert list_args.all is True
+
+    scan_args = parser.parse_args(
+        [
+            "scan-documents",
+            "-p",
+            "patient-a",
+            "-o",
+            "scan.csv",
+            "-f",
+            "csv",
+            "-P",
+            "-S",
+            "-q",
+        ]
+    )
+    assert scan_args.patient == "patient-a"
+    assert scan_args.output == Path("scan.csv")
+    assert scan_args.format == "csv"
+    assert scan_args.preflight is True
+    assert scan_args.no_stage_containers is True
+    assert scan_args.no_progress is True
+
+    build_args = parser.parse_args(
+        ["build-patient", "-c", "accounts.toml", "-r", ".", "-m", "full", "-q", "p1"]
+    )
+    assert build_args.config_option == Path("accounts.toml")
+    assert build_args.repo_root == Path()
+    assert build_args.mode == "full"
+    assert build_args.no_progress is True
+
+
 def test_info_subcommand_runs() -> None:
     """Verify the example info subcommand exits successfully.
 
