@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
+from sanikey import privacy
 from sanikey.config import default_accounts_path, load_accounts, parse_accounts_data
 from sanikey.errors import ConfigError, PrivacyError
-from sanikey.privacy import validate_privacy
+from sanikey.privacy import validate_privacy, validate_tracked_privacy
 
 
 def _accounts_text(root: Path, *, enabled: bool = True) -> str:
@@ -906,3 +907,96 @@ def test_privacy_accepts_ignored_local_data_paths() -> None:
     )
 
     validate_privacy(config, repo_root=repo_root)
+
+
+def test_tracked_privacy_rejects_private_data_directories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify commit-candidate private data directories are rejected.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    monkeypatch.setattr(
+        privacy,
+        "_commit_candidate_paths",
+        lambda _repo_root: {Path("local-data/patient-a/documents/report.pdf")},
+    )
+
+    with pytest.raises(PrivacyError, match="percorsi dati reali tracciati da Git"):
+        validate_tracked_privacy(repo_root=tmp_path)
+
+
+def test_tracked_privacy_rejects_host_local_path_literals(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify tracked text files cannot contain host-local path literals.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    tracked = tmp_path / "docs" / "procedure.md"
+    tracked.parent.mkdir()
+    private_path = "/" + "home/operator/patient-a"
+    tracked.write_text(f"source_documents = {private_path}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        privacy,
+        "_commit_candidate_paths",
+        lambda _repo_root: {Path("docs/procedure.md")},
+    )
+
+    with pytest.raises(PrivacyError, match="riferimenti privati in file tracciati"):
+        validate_tracked_privacy(repo_root=tmp_path)
+
+
+def test_tracked_privacy_accepts_relative_local_data_examples(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify documented relative local-data examples are allowed.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    tracked = tmp_path / "docs" / "procedure.md"
+    tracked.parent.mkdir()
+    tracked.write_text(
+        'source_documents = "local-data/patient-a/documents"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        privacy,
+        "_commit_candidate_paths",
+        lambda _repo_root: {Path("docs/procedure.md")},
+    )
+
+    validate_tracked_privacy(repo_root=tmp_path)

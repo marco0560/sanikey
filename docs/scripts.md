@@ -26,8 +26,23 @@ Esegue la sequenza standard di validazione locale tramite
 Stato:
 
 - installato come `git check` dallo script di bootstrap
+- esegue `scripts/privacy_guard.py` per bloccare dati locali e path host-locali
+  in file tracciati o nuovi non ignorati che finirebbero nel commit
 - esegue la suite di test sotto coverage ed emette `.coverage-report.json`
 - esclude Semgrep per default; rigenerare con `--with-semgrep` per attivarlo
+
+Il guard privacy controlla il contenuto che Git vede come tracciato o nuovo non
+ignorato. Blocca directory private versionate, per esempio `local-data/` o
+`config/`, e riferimenti a path locali dell'host come home directory
+POSIX/Windows o path costruiti dalla variabile d'ambiente `HOME`. Non classifica
+semanticamente qualunque testo clinico: dati reali, screenshot e log devono
+restare fuori dai file tracciati.
+
+## `scripts/privacy_guard.py`
+
+Valida gli invarianti privacy applicabili al contenuto che può entrare in un
+commit. Lo script è richiamato da `scripts/validate_repo.py`, ma può essere
+eseguito anche direttamente per isolare una violazione.
 
 ## `scripts/coverage_summary.py`
 

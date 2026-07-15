@@ -1,184 +1,97 @@
-# AGENTS.md — Generated Python CLI Repo Contract
+# AGENTS.md — SaniKey Agent Contract
 
-## 0. Mission
+Operate from repository evidence, not memory. Source-of-truth order:
 
-You are operating on a generated Python CLI repository.
+1. repository files;
+2. tests;
+3. docs;
+4. user instructions.
 
-Priority:
+Hard fail on missing information that cannot be derived locally. Do not broaden
+scope, refactor unrelated code, rename public symbols, or change CLI behavior
+unless the task requires it.
 
-1. Correctness
-2. Test integrity
-3. Reproducibility
-4. Traceability
-5. Minimality of change
+## Repository Structure
 
-Fluency is irrelevant.
+- `src/sanikey/` — Python package and CLI implementation.
+- `tests/` — pytest behavior contract.
+- `docs/` — MkDocs docs, ADRs, process docs, examples, release docs.
+- `scripts/` — repo automation and validation entry points.
+- `config/` — local account and dictionary configuration; may be ignored/private.
+- `local-data/` — real local patient data and generated outputs; ignored/private.
+- `exports/` — USB/export artifacts; ignored/private
+- `immagini/` — UI image assets.
+- `.githooks/` — repo git hooks.
+- `.github/workflows/` — CI, docs, release.
+- `.codira/` — Codira index/config artifacts; ignored
 
-## 1. Operating Mode
+The project is uv-backed:
 
-Mode: HARD-FAIL DETERMINISTIC
+- use `uv run ...` for repository commands;
+- Python target is 3.13;
+- the CLI entry point is `sanikey = sanikey.__main__:main`.
 
-Rules:
+## Skills And Tooling
 
-- Never guess
-- Never infer missing code
-- Never reconstruct unseen files
-- Never approximate behavior
+At task start, check available Codex skills and use applicable ones. Required:
 
-If required information is missing:
+- `deterministic-change-workflow` for non-trivial code changes, bug fixes, and feature work;
+- `planning-refinement-gate` for any plan before implementation;
+- `numpy-docstring-enforcer` when modifying Python symbols;
+- `commit-block-generator` for commits.
 
--> STOP
--> Ask for clarification
+Codira is available. For non-trivial code work, orient before broad search or
+edits:
 
-## 2. Sources of Truth
+```bash
+uv run codira caps --json
+uv run codira index
+```
 
-Priority order:
+Use `sym`, `refs`, `calls`, or `ctx`; then read the referenced files. Use `rg`
+only for follow-up or docs/text search. Refresh Codira (`uv run codira index`)
+after tracked edits before new indexed queries.
 
-1. Repository files
-2. Tests (`tests/`) as the authoritative behavior contract
-3. Project documentation (`docs/`)
-4. User instructions
+## Change Discipline
 
-Previous assistant output is not a source of truth.
+- Preserve user work in dirty trees; do not revert unrelated changes.
+- Use `apply_patch` for manual file edits.
+- Keep documentation enduser-facing messages and errors in Italian unless a file
+  explicitly uses another language by design.
+- For Python edits, keep NumPy-style docstrings accurate for every modified
+  symbol.
+- For public workflow or CLI changes, update code, tests, docs, and examples in
+  the same slice.
 
-## 3. Repository-Specific Constraints
+## Validation
 
-- Generated repositories are deterministic, test-driven engineering projects.
-- Scope control is strict: do only what is requested.
-- Do not refactor unrelated code, rename symbols, introduce stylistic churn, or
-  modify public CLI behavior unless explicitly required.
-- Prefer repository-owned automation over workstation-specific shell state.
-- Stop immediately if requirements are ambiguous, file context is missing, or a
-  change risks breaking the documented CLI or bootstrap contract.
-
-## 4. Required Shared Skills
-
-Use the following shared skills for the corresponding task classes:
-
-- `deterministic-change-workflow` for non-trivial code changes, bug fixes, and
-  feature work
-- `numpy-docstring-enforcer` whenever modifying modules, classes, public
-  functions, or private functions
-- `commit-block-generator` when proposing the final commit block
-
-If a required skill is unavailable, state that explicitly and apply the same
-rules manually.
-
-For any task where an available skill is explicitly named by the user or clearly
-matches the task class, read that skill before acting and follow it. Required
-repo skills listed above are mandatory; other applicable skills are still part
-of the operating contract when available.
-
-## 4.1 Codira Orientation
-
-When the repository provides `codira`, use it to orient code exploration before
-broad text search or large file reads.
-
-Required sequence for non-trivial code work:
-
-1. Run `uv run codira caps --json` to confirm the current command surface.
-2. Run `uv run codira index` before indexed lookup.
-3. Prefer narrow indexed queries such as `sym`, `refs`, `calls`, or `ctx` to
-   identify the relevant modules and symbols.
-4. Read the files indicated by Codira before editing.
-5. Use `rg` for textual follow-up, documentation search, or when Codira cannot
-   answer the question directly.
-
-Using Codira only as a final audit is insufficient for code changes unless the
-task is trivial and already localized by an explicit file path and symbol.
-
-## 4.2 Token And Context Discipline
-
-- Use Codex memory as an index, not as a transcript: when relevant, search the
-  configured Codex memory registry first and open only the directly relevant
-  rollout summary unless exact historical evidence is required.
-- During implementation, run focused tests and checks for the touched surface;
-  run `uv run python scripts/validate_repo.py` once at the coherent slice or
-  phase boundary, and again only after subsequent changes.
-- Keep intermediary updates short and operational; do not paste long tool output
-  unless the user explicitly asks for it.
-- When committing, use `commit-block-generator` and include a descriptive body,
-  not a subject-only commit.
-
-## 5. Validation Contract
-
-Assume the following commands are the required validation surface:
+The authoritative validation command is:
 
 ```bash
 uv run python scripts/validate_repo.py
 ```
 
-`scripts/validate_repo.py` is the authoritative validation entry point. It routes tools through `scripts/run_repo_tool.py` so cache and temporary state stay outside the checkout.
+Run focused tests while iterating; run full validation before concluding tracked
+changes.
 
-All required checks must pass before concluding.
-
-## 6. Generated Repo Baseline
-
-A repository generated from `dev-template` should normally provide:
-
-- a Python package under `src/`
-- a CLI entrypoint
-- tests
-- MkDocs documentation
-- repo-owned hooks and commit template
-- a uv-managed local bootstrap script
-- repo-local Git aliases installed by repository code
-- GitHub Actions for CI, docs, and release
-- conservative release scripts and documentation
-- deterministic versioning and packaging metadata in `pyproject.toml`
-
-## 7. Commit Contract
-
-Commit messages must satisfy `.githooks/commit-msg.py`.
+## Commit Contract
 
 Allowed types:
 
-- `feat`
-- `fix`
-- `docs`
-- `perf`
-- `refactor`
-- `test`
-- `chore`
-- `style`
+- `feat`, `fix`, `docs`, `perf`, `refactor`, `test`, `chore`, `style`
 
 Allowed scopes:
 
-- `build`
-- `ci`
-- `cli`
-- `config`
-- `core`
-- `decision`
-- `dev`
-- `docs`
-- `git`
-- `release`
-- `scaffold`
-- `template`
-- `tests`
-- `validation`
+- `bootstrap`, `build`, `ci`, `cli`, `config`, `core`, `coverage`,
+  `curation`, `decision`, `dev`, `docs`, `enrichment`, `generation`, `git`,
+  `ingestion`, `process`, `release`, `scaffold`, `schema`, `template`,
+  `tests`, `validation`, `version`
 
-The first line must match `type(scope): summary`, with an optional scope and a
-summary length of 1 to 72 characters.
+First line format:
 
-## 8. Session Stability
+```text
+type(scope): summary
+```
 
-Monitor for context drift, assumption creep, and loss of file grounding.
-
-If detected:
-
--> recommend RESET
-
-
-## 9. Debugging Discipline
-
-- reproduce first
-- identify root cause
-- avoid speculative fixes
-- do not repeatedly retry the same failing approach
-- if the same error is encountered twice:
-  - research 3-5 plausible fixes
-  - compare tradeoffs
-  - choose the most efficient correct solution
-  - implement deterministically
+The summary must be 1-72 characters. Include a descriptive commit body; do not
+make subject-only commits for non-trivial work.

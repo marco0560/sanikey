@@ -24,6 +24,10 @@ Usare solo dati per cui si dispone di autorizzazione esplicita. La verifica può
 contenere dati sanitari reali: non copiare configurazioni, documenti, export,
 log o screenshot in Git.
 
+Gli identificativi usati in questa procedura sono sintetici (`patient-a`,
+`patient-b`). La corrispondenza con pazienti reali deve esistere solo nei file
+locali ignorati da Git, per esempio `config/accounts.toml`.
+
 Eseguire dal root del repository:
 
 ```bash
@@ -40,13 +44,13 @@ iniziare.
 Creare un'area privata non committata dal repository, per esempio:
 
 ```bash
-mkdir -p local-data/{usb-target,{marco,irene}/{documents,metadata/observations},generated/{marco,irene}}
-mkdir -p local-data/{marco,irene}/documents/{_Parametri,_Terapia}
+mkdir -p local-data/{usb-target,{patient-a,patient-b}/{documents,metadata/observations},generated/{patient-a,patient-b}}
+mkdir -p local-data/{patient-a,patient-b}/documents/{_Parametri,_Terapia}
 ```
 
 con `local-data/` in `.gitignore`.
 
-Inserire in `local-data/marco/documents` e `local-data/irene/documents` un
+Inserire in `local-data/patient-a/documents` e `local-data/patient-b/documents` un
 piccolo campione reale ma controllato:
 
 - almeno un referto testuale o PDF;
@@ -82,18 +86,18 @@ min_free_space_mb = 512
 copy_strategy = "rsync-preferred"
 
 [[person]]
-id = "marco"
-display_name = "Marco Coppola"
-source_documents = "local-data/marco/documents"
-metadata_directory = "local-data/marco/metadata"
-local_build = "local-data/generated/marco"
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "local-data/patient-a/documents"
+metadata_directory = "local-data/patient-a/metadata"
+local_build = "local-data/generated/patient-a"
 
 [[person]]
-id = "irene"
-display_name = "Irene Corazzesi"
-source_documents = "local-data/irene/documents"
-metadata_directory = "local-data/irene/metadata"
-local_build = "local-data/generated/irene"
+id = "patient-b"
+display_name = "Patient B"
+source_documents = "local-data/patient-b/documents"
+metadata_directory = "local-data/patient-b/metadata"
+local_build = "local-data/generated/patient-b"
 ```
 
 Prima di continuare, confrontare `config/accounts.toml` con la sintassi completa
@@ -142,11 +146,14 @@ git status --short
 
 Se compaiono configurazioni reali, documenti, export o dati sanitari, fermarsi e
 correggere `.gitignore` o i percorsi locali prima di procedere.
+`uv run python scripts/validate_repo.py` include un guard privacy sui file
+tracciati o nuovi non ignorati e deve fallire se path host-locali o directory
+private stanno per entrare in un commit.
 
 ## Metadati curati minimi
 
-Creare metadati minimi in `local-data/marco/metadata` e
-`local-data/irene/metadata`. Gli esempi sotto usano un solo paziente: replicare
+Creare metadati minimi in `local-data/patient-a/metadata` e
+`local-data/patient-b/metadata`. Gli esempi sotto usano un solo paziente: replicare
 la stessa struttura nella directory metadata di ogni paziente configurato,
 adattando id, nomi e contenuti.
 
@@ -358,11 +365,11 @@ Se sono disponibili file tabellari per peso, pressione, glicemia, INR o altri
 parametri, conservarli sotto `source_documents/_Parametri`, per esempio:
 
 ```bash
-test -f local-data/marco/documents/_Parametri/peso-2025.xlsx
-test -f local-data/marco/documents/_Parametri/diario-pressorio.csv
+test -f local-data/patient-a/documents/_Parametri/peso-2025.xlsx
+test -f local-data/patient-a/documents/_Parametri/diario-pressorio.csv
 ```
 
-Creare `local-data/marco/metadata/observation_imports.toml` con mapping esplicito
+Creare `local-data/patient-a/metadata/observation_imports.toml` con mapping esplicito
 tra file, serie e colonne. Esempio:
 
 ```toml
@@ -452,8 +459,8 @@ uv run sanikey document-integrity before --output-dir local-data
 
 Il comando usa i pazienti abilitati in `accounts.toml` e produce per ciascun
 paziente i file `PATIENT-before.sha256` e `PATIENT-before-mtime.tsv`, per
-esempio `local-data/marco-before.sha256` e
-`local-data/irene-before-mtime.tsv`.
+esempio `local-data/patient-a-before.sha256` e
+`local-data/patient-b-before-mtime.tsv`.
 
 Eseguire una scansione preliminare dei documenti:
 
@@ -473,10 +480,10 @@ Se sono presenti archivi, prima della build lunga aprire il manifest e le
 directory di staging generate dallo scan:
 
 ```bash
-python -m json.tool local-data/generated/marco/manifests/container_staging.json | less
-find local-data/generated/marco/staging/containers -maxdepth 2 -type f | sort | less
-python -m json.tool local-data/generated/irene/manifests/container_staging.json | less
-find local-data/generated/irene/staging/containers -maxdepth 2 -type f | sort | less
+python -m json.tool local-data/generated/patient-a/manifests/container_staging.json | less
+find local-data/generated/patient-a/staging/containers -maxdepth 2 -type f | sort | less
+python -m json.tool local-data/generated/patient-b/manifests/container_staging.json | less
+find local-data/generated/patient-b/staging/containers -maxdepth 2 -type f | sort | less
 ```
 
 Questo controllo serve a verificare manualmente se gli archivi contengono
@@ -518,19 +525,19 @@ uv run sanikey import-observations
 Per isolare un paziente:
 
 ```bash
-uv run sanikey import-observations marco
-uv run sanikey import-observations irene
+uv run sanikey import-observations patient-a
+uv run sanikey import-observations patient-b
 ```
 
 Verificare che il comando abbia generato gli artefatti normalizzati attesi:
 
 ```bash
-test ! -f local-data/marco/metadata/observation_imports.toml || test -f local-data/marco/metadata/observations/series.toml
-test ! -f local-data/marco/metadata/observation_imports.toml || test -f local-data/marco/metadata/observations/import_state.toml
-test ! -f local-data/marco/metadata/observation_imports.toml || find local-data/marco/metadata/observations -maxdepth 1 -type f -name '*.toml' | sort
-test ! -f local-data/irene/metadata/observation_imports.toml || test -f local-data/irene/metadata/observations/series.toml
-test ! -f local-data/irene/metadata/observation_imports.toml || test -f local-data/irene/metadata/observations/import_state.toml
-test ! -f local-data/irene/metadata/observation_imports.toml || find local-data/irene/metadata/observations -maxdepth 1 -type f -name '*.toml' | sort
+test ! -f local-data/patient-a/metadata/observation_imports.toml || test -f local-data/patient-a/metadata/observations/series.toml
+test ! -f local-data/patient-a/metadata/observation_imports.toml || test -f local-data/patient-a/metadata/observations/import_state.toml
+test ! -f local-data/patient-a/metadata/observation_imports.toml || find local-data/patient-a/metadata/observations -maxdepth 1 -type f -name '*.toml' | sort
+test ! -f local-data/patient-b/metadata/observation_imports.toml || test -f local-data/patient-b/metadata/observations/series.toml
+test ! -f local-data/patient-b/metadata/observation_imports.toml || test -f local-data/patient-b/metadata/observations/import_state.toml
+test ! -f local-data/patient-b/metadata/observation_imports.toml || find local-data/patient-b/metadata/observations -maxdepth 1 -type f -name '*.toml' | sort
 ```
 
 Aprire `import_state.toml` e verificare che contenga `manifest_hash` e una
@@ -553,8 +560,8 @@ uv run sanikey build-all --mode full
 In alternativa, per isolare un problema, eseguire un paziente alla volta:
 
 ```bash
-uv run sanikey build-patient marco --mode full
-uv run sanikey build-patient irene --mode full
+uv run sanikey build-patient patient-a --mode full
+uv run sanikey build-patient patient-b --mode full
 ```
 
 L'output deve essere un riepilogo multi-riga leggibile per ogni paziente, non
@@ -571,8 +578,8 @@ Se sono presenti archivi o immagini ISO, riverificare anche dopo la build il
 manifest di staging rigenerato:
 
 ```bash
-python -m json.tool local-data/generated/marco/manifests/container_staging.json | less
-python -m json.tool local-data/generated/irene/manifests/container_staging.json | less
+python -m json.tool local-data/generated/patient-a/manifests/container_staging.json | less
+python -m json.tool local-data/generated/patient-b/manifests/container_staging.json | less
 ```
 
 Controllare che ogni membro estratto abbia `container_id`, `internal_path`,
@@ -600,10 +607,10 @@ studio.
 Eseguire una build incrementale ripetuta:
 
 ```bash
-uv run sanikey build-patient marco
-uv run sanikey build-patient marco
-uv run sanikey build-patient irene
-uv run sanikey build-patient irene
+uv run sanikey build-patient patient-a
+uv run sanikey build-patient patient-a
+uv run sanikey build-patient patient-b
+uv run sanikey build-patient patient-b
 ```
 
 Dopo una build full completata, la cache di estrazione testo esiste già. La
@@ -615,16 +622,16 @@ build incrementale successiva può riestrarre i documenti e ricrearla. Il file d
 cache si trova in:
 
 ```bash
-test -f local-data/generated/marco/cache/extracted_text.json
-test -f local-data/generated/irene/cache/extracted_text.json
+test -f local-data/generated/patient-a/cache/extracted_text.json
+test -f local-data/generated/patient-b/cache/extracted_text.json
 ```
 
 Eseguire una build full per verificare che la cache non venga usata come
 scorciatoia:
 
 ```bash
-uv run sanikey build-patient marco --mode full
-uv run sanikey build-patient irene --mode full
+uv run sanikey build-patient patient-a --mode full
+uv run sanikey build-patient patient-b --mode full
 ```
 
 In questo caso `documenti_cached=` deve essere `0` e `documenti_estratti=` deve
@@ -694,14 +701,14 @@ Interrogare anche il target USB locale simulato, non solo `local-data/generated`
 
 ```bash
 test -f local-data/usb-target/SANIKEY-MANIFEST.json
-test -f local-data/usb-target/patients/marco/medical_archive.db
-test -f local-data/usb-target/patients/marco/web/data.js
-test -f local-data/usb-target/patients/marco/web/content-search.js
-test -f local-data/usb-target/patients/irene/medical_archive.db
-test -f local-data/usb-target/patients/irene/web/data.js
-test -f local-data/usb-target/patients/irene/web/content-search.js
-sqlite3 local-data/usb-target/patients/marco/medical_archive.db 'SELECT count(*) FROM documents;'
-sqlite3 local-data/usb-target/patients/irene/medical_archive.db 'SELECT count(*) FROM documents;'
+test -f local-data/usb-target/patients/patient-a/medical_archive.db
+test -f local-data/usb-target/patients/patient-a/web/data.js
+test -f local-data/usb-target/patients/patient-a/web/content-search.js
+test -f local-data/usb-target/patients/patient-b/medical_archive.db
+test -f local-data/usb-target/patients/patient-b/web/data.js
+test -f local-data/usb-target/patients/patient-b/web/content-search.js
+sqlite3 local-data/usb-target/patients/patient-a/medical_archive.db 'SELECT count(*) FROM documents;'
+sqlite3 local-data/usb-target/patients/patient-b/medical_archive.db 'SELECT count(*) FROM documents;'
 ```
 
 ### Verifica su Chiavetta Fisica
@@ -822,14 +829,14 @@ locale:
 ```bash
 test -f "$USB_MOUNT/SANIKEY-MANIFEST.json"
 test -f "$USB_MOUNT/index.html"
-test -f "$USB_MOUNT/patients/marco/medical_archive.db"
-test -f "$USB_MOUNT/patients/marco/web/data.js"
-test -f "$USB_MOUNT/patients/marco/web/content-search.js"
-test -f "$USB_MOUNT/patients/irene/medical_archive.db"
-test -f "$USB_MOUNT/patients/irene/web/data.js"
-test -f "$USB_MOUNT/patients/irene/web/content-search.js"
-sqlite3 "$USB_MOUNT/patients/marco/medical_archive.db" 'SELECT count(*) FROM documents;'
-sqlite3 "$USB_MOUNT/patients/irene/medical_archive.db" 'SELECT count(*) FROM documents;'
+test -f "$USB_MOUNT/patients/patient-a/medical_archive.db"
+test -f "$USB_MOUNT/patients/patient-a/web/data.js"
+test -f "$USB_MOUNT/patients/patient-a/web/content-search.js"
+test -f "$USB_MOUNT/patients/patient-b/medical_archive.db"
+test -f "$USB_MOUNT/patients/patient-b/web/data.js"
+test -f "$USB_MOUNT/patients/patient-b/web/content-search.js"
+sqlite3 "$USB_MOUNT/patients/patient-a/medical_archive.db" 'SELECT count(*) FROM documents;'
+sqlite3 "$USB_MOUNT/patients/patient-b/medical_archive.db" 'SELECT count(*) FROM documents;'
 xdg-open "$USB_MOUNT/index.html"
 ```
 
@@ -886,11 +893,11 @@ path sorgente assoluti:
 
 Verificare anche che almeno un link `Apri originale` risolva realmente a un
 file copiato sulla chiavetta. Il comando seguente legge il primo `href`
-documentale dal `data.js` del paziente `marco`, lo risolve rispetto alla
+documentale dal `data.js` del paziente `patient-a`, lo risolve rispetto alla
 directory `web/` e controlla che il file esista:
 
 ```bash
-python - "$USB_MOUNT/patients/marco/web" <<'PY'
+python - "$USB_MOUNT/patients/patient-a/web" <<'PY'
 import json
 import re
 import sys
@@ -915,7 +922,7 @@ paziente non ha viewer HTML, il comando stampa `no viewer href` ed e' comunque
 accettabile.
 
 ```bash
-python - "$USB_MOUNT/patients/marco/web" <<'PY'
+python - "$USB_MOUNT/patients/patient-a/web" <<'PY'
 import json
 import re
 import sys
@@ -951,22 +958,22 @@ sync
 Verificare la presenza degli artefatti principali:
 
 ```bash
-test -f local-data/generated/marco/database/medical_archive.db
-test -f local-data/generated/marco/web/index.html
-test -f local-data/generated/marco/web/data/documents.json
-test -f local-data/generated/marco/web/data/search.json
-test -f local-data/generated/marco/web/data/timeline.json
-test -f local-data/generated/marco/web/data.js
-test -f local-data/generated/marco/web/content-search.js
-test -f local-data/generated/marco/checksums.sha256
-test -f local-data/generated/irene/database/medical_archive.db
-test -f local-data/generated/irene/web/index.html
-test -f local-data/generated/irene/web/data/documents.json
-test -f local-data/generated/irene/web/data/search.json
-test -f local-data/generated/irene/web/data/timeline.json
-test -f local-data/generated/irene/web/data.js
-test -f local-data/generated/irene/web/content-search.js
-test -f local-data/generated/irene/checksums.sha256
+test -f local-data/generated/patient-a/database/medical_archive.db
+test -f local-data/generated/patient-a/web/index.html
+test -f local-data/generated/patient-a/web/data/documents.json
+test -f local-data/generated/patient-a/web/data/search.json
+test -f local-data/generated/patient-a/web/data/timeline.json
+test -f local-data/generated/patient-a/web/data.js
+test -f local-data/generated/patient-a/web/content-search.js
+test -f local-data/generated/patient-a/checksums.sha256
+test -f local-data/generated/patient-b/database/medical_archive.db
+test -f local-data/generated/patient-b/web/index.html
+test -f local-data/generated/patient-b/web/data/documents.json
+test -f local-data/generated/patient-b/web/data/search.json
+test -f local-data/generated/patient-b/web/data/timeline.json
+test -f local-data/generated/patient-b/web/data.js
+test -f local-data/generated/patient-b/web/content-search.js
+test -f local-data/generated/patient-b/checksums.sha256
 test -f exports/usb-image/SANIKEY-MANIFEST.json
 test -f local-data/usb-target/SANIKEY-MANIFEST.json
 ```
@@ -1001,14 +1008,14 @@ Il comando non deve elencare directory operative non consultabili.
 Verificare anche i manifest prodotti dalla build e dall'export:
 
 ```bash
-test -f local-data/generated/marco/manifests/container_staging.json
-test -f local-data/generated/marco/manifests/dicom_html_viewers.json
-test -f local-data/generated/marco/reports/build_report.json
-test -f local-data/generated/marco/checksums.sha256
-test -f local-data/generated/irene/manifests/container_staging.json
-test -f local-data/generated/irene/manifests/dicom_html_viewers.json
-test -f local-data/generated/irene/reports/build_report.json
-test -f local-data/generated/irene/checksums.sha256
+test -f local-data/generated/patient-a/manifests/container_staging.json
+test -f local-data/generated/patient-a/manifests/dicom_html_viewers.json
+test -f local-data/generated/patient-a/reports/build_report.json
+test -f local-data/generated/patient-a/checksums.sha256
+test -f local-data/generated/patient-b/manifests/container_staging.json
+test -f local-data/generated/patient-b/manifests/dicom_html_viewers.json
+test -f local-data/generated/patient-b/reports/build_report.json
+test -f local-data/generated/patient-b/checksums.sha256
 test -f exports/usb-image/SANIKEY-MANIFEST.json
 test -f local-data/usb-target/SANIKEY-MANIFEST.json
 ```
@@ -1021,12 +1028,12 @@ essere JSON valido con lista `viewers` vuota.
 Ispezionare i JSON statici:
 
 ```bash
-python -m json.tool local-data/generated/marco/web/data/documents.json >/tmp/sanikey-documents.json
-python -m json.tool local-data/generated/marco/web/data/search.json >/tmp/sanikey-search.json
-python -m json.tool local-data/generated/marco/web/data/timeline.json >/tmp/sanikey-timeline.json
-python -m json.tool local-data/generated/irene/web/data/documents.json >/tmp/sanikey-irene-documents.json
-python -m json.tool local-data/generated/irene/web/data/search.json >/tmp/sanikey-irene-search.json
-python -m json.tool local-data/generated/irene/web/data/timeline.json >/tmp/sanikey-irene-timeline.json
+python -m json.tool local-data/generated/patient-a/web/data/documents.json >/tmp/sanikey-documents.json
+python -m json.tool local-data/generated/patient-a/web/data/search.json >/tmp/sanikey-search.json
+python -m json.tool local-data/generated/patient-a/web/data/timeline.json >/tmp/sanikey-timeline.json
+python -m json.tool local-data/generated/patient-b/web/data/documents.json >/tmp/sanikey-patient-b-documents.json
+python -m json.tool local-data/generated/patient-b/web/data/search.json >/tmp/sanikey-patient-b-search.json
+python -m json.tool local-data/generated/patient-b/web/data/timeline.json >/tmp/sanikey-patient-b-timeline.json
 ```
 
 Controllare manualmente che:
@@ -1052,7 +1059,7 @@ import json
 import re
 from pathlib import Path
 
-for patient in ("marco", "irene"):
+for patient in ("patient-a", "patient-b"):
     script = Path("local-data/generated") / patient / "web" / "data.js"
     payload = script.read_text(encoding="utf-8")
     match = re.fullmatch(r"window[.]SANIKEY_DATA = (.*);\n", payload, re.S)
@@ -1080,7 +1087,7 @@ import json
 import re
 from pathlib import Path
 
-for patient in ("marco", "irene"):
+for patient in ("patient-a", "patient-b"):
     script = Path("local-data/generated") / patient / "web" / "content-search.js"
     payload = script.read_text(encoding="utf-8")
     match = re.fullmatch(r"window[.]SANIKEY_CONTENT_SEARCH = (.*);\n", payload, re.S)
@@ -1098,7 +1105,7 @@ python - <<'PY'
 import json
 from pathlib import Path
 
-for patient in ("marco", "irene"):
+for patient in ("patient-a", "patient-b"):
     root = Path("local-data/generated") / patient / "web" / "data"
     summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
     documents = json.loads((root / "documents.json").read_text(encoding="utf-8"))
@@ -1112,24 +1119,24 @@ PY
 Verificare il database:
 
 ```bash
-sqlite3 local-data/generated/marco/database/medical_archive.db '.tables'
-sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM documents;'
-sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM document_text;'
-sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM observation_series;'
-sqlite3 local-data/generated/marco/database/medical_archive.db 'SELECT count(*) FROM observation_points;'
-sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
-sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT support_kind, count(*) AS studies, sum(instance_count) AS instances FROM dicom_studies GROUP BY support_kind ORDER BY support_kind;"
-sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY CASE WHEN support_kind IN ('dicom_study','dicomdir_study') THEN 0 ELSE 1 END, instance_count DESC, support_path LIMIT 20;"
-sqlite3 local-data/generated/marco/database/medical_archive.db "SELECT id, count(*) FROM dicom_studies GROUP BY id HAVING count(*) > 1;"
-sqlite3 local-data/generated/irene/database/medical_archive.db '.tables'
-sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM documents;'
-sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM document_text;'
-sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM observation_series;'
-sqlite3 local-data/generated/irene/database/medical_archive.db 'SELECT count(*) FROM observation_points;'
-sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
-sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT support_kind, count(*) AS studies, sum(instance_count) AS instances FROM dicom_studies GROUP BY support_kind ORDER BY support_kind;"
-sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY CASE WHEN support_kind IN ('dicom_study','dicomdir_study') THEN 0 ELSE 1 END, instance_count DESC, support_path LIMIT 20;"
-sqlite3 local-data/generated/irene/database/medical_archive.db "SELECT id, count(*) FROM dicom_studies GROUP BY id HAVING count(*) > 1;"
+sqlite3 local-data/generated/patient-a/database/medical_archive.db '.tables'
+sqlite3 local-data/generated/patient-a/database/medical_archive.db 'SELECT count(*) FROM documents;'
+sqlite3 local-data/generated/patient-a/database/medical_archive.db 'SELECT count(*) FROM document_text;'
+sqlite3 local-data/generated/patient-a/database/medical_archive.db 'SELECT count(*) FROM observation_series;'
+sqlite3 local-data/generated/patient-a/database/medical_archive.db 'SELECT count(*) FROM observation_points;'
+sqlite3 local-data/generated/patient-a/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
+sqlite3 local-data/generated/patient-a/database/medical_archive.db "SELECT support_kind, count(*) AS studies, sum(instance_count) AS instances FROM dicom_studies GROUP BY support_kind ORDER BY support_kind;"
+sqlite3 local-data/generated/patient-a/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY CASE WHEN support_kind IN ('dicom_study','dicomdir_study') THEN 0 ELSE 1 END, instance_count DESC, support_path LIMIT 20;"
+sqlite3 local-data/generated/patient-a/database/medical_archive.db "SELECT id, count(*) FROM dicom_studies GROUP BY id HAVING count(*) > 1;"
+sqlite3 local-data/generated/patient-b/database/medical_archive.db '.tables'
+sqlite3 local-data/generated/patient-b/database/medical_archive.db 'SELECT count(*) FROM documents;'
+sqlite3 local-data/generated/patient-b/database/medical_archive.db 'SELECT count(*) FROM document_text;'
+sqlite3 local-data/generated/patient-b/database/medical_archive.db 'SELECT count(*) FROM observation_series;'
+sqlite3 local-data/generated/patient-b/database/medical_archive.db 'SELECT count(*) FROM observation_points;'
+sqlite3 local-data/generated/patient-b/database/medical_archive.db "SELECT count(*) FROM document_fts WHERE document_fts MATCH 'test';"
+sqlite3 local-data/generated/patient-b/database/medical_archive.db "SELECT support_kind, count(*) AS studies, sum(instance_count) AS instances FROM dicom_studies GROUP BY support_kind ORDER BY support_kind;"
+sqlite3 local-data/generated/patient-b/database/medical_archive.db "SELECT support_kind, study_instance_uid, instance_count FROM dicom_studies ORDER BY CASE WHEN support_kind IN ('dicom_study','dicomdir_study') THEN 0 ELSE 1 END, instance_count DESC, support_path LIMIT 20;"
+sqlite3 local-data/generated/patient-b/database/medical_archive.db "SELECT id, count(*) FROM dicom_studies GROUP BY id HAVING count(*) > 1;"
 ```
 
 La query su `document_text` deve essere maggiore di zero se nel set sono presenti
@@ -1179,7 +1186,7 @@ Su una copia del target, alterare un file e verificare il fallimento:
 
 ```bash
 cp -a local-data/usb-target local-data/usb-target-tampered
-printf '\nTAMPER\n' >> local-data/usb-target-tampered/patients/marco/web/index.html
+printf '\nTAMPER\n' >> local-data/usb-target-tampered/patients/patient-a/web/index.html
 uv run sanikey validate-usb local-data/usb-target-tampered
 ```
 

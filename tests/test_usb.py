@@ -498,7 +498,7 @@ def test_validate_usb_rejects_absolute_frontend_hrefs(tmp_path: Path) -> None:
     data_script.write_text(
         data_script.read_text(encoding="utf-8").replace(
             "../documents/20260102 Report.txt",
-            "/home/marco/private/20260102 Report.txt",
+            "/private-host/20260102 Report.txt",
         ),
         encoding="utf-8",
     )

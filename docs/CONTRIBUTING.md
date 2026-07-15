@@ -12,6 +12,11 @@ uv run python scripts/validate_repo.py
 gli strumenti tramite `scripts/run_repo_tool.py`, in modo che cache e stato
 temporaneo restino fuori dal checkout.
 
+La validazione include un guard privacy sul contenuto che Git vede come
+tracciato o nuovo non ignorato. Il guard blocca dati locali e path host-locali
+che finirebbero nel commit; non sostituisce la revisione manuale di testi
+clinici, log e screenshot.
+
 ## Inizializzazione
 
 Un clone nuovo deve essere inizializzato con lo script di bootstrap del

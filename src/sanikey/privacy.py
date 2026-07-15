@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -14,6 +15,16 @@ if TYPE_CHECKING:
 
 LOCAL_DATA_DIRS = ("config", "patients", "generated", "exports", "logs", "local-data")
 GIT_EXE = shutil.which("git")
+MAX_PRIVACY_SCAN_BYTES = 2 * 1024 * 1024
+PRIVATE_PATH_RE = re.compile(
+    r"""
+    file:///(?:home|Users)/[^\s|"'`<>)\]]+
+    |/(?:home|Users)/[^\s|"'`<>)\]]+
+    |[A-Za-z]:\\Users\\[^\s|"'`<>)\]]+
+    |\$(?:HOME|\{HOME\})/[^\s|"'`<>)\]]+
+    """,
+    re.VERBOSE,
+)
 
 
 def _fail(message: str) -> None:
@@ -63,6 +74,30 @@ def validate_privacy(config: AccountsConfig, *, repo_root: Path) -> None:
         _validate_person_paths(person, repo_root=resolved_root)
 
 
+def validate_tracked_privacy(*, repo_root: Path) -> None:
+    """Validate privacy invariants for content that could enter a commit.
+
+    Parameters
+    ----------
+    repo_root : pathlib.Path
+        Repository root.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    PrivacyError
+        If commit-candidate content includes private data directories or
+        host-local path literals.
+    """
+
+    resolved_root = repo_root.resolve()
+    _validate_local_data_dirs_ignored(resolved_root)
+    _validate_tracked_private_literals(resolved_root)
+
+
 def _validate_local_data_dirs_ignored(repo_root: Path) -> None:
     """Validate local real-data directories are not tracked.
 
@@ -81,13 +116,80 @@ def _validate_local_data_dirs_ignored(repo_root: Path) -> None:
         If Git reports local real-data directories as tracked.
     """
 
-    tracked = _tracked_paths(repo_root)
+    tracked = _commit_candidate_paths(repo_root)
     violations = sorted(
         path for path in tracked if path.parts and path.parts[0] in LOCAL_DATA_DIRS
     )
     if violations:
         rendered = ", ".join(str(path) for path in violations[:10])
         _fail(f"percorsi dati reali tracciati da Git: {rendered}")
+
+
+def _validate_tracked_private_literals(repo_root: Path) -> None:
+    """Validate commit-candidate files do not contain host-local path literals.
+
+    Parameters
+    ----------
+    repo_root : pathlib.Path
+        Repository root.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    PrivacyError
+        If a commit-candidate text file contains a path literal tied to a user
+        host.
+    """
+
+    violations: list[str] = []
+    for relative in sorted(_commit_candidate_paths(repo_root)):
+        path = repo_root / relative
+        if not path.is_file():
+            continue
+        content = _read_privacy_scan_text(path)
+        if content is None:
+            continue
+        for line_number, line in enumerate(content.splitlines(), start=1):
+            match = PRIVATE_PATH_RE.search(line)
+            if match is not None:
+                violations.append(f"{relative}:{line_number}: {match.group(0)}")
+                break
+
+    if violations:
+        rendered = "; ".join(violations[:10])
+        _fail(f"riferimenti privati in file tracciati: {rendered}")
+
+
+def _read_privacy_scan_text(path: Path) -> str | None:
+    """Read a file when it is suitable for textual privacy scanning.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Candidate file.
+
+    Returns
+    -------
+    str | None
+        Text content, or ``None`` for binary or oversized files.
+    """
+
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    if stat.st_size > MAX_PRIVACY_SCAN_BYTES:
+        return None
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None
+    if b"\x00" in raw:
+        return None
+    return raw.decode("utf-8", errors="replace")
 
 
 def _validate_person_paths(person: PersonConfig, *, repo_root: Path) -> None:
@@ -125,8 +227,8 @@ def _validate_person_paths(person: PersonConfig, *, repo_root: Path) -> None:
                 )
 
 
-def _tracked_paths(repo_root: Path) -> set[Path]:
-    """Return Git-tracked paths relative to the repository root.
+def _commit_candidate_paths(repo_root: Path) -> set[Path]:
+    """Return tracked and unignored paths relative to the repository root.
 
     Parameters
     ----------
@@ -136,7 +238,7 @@ def _tracked_paths(repo_root: Path) -> set[Path]:
     Returns
     -------
     set[pathlib.Path]
-        Tracked paths.
+        Paths that are tracked already or visible to Git as unignored new files.
 
     Raises
     ------
@@ -148,7 +250,7 @@ def _tracked_paths(repo_root: Path) -> set[Path]:
         _fail("eseguibile git non trovato")
     git_exe = cast("str", GIT_EXE)
     completed = subprocess.run(
-        [git_exe, "ls-files"],
+        [git_exe, "ls-files", "--cached", "--others", "--exclude-standard"],
         cwd=repo_root,
         check=False,
         capture_output=True,
