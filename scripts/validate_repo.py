@@ -47,6 +47,8 @@ class ValidationStep:
 
 VALIDATION_STEPS: tuple[ValidationStep, ...] = (
     ValidationStep("privacy-guard", "python", ("scripts/privacy_guard.py",)),
+    ValidationStep("codira-index", "codira", ("index",)),
+    ValidationStep("codira-audit", "codira", ("audit",)),
     ValidationStep("ruff", "ruff", ("check", ".")),
     ValidationStep("ruff-format", "ruff", ("format", "--check", ".")),
     ValidationStep("mypy", "mypy", ("src",)),

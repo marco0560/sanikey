@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GIT_EXE = shutil.which("git")
 SUPPORTED_TOOLS: dict[str, str | None] = {
+    "codira": None,
     "coverage": "coverage",
     "mypy": "mypy",
     "pre-commit": "pre_commit",
@@ -286,8 +287,8 @@ def build_tool_argv(
 
     argv: tuple[str, ...]
 
-    if tool == "semgrep":
-        argv = (resolve_python_sibling_executable("semgrep", python=python),)
+    if tool in {"codira", "semgrep"}:
+        argv = (resolve_python_sibling_executable(tool, python=python),)
     elif tool == "python":
         argv = (python,)
     else:

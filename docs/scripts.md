@@ -28,6 +28,7 @@ Stato:
 - installato come `git check` dallo script di bootstrap
 - esegue `scripts/privacy_guard.py` per bloccare dati locali e path host-locali
   in file tracciati o nuovi non ignorati che finirebbero nel commit
+- aggiorna l'indice Codira ed esegue `codira audit`
 - esegue la suite di test sotto coverage ed emette `.coverage-report.json`
 - esclude Semgrep per default; rigenerare con `--with-semgrep` per attivarlo
 
