@@ -441,6 +441,8 @@ Regole operative:
 
 ## Esecuzione pipeline
 
+### Validazione configurazione e metadati
+
 Validare la configurazione:
 
 ```bash
@@ -450,6 +452,8 @@ uv run sanikey validate-config
 Questo passo deve anche validare i metadati curati: correggere subito TOML
 malformati, id duplicati o terapie che citano un `medication_id` non presente in
 `medications.toml`.
+
+### Snapshot iniziale dei sorgenti
 
 Creare lo snapshot iniziale dei documenti sorgente configurati:
 
@@ -461,6 +465,8 @@ Il comando usa i pazienti abilitati in `accounts.toml` e produce per ciascun
 paziente i file `PATIENT-before.sha256` e `PATIENT-before-mtime.tsv`, per
 esempio `local-data/patient-a-before.sha256` e
 `local-data/patient-b-before-mtime.tsv`.
+
+### Scansione preliminare e staging container
 
 Eseguire una scansione preliminare dei documenti:
 
@@ -489,8 +495,26 @@ find local-data/generated/patient-b/staging/containers -maxdepth 2 -type f | sor
 Questo controllo serve a verificare manualmente se gli archivi contengono
 supporti DICOM, immagini disco annidate, referti PDF o solo materiale tecnico
 del viewer. Se un paziente non contiene archivi, il manifest deve comunque
-esistere con `members` vuoto. Eseguire anche il preflight leggero prima di una
-build lunga:
+esistere con `members` vuoto.
+
+### Catalogo DICOM leggero
+
+Catalogare i supporti DICOM prima della build lunga:
+
+```bash
+uv run sanikey process-dicom --no-progress
+```
+
+Il comando crea lo stesso staging automatico dei container usato da
+`scan-documents` e stampa `archivi_preparati=`, `membri_in_archivi=` e
+`documenti_derivati=` quando trova archivi o immagini disco supportate.
+Usare `--no-stage-containers` solo per verificare il catalogo limitato ai
+sorgenti e alle espansioni già presenti. Gli avvisi `contenitore DICOM non
+espanso` indicano supporti riconosciuti ma non ispezionati internamente.
+
+### Preflight e inventario leggibile
+
+Eseguire anche il preflight leggero prima di una build lunga:
 
 ```bash
 uv run sanikey scan-documents --preflight
@@ -514,6 +538,8 @@ Per conservare l'inventario completo in un file riprocessabile:
 uv run sanikey scan-documents --output local-data/scan-documents.tsv --format text
 uv run sanikey scan-documents --output local-data/scan-documents.csv --format csv
 ```
+
+### Import osservazioni normalizzate
 
 Se esiste almeno un `observation_imports.toml`, importare le osservazioni prima
 della build:
@@ -551,6 +577,8 @@ nell'archivio generato e segnala il file saltato insieme al file trattenuto. In
 presenza di duplicati inattesi, fermarsi e decidere manualmente se rimuovere,
 rinominare o archiviare separatamente una delle copie prima di proseguire.
 
+### Build completa
+
 Eseguire la build completa per tutti i pazienti abilitati:
 
 ```bash
@@ -573,6 +601,8 @@ maggiore di zero.
 deriva da contenitori e supporti diagnostici.
 I punti di avanzamento, quando presenti, devono essere su `stderr`, non dentro
 il riepilogo su `stdout`.
+
+### Verifica DICOM e manifest post-build
 
 Se sono presenti archivi o immagini ISO, riverificare anche dopo la build il
 manifest di staging rigenerato:
@@ -603,6 +633,8 @@ siano raggruppati per `StudyInstanceUID` o, quando presente, dai record `STUDY`
 del `DICOMDIR`. Se uno stesso `StudyInstanceUID` compare sia in `DICOMDIR` sia
 nelle istanze DICOM, il database deve contenere un solo record per quello
 studio.
+
+### Build incrementale e cache
 
 Eseguire una build incrementale ripetuta:
 
@@ -636,6 +668,8 @@ uv run sanikey build-patient patient-b --mode full
 
 In questo caso `documenti_cached=` deve essere `0` e `documenti_estratti=` deve
 riflettere i documenti non DICOM sottoposti a estrazione testo.
+
+### Export USB locale
 
 Generare l'export USB verso un target locale di verifica e rigenerare anche
 l'immagine canonica prima di validarla, in modo da non controllare un residuo di
@@ -696,6 +730,8 @@ I comandi `validate-usb` devono stampare:
 ```text
 stato=ok
 ```
+
+### Verifica target locale
 
 Interrogare anche il target USB locale simulato, non solo `local-data/generated`:
 

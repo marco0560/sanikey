@@ -189,7 +189,7 @@ def build_patient(
     inspection_warnings = tuple(
         warning
         for warning in inspection.warning_messages
-        if "directory di espansione DICOM manuale non trovata" not in warning
+        if "contenitore DICOM non espanso" not in warning
     )
     counts = BuildCounts(
         documents=len(inspection.documents),

@@ -12,7 +12,8 @@ Current SaniKey behavior is close only when the support contains a browser-opena
 ## Archive And ISO Handling
 
 - Source archives such as `.zip`, `.7z`, `.rar`, `.iso`, `.img` are detected as container/support documents.
-- `scan-documents` stages supported containers by default under `local_build/staging/containers/`.
+- `scan-documents`, `process-dicom` and `build-patient` stage supported containers by default under `local_build/staging/containers/`.
+- `process-dicom --no-stage-containers` skips extraction and catalogs only source supports plus already existing expansions.
 - If an archive contains a nested disk image, for example ZIP -> ISO -> DICOM tree, SaniKey recursively stages the nested image.
 - Staging records all extracted members in the manifest for audit.
 - Only clinically useful derived documents enter the document pipeline; technical/support paths can be filtered by configured `exclude_patterns`.

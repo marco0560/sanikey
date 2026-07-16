@@ -170,7 +170,9 @@ def _studies_from_document(
         "dicom_rar",
         "dicom_zip",
     }:
-        warnings = ("directory di espansione DICOM manuale non trovata",)
+        warnings = (
+            "contenitore DICOM non espanso: non trovata directory manuale o staging",
+        )
     return (
         DicomStudy(
             study_id=document.document_id,

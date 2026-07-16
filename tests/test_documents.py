@@ -13,6 +13,7 @@ import pytest
 import sanikey.documents as documents_module
 from sanikey.config import IngestionConfig, PersonConfig
 from sanikey.documents import (
+    document_page_count,
     duplicate_document_warnings,
     extract_text,
     find_duplicate_documents,
@@ -385,6 +386,30 @@ def test_extract_text_reads_text_files(tmp_path: Path) -> None:
 
     assert extracted.text == "hello"
     assert extracted.warnings == ()
+    assert document_page_count(document) == 1
+
+
+def test_document_page_count_unknown_for_non_paginated_formats(tmp_path: Path) -> None:
+    """Verify page count is unknown for non-paginated extracted formats.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Workbook.xlsx"
+    path.write_bytes(b"not a real workbook")
+    document = scan_documents(person)[0]
+
+    assert document_page_count(document) is None
 
 
 def test_extract_text_skips_source_image_ocr(
@@ -959,6 +984,7 @@ def test_extract_text_reads_synthetic_pdf_with_pymupdf(tmp_path: Path) -> None:
 
     assert "Synthetic non-sensitive PDF text" in extracted.text
     assert extracted.warnings == ()
+    assert document_page_count(document) == 1
 
 
 def test_extract_text_reads_image_only_pdf_with_ocrmypdf(tmp_path: Path) -> None:

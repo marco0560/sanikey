@@ -640,6 +640,25 @@ def test_cli_formatting_helpers_cover_fallbacks(tmp_path: Path) -> None:
     assert cli._format_display_date("20260102") == "20260102"
     assert cli._source_relative_path(person, in_source) == "20260102 Report.txt"
     assert cli._source_relative_path(person, outside) == str(outside.path)
+    assert cli._repo_relative_path(in_source.path, repo_root=tmp_path) == (
+        "patient-a/source/20260102 Report.txt"
+    )
+    assert cli._format_extract_text_result(
+        person,
+        in_source,
+        ExtractedText(document_id="doc-1", text="", warnings=()),
+        repo_root=tmp_path,
+    ) == ("patient-a    pagine=    1 avvisi=  0 patient-a/source/20260102 Report.txt")
+    assert cli._format_extract_text_result(
+        person,
+        in_source,
+        ExtractedText(document_id="doc-1", text="", warnings=()),
+        repo_root=tmp_path,
+        verbose=True,
+    ) == (
+        "patient-a    sha256=aaaaaaaaaaaa pagine=    1 avvisi=  0 "
+        "patient-a/source/20260102 Report.txt"
+    )
     assert text_path.read_text(encoding="utf-8").startswith("patient-a\ttxt")
 
 
@@ -773,9 +792,12 @@ def test_direct_content_runners_cover_success_paths(
         patient=None,
         mode="incremental",
         no_progress=True,
+        no_stage_containers=True,
+        verbose=False,
     )
     monkeypatch.setattr(cli, "load_accounts", lambda _path: config)
     monkeypatch.setattr(cli, "scan_documents", lambda _person: (document,))
+    monkeypatch.setattr(cli, "document_page_count", lambda _document: 1)
     monkeypatch.setattr(
         cli,
         "extract_text",
@@ -787,23 +809,39 @@ def test_direct_content_runners_cover_success_paths(
     )
 
     assert cli.run_extract_text(args) == 0
-    assert "chars=5\tavvisi=1" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "pagine=    1 avvisi=  1" in output
+    assert "sha256=" not in output
 
+    args.verbose = True
+    assert cli.run_extract_text(args) == 0
+    assert "sha256=aaaaaaaaaaaa pagine=    1 avvisi=  1" in capsys.readouterr().out
+
+    repo_root = Path.cwd()
     study = SimpleNamespace(
         patient_id="patient-a",
         support_kind="dicom_iso",
-        support_path=tmp_path / "study.iso",
-        extracted_path=tmp_path / "expanded",
-        viewer_paths=(tmp_path / "viewer.exe",),
+        support_path=repo_root / "local-data/patient-a/documents/study.iso",
+        extracted_path=repo_root / "local-data/generated/patient-a/dicom/expanded",
+        viewer_paths=(repo_root / "local-data/generated/patient-a/dicom/viewer.exe",),
         warnings=("avviso dicom",),
         study_instance_uid="1.2.3",
         study_date="2026-01-02",
         study_description="Studio",
         instance_count=2,
     )
-    monkeypatch.setattr(cli, "catalog_dicom_studies", lambda *_args: (study,))
+    monkeypatch.setattr(
+        cli, "catalog_dicom_studies", lambda *_args, **_kwargs: (study,)
+    )
     assert cli.run_process_dicom(args) == 0
-    assert "studi_dicom=1" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "studi_dicom=1" in output
+    assert str(repo_root) not in output
+    assert (
+        "patient-a\tdicom_iso\t2\t1\t1\t2026-01-02\t1.2.3\tStudio\t"
+        "local-data/patient-a/documents/study.iso\t"
+        "local-data/generated/patient-a/dicom/expanded"
+    ) in output
 
     monkeypatch.setattr(cli, "load_curated_metadata", lambda _path: object())
     monkeypatch.setattr(
@@ -1434,6 +1472,46 @@ usb_uuid = "1A2B-3C4D"
     assert not (build_root / "staging" / "containers").exists()
 
 
+def test_parser_long_options_have_short_aliases() -> None:
+    """Verify every long sanikey option exposes a short counterpart.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    parsers = [build_parser()]
+    seen: set[int] = set()
+    while parsers:
+        parser = parsers.pop()
+        if id(parser) in seen:
+            continue
+        seen.add(id(parser))
+        for action in parser._actions:
+            option_strings = tuple(action.option_strings)
+            long_options = tuple(
+                option for option in option_strings if option.startswith("--")
+            )
+            if long_options:
+                short_options = tuple(
+                    option
+                    for option in option_strings
+                    if option.startswith("-") and not option.startswith("--")
+                )
+                assert short_options, f"{parser.prog}: {long_options}"
+            choices = getattr(action, "choices", None)
+            if isinstance(choices, dict):
+                parsers.extend(
+                    choice
+                    for choice in choices.values()
+                    if isinstance(choice, argparse.ArgumentParser)
+                )
+
+
 def test_document_integrity_creates_and_checks_patient_snapshots(
     tmp_path: Path,
 ) -> None:
@@ -1937,7 +2015,7 @@ usb_uuid = "1A2B-3C4D"
         "archivi_preparati=1 membri_in_archivi=1 documenti_derivati=0" in result.stdout
     )
     assert "estrazione testo non supportata per .jpg" not in result.stdout
-    assert "directory di espansione DICOM manuale non trovata" not in result.stdout
+    assert "contenitore DICOM non espanso" not in result.stdout
 
 
 def test_scan_documents_preflight_reports_corrupt_office_file(
@@ -2095,6 +2173,120 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "studi_dicom=1" in result.stdout
     assert "dicom_iso" in result.stdout
+
+
+def test_process_dicom_stages_containers_by_default(tmp_path: Path) -> None:
+    """Verify process-dicom materializes container staging by default.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir(parents=True)
+    dicom_bytes = b"\0" * 128 + b"DICM" + b"synthetic"
+    with zipfile.ZipFile(source / "20260102 Study.zip", "w") as archive:
+        archive.writestr("DICOM/IM000001.dcm", dicom_bytes)
+    build_root = tmp_path / "generated"
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{build_root}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "process-dicom",
+            str(config_path),
+            "--no-progress",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "archivi_preparati=1 membri_in_archivi=1 documenti_derivati=1" in (
+        result.stdout
+    )
+    assert "contenitore DICOM non espanso" not in result.stdout
+    assert (build_root / "staging" / "containers").is_dir()
+    assert (build_root / "manifests" / "container_staging.json").is_file()
+
+
+def test_process_dicom_can_skip_container_staging(tmp_path: Path) -> None:
+    """Verify process-dicom can run without materializing staging.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir(parents=True)
+    dicom_bytes = b"\0" * 128 + b"DICM" + b"synthetic"
+    with zipfile.ZipFile(source / "20260102 Study.zip", "w") as archive:
+        archive.writestr("DICOM/IM000001.dcm", dicom_bytes)
+    build_root = tmp_path / "generated"
+    config_path = tmp_path / "accounts.toml"
+    config_path.write_text(
+        f"""
+[global]
+config_version = 1
+
+[[person]]
+id = "patient-a"
+display_name = "Patient A"
+source_documents = "{source}"
+metadata_directory = "{tmp_path / "metadata"}"
+local_build = "{build_root}"
+usb_uuid = "1A2B-3C4D"
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "process-dicom",
+            str(config_path),
+            "--no-stage-containers",
+            "--no-progress",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "archivi_preparati=" not in result.stdout
+    assert "contenitore DICOM non espanso" in result.stdout
+    assert not (build_root / "staging" / "containers").exists()
 
 
 def test_build_database_subcommand_runs(tmp_path: Path) -> None:

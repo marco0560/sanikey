@@ -354,6 +354,29 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
     )
 
 
+def document_page_count(document: DocumentRecord) -> int | None:
+    """Return the document page count when it can be determined reliably.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        Source document.
+
+    Returns
+    -------
+    int | None
+        Page count, or ``None`` when the format does not expose a reliable page
+        count in the local extractor.
+    """
+
+    suffix = document.path.suffix.lower()
+    if suffix in TEXT_EXTENSIONS:
+        return 1
+    if suffix == ".pdf":
+        return _pdf_page_count(document.path)
+    return None
+
+
 def document_record_for_path(
     path: Path,
     *,

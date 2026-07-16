@@ -307,6 +307,9 @@ def test_catalog_dicom_studies_detects_dicom_rar_by_name(
 
     assert len(studies) == 1
     assert studies[0].support_kind == "dicom_rar"
+    assert studies[0].warnings == (
+        "contenitore DICOM non espanso: non trovata directory manuale o staging",
+    )
 
 
 def test_catalog_dicom_studies_groups_files_by_study_instance_uid(

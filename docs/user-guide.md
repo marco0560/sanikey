@@ -371,13 +371,14 @@ una serie clinica e mappa le colonne. Sono accettati CSV UTF-8 e fogli
 `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`. Se manifesto o sorgenti cambiano,
 la build chiede di rieseguire `import-observations`.
 
-Durante `scan-documents` e `build-patient`, gli archivi e le immagini disco
-supportate vengono anche estratti in una staging area generata sotto
-`local_build/staging/containers`. Il contenitore originale resta il documento
-autorevole; i membri estratti sono documenti derivati con provenance verso il
-contenitore, path interno e SHA256 proprio. Se un archivio è cifrato, corrotto o
-non leggibile, il contenitore resta catalogato e il problema viene registrato
-come avviso.
+Durante `scan-documents`, `process-dicom` e `build-patient`, gli archivi e le
+immagini disco supportate vengono anche estratti in una staging area generata
+sotto `local_build/staging/containers`. Il contenitore originale resta il
+documento autorevole; i membri estratti sono documenti derivati con provenance
+verso il contenitore, path interno e SHA256 proprio. Se un archivio è cifrato,
+corrotto o non leggibile, il contenitore resta catalogato e il problema viene
+registrato come avviso. `process-dicom --no-stage-containers` esegue il solo
+catalogo dei sorgenti e delle espansioni già presenti.
 
 I file ISO DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. Gli archivi `.zip`, `.7z` e `.rar` sono trattati inizialmente come

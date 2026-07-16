@@ -168,7 +168,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-151 | Il progresso dei comandi lunghi e' diagnostica interattiva su `stderr`. | 15 |  |
 | DA-152 | I supporti DICOM annidati nei contenitori vengono espansi ricorsivamente in staging. | 8 |  |
 | DA-153 | Il testo estratto dai documenti viene persistito in SQLite e indicizzato in FTS5. | 9 |  |
-| DA-154 | `scan-documents` crea lo staging dei container per verifica manuale, salvo opt-out esplicito. | 15 |  |
+| DA-154 | I comandi di ispezione DICOM e documentale creano lo staging dei container per verifica manuale, salvo opt-out esplicito. | 15 |  |
 | DA-155 | Le istanze DICOM leggibili vengono raggruppate per StudyInstanceUID o DICOMDIR e coalescono record duplicati dello stesso studio. | 8 |  |
 | DA-156 | La build incrementale riusa il testo estratto per documenti invariati e rigenera il database dall'inventario corrente. | 8 |  |
 | DA-157 | Il frontend offline carica i dati essenziali come JavaScript locale per funzionare anche da `file://`. | 12 |  |
@@ -359,7 +359,7 @@ Le decisioni complete sono riportate in questo documento e sono state rimosse da
 | DA-096 | La build genera un report e un manifest verificabili. |  |
 | DA-148 | Il riepilogo build distingue documenti sorgente, derivati, istanze DICOM e record totali. |  |
 | DA-151 | Il progresso dei comandi lunghi e' diagnostica interattiva su `stderr`. |  |
-| DA-154 | `scan-documents` crea lo staging dei container per verifica manuale, salvo opt-out esplicito. |  |
+| DA-154 | I comandi di ispezione DICOM e documentale creano lo staging dei container per verifica manuale, salvo opt-out esplicito. |  |
 
 ### Artefatti Generati
 

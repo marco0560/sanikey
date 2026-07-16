@@ -519,7 +519,7 @@ def test_build_patient_stages_container_members_with_provenance(
     }
     assert dicom_count == 2
     assert not any(
-        "directory di espansione DICOM manuale non trovata" in warning
+        "contenitore DICOM non espanso" in warning
         for warning in result.warning_messages
     )
 

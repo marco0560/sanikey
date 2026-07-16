@@ -10,9 +10,12 @@ from typing import TYPE_CHECKING, Never, cast
 from . import __version__
 from .build import PatientBuildResult, build_all, build_patient
 from .config import default_accounts_path, load_accounts
+from .containers import stage_container_documents
 from .database import build_database
 from .dicom import catalog_dicom_studies
 from .documents import (
+    ExtractedText,
+    document_page_count,
     extract_text,
     scan_documents,
 )
@@ -210,6 +213,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_arguments(extract_parser)
     extract_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
+    extract_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Include il prefisso SHA-256 del documento nell'output",
+    )
     extract_parser.set_defaults(func=run_extract_text)
 
     observations_parser = subparsers.add_parser(
@@ -230,6 +239,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_arguments(dicom_parser)
     dicom_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
+    dicom_parser.add_argument(
+        "-S",
+        "--no-stage-containers",
+        action="store_true",
+        help="Salta lo staging dei contenitori durante il catalogo DICOM",
+    )
+    _add_progress_argument(dicom_parser)
     dicom_parser.set_defaults(func=run_process_dicom)
 
     database_parser = subparsers.add_parser(
@@ -788,6 +804,77 @@ def _source_relative_path(person: PersonConfig, document: DocumentRecord) -> str
         return str(document.path)
 
 
+def _repo_relative_path(path: Path, *, repo_root: Path | None = None) -> str:
+    """Return a path relative to the repository root when possible.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to render.
+    repo_root : pathlib.Path | None, optional
+        Repository root. When omitted, the current working directory is used.
+
+    Returns
+    -------
+    str
+        Repository-relative path when ``path`` is inside ``repo_root``,
+        otherwise the original path string.
+    """
+
+    selected_root = Path.cwd() if repo_root is None else repo_root
+    try:
+        return (
+            path.resolve(strict=False)
+            .relative_to(selected_root.resolve(strict=False))
+            .as_posix()
+        )
+    except ValueError:
+        return str(path)
+
+
+def _format_extract_text_result(
+    person: PersonConfig,
+    document: DocumentRecord,
+    extracted: ExtractedText,
+    *,
+    repo_root: Path | None = None,
+    verbose: bool = False,
+) -> str:
+    """Format one text extraction result for human-readable CLI output.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    document : DocumentRecord
+        Source document.
+    extracted : sanikey.documents.ExtractedText
+        Extracted text payload.
+    repo_root : pathlib.Path | None, optional
+        Repository root used to abbreviate paths.
+    verbose : bool, optional
+        Whether to include the short SHA-256 content fingerprint.
+
+    Returns
+    -------
+    str
+        One aligned output row with patient id, page count, warning count
+        and source path. Verbose output also includes the short SHA-256 content
+        fingerprint.
+    """
+
+    fingerprint = f"sha256={document.sha256[:12]} " if verbose else ""
+    pages = document_page_count(document)
+    rendered_pages = "?" if pages is None else str(pages)
+    return (
+        f"{person.id:<12} "
+        f"{fingerprint}"
+        f"pagine={rendered_pages:>5} "
+        f"avvisi={len(extracted.warnings):>3} "
+        f"{_repo_relative_path(document.path, repo_root=repo_root)}"
+    )
+
+
 def run_extract_text(args: argparse.Namespace) -> int:
     """Extract text from configured source documents.
 
@@ -811,11 +898,16 @@ def run_extract_text(args: argparse.Namespace) -> int:
         for document in scan_documents(person):
             extracted = extract_text(document)
             print(
-                f"{person.id}\t{document.sha256}\tchars={len(extracted.text)}"
-                f"\tavvisi={len(extracted.warnings)}"
+                _format_extract_text_result(
+                    person,
+                    document,
+                    extracted,
+                    verbose=args.verbose,
+                )
             )
             for warning in extracted.warnings:
-                print(f"AVVISO: {document.path}: {warning}")
+                path = _repo_relative_path(document.path)
+                print(f"AVVISO: {path}: {warning}")
     return 0
 
 
@@ -839,30 +931,60 @@ def run_process_dicom(args: argparse.Namespace) -> int:
         print(f"ERRORE: {exc}")
         return 1
     for person in _selected_people(config, args.patient):
-        studies = catalog_dicom_studies(person, scan_documents(person))
-        print(f"paziente={person.id} studi_dicom={len(studies)}")
+        documents = scan_documents(person)
+        progress = _progress_from_args(args)
+        staging = None
+        if not args.no_stage_containers:
+            staging = stage_container_documents(
+                person,
+                documents,
+                progress=progress,
+                progress_label=f"stage-containers {person.id}",
+            )
+            documents = (*documents, *staging.documents)
+        studies = catalog_dicom_studies(
+            person,
+            documents,
+            progress=progress,
+            progress_label=f"catalog-dicom {person.id}",
+        )
+        summary = f"paziente={person.id} studi_dicom={len(studies)}"
+        if staging is not None:
+            staged_container_ids = {member.container_id for member in staging.members}
+            summary = (
+                f"{summary} archivi_preparati={len(staged_container_ids)} "
+                f"membri_in_archivi={len(staging.members)} "
+                f"documenti_derivati={len(staging.documents)}"
+            )
+        print(summary)
         for study in studies:
             extracted = (
-                "" if study.extracted_path is None else str(study.extracted_path)
+                ""
+                if study.extracted_path is None
+                else _repo_relative_path(study.extracted_path)
             )
             print(
                 "\t".join(
                     (
                         study.patient_id,
                         study.support_kind,
-                        str(study.support_path),
-                        extracted,
+                        str(study.instance_count),
                         str(len(study.viewer_paths)),
                         str(len(study.warnings)),
-                        study.study_instance_uid or "",
                         study.study_date or "",
+                        study.study_instance_uid or "",
                         study.study_description or "",
-                        str(study.instance_count),
+                        _repo_relative_path(study.support_path),
+                        extracted,
                     )
                 )
             )
             for warning in study.warnings:
-                print(f"AVVISO: {study.support_path}: {warning}")
+                path = _repo_relative_path(study.support_path)
+                print(f"AVVISO: {path}: {warning}")
+        if staging is not None:
+            for warning in staging.warning_messages:
+                print(f"AVVISO: {warning}")
     return 0
 
 
