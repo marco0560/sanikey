@@ -363,7 +363,9 @@ function renderDocuments(documents, query = "") {
 
 function renderDocumentActions(item) {
   if (item.viewer_href) {
-    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a></p>`;
+    const label = item.native_viewer_href ? "Apri studio DICOM" : "Apri anteprima non diagnostica";
+    const media = item.dicomdir_href ? ` <a href="${attr(item.dicomdir_href)}">DICOMDIR per viewer professionale</a>` : "";
+    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">${label}</a>${media}</p>`;
   }
   if (item.href) {
     return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">Apri originale</a></p>`;

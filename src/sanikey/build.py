@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
 from .database import build_database
-from .dicom import prepare_dicom_media
+from .dicom import generate_dicom_previews, prepare_dicom_media
 from .documents import ExtractedText, extract_text
 from .exports import generate_exports
 from .frontend import build_frontend
@@ -176,6 +176,7 @@ def build_patient(
     documents = (*inspection.documents, *staging.documents)
     dicom_studies = inspection.dicom_studies
     dicom_media = prepare_dicom_media(person, dicom_studies)
+    dicom_previews = generate_dicom_previews(person, dicom_studies)
     ensure_observation_imports_current(person)
     metadata = load_curated_metadata(person.metadata_directory)
     extraction_documents = tuple(
@@ -217,6 +218,7 @@ def build_patient(
         *extraction_warning_messages(extraction_documents, extracted),
         *export_result.warning_messages,
         *(warning for media in dicom_media for warning in media.warnings),
+        *(warning for _, warnings in dicom_previews.values() for warning in warnings),
     )
     warnings = len(warning_messages)
     manifest_path = _write_manifest(

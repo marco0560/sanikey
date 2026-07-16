@@ -13,6 +13,7 @@ authors = [{ name = "Marco Coppola" }]
 dependencies = [
   "jsonschema>=4.23.0,<5",
   "markdown-it-py>=3.0.0,<5",
+  "pillow>=11.0.0,<12",
   "python-calamine>=0.4.0,<1",
   "pydicom>=3.0.1,<4",
   "PyMuPDF>=1.26.0,<2",

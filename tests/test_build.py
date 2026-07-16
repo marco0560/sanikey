@@ -507,8 +507,9 @@ def test_build_patient_stages_container_members_with_provenance(
     assert result.derived_documents == 2
     assert result.dicom_instances == 1
     assert result.total_records == 3
-    assert result.warnings == 1
+    assert result.warnings == 2
     assert "DICOMDIR non rigenerato" in result.warning_messages[0]
+    assert "anteprima DICOM non generata" in result.warning_messages[1]
     assert len(staging_payload["members"]) == 2
     assert "staging/containers" in result.checksums.read_text(encoding="utf-8")
     assert any(row[0] == "text" and row[1] == "container" for row in rows)

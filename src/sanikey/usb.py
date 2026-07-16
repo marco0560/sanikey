@@ -184,6 +184,8 @@ def _export_patient(person: PersonConfig, target: Path) -> None:
     _copy_tree(person.local_build / "web", patient_root / "web")
     _copy_source_documents(person, patient_root / "documents")
     _copy_dicom_html_viewers(person.local_build, patient_root / "dicom-viewers")
+    _copy_tree(person.local_build / "dicom-media", patient_root / "dicom-media")
+    _copy_tree(person.local_build / "dicom-previews", patient_root / "dicom-previews")
 
 
 def _copy_tree(source: Path, target: Path) -> None:

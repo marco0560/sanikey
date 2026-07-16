@@ -1088,7 +1088,10 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
 
     title = study.study_description or study.support_path.name
     href = _document_href_from_path(person, study.support_path)
-    viewer_href = _dicom_html_viewer_href(study)
+    native_viewer_href = _dicom_html_viewer_href(study)
+    preview_href = _dicom_preview_href(person, study)
+    media_href = _dicom_media_href(person, study)
+    viewer_href = native_viewer_href or preview_href
     fields: list[dict[str, Any]] = [
         {"label": "Supporto", "value": study.support_path.name},
         {"label": "Tipo", "value": study.support_kind},
@@ -1097,11 +1100,15 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
         {"label": "Istanze", "value": str(study.instance_count)},
         {
             "label": "Viewer HTML",
-            "value": "disponibile" if viewer_href else "non rilevato",
+            "value": "nativo"
+            if native_viewer_href
+            else "anteprima"
+            if preview_href
+            else "non rilevato",
         },
         {
             "label": "Anomalia",
-            "value": "viewer HTML non rilevato" if viewer_href is None else None,
+            "value": "anteprima non disponibile" if viewer_href is None else None,
         },
     ]
     return {
@@ -1116,6 +1123,9 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
         "instance_count": study.instance_count,
         "href": href,
         "viewer_href": viewer_href,
+        "native_viewer_href": native_viewer_href,
+        "preview_href": preview_href,
+        "dicomdir_href": media_href,
         "text": " ".join(
             item
             for item in (
@@ -1131,6 +1141,61 @@ def _dicom_study_payload(person: PersonConfig, study: DicomStudy) -> dict[str, A
         ).strip(),
         "fields": _visible_fields(fields),
     }
+
+
+def _dicom_preview_href(person: PersonConfig, study: DicomStudy) -> str | None:
+    """Return the exported static preview link for one study when present.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    study : DicomStudy
+        Cataloged DICOM study.
+
+    Returns
+    -------
+    str | None
+        Relative preview link, or ``None`` when no preview was generated.
+    """
+
+    preview = person.local_build / "dicom-previews" / study.study_id / "index.html"
+    if not preview.is_file():
+        return None
+    return f"../dicom-previews/{study.study_id}/index.html"
+
+
+def _dicom_media_href(person: PersonConfig, study: DicomStudy) -> str | None:
+    """Return the portable DICOMDIR link for one study when available.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    study : DicomStudy
+        Cataloged DICOM study.
+
+    Returns
+    -------
+    str | None
+        Relative DICOMDIR link, or ``None`` when no portable media exists.
+    """
+
+    manifest = person.local_build / "manifests" / "dicom_media.json"
+    if not manifest.is_file():
+        return None
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    for entry in payload.get("media", []):
+        if study.study_id in entry.get("study_ids", []):
+            media_id = entry.get("media_id")
+            if (
+                isinstance(media_id, str)
+                and (
+                    person.local_build / "dicom-media" / media_id / "DICOMDIR"
+                ).is_file()
+            ):
+                return f"../dicom-media/{media_id}/DICOMDIR"
+    return None
 
 
 def _dicom_html_viewer_href(study: DicomStudy) -> str | None:

@@ -487,7 +487,7 @@ def test_generate_exports_includes_synthetic_dicom_study_cards(
     assert {"label": "Viewer HTML", "value": "non rilevato"} in dicom_card["fields"]
     assert {
         "label": "Anomalia",
-        "value": "viewer HTML non rilevato",
+        "value": "anteprima non disponibile",
     } in dicom_card["fields"]
 
 

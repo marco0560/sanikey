@@ -111,6 +111,103 @@ class DicomMedia:
     warnings: tuple[str, ...] = ()
 
 
+def generate_dicom_previews(
+    person: PersonConfig,
+    studies: tuple[DicomStudy, ...],
+) -> dict[str, tuple[int, tuple[str, ...]]]:
+    """Generate non-diagnostic static JPEG previews for cataloged studies.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    studies : tuple[DicomStudy, ...]
+        Cataloged DICOM studies.
+
+    Returns
+    -------
+    dict[str, tuple[int, tuple[str, ...]]]
+        Study id mapped to rendered instance count and warnings.
+    """
+
+    root = person.local_build / "dicom-previews"
+    if root.exists():
+        shutil.rmtree(root)
+    root.mkdir(parents=True, exist_ok=True)
+    results: dict[str, tuple[int, tuple[str, ...]]] = {}
+    for study in studies:
+        if study.extracted_path is None or not study.extracted_path.is_dir():
+            continue
+        images: list[str] = []
+        warnings_for_study: list[str] = []
+        target = root / study.study_id
+        target.mkdir(parents=True)
+        for index, path in enumerate(sorted(study.extracted_path.rglob("*")), start=1):
+            if not path.is_file() or not _is_dicom_instance_path(path):
+                continue
+            try:
+                from PIL import Image
+                from pydicom import dcmread
+
+                dataset = dcmread(str(path), force=True)
+                if _clean_dicom_text(
+                    getattr(dataset, "StudyInstanceUID", None)
+                ) not in {
+                    study.study_instance_uid,
+                    None,
+                }:
+                    continue
+                pixels = dataset.pixel_array
+                image = Image.fromarray(pixels).convert("L")
+                name = f"{index:05d}.jpg"
+                image.save(target / name, format="JPEG", quality=95)
+                images.append(name)
+            except (AttributeError, OSError, RuntimeError, ValueError) as exc:
+                warnings_for_study.append(f"anteprima DICOM non generata: {exc}")
+        if images:
+            (target / "index.html").write_text(_preview_html(images), encoding="utf-8")
+        results[study.study_id] = (
+            len(images),
+            tuple(dict.fromkeys(warnings_for_study)),
+        )
+    manifest = person.local_build / "manifests" / "dicom_previews.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "previews": [
+                    {"study_id": key, "instances": value[0], "warnings": value[1]}
+                    for key, value in sorted(results.items())
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return results
+
+
+def _preview_html(images: list[str]) -> str:
+    """Render a self-contained static non-diagnostic preview page.
+
+    Parameters
+    ----------
+    images : list[str]
+        Relative JPEG filenames.
+
+    Returns
+    -------
+    str
+        HTML document content.
+    """
+
+    image_list = json.dumps(images)
+    return f"""<!doctype html><html lang="it"><meta charset="utf-8"><title>Anteprima DICOM</title><style>body{{font-family:sans-serif;margin:1rem;max-width:1100px}}img{{max-width:100%;max-height:78vh;display:block;margin:auto}}button{{margin:.5rem}}</style><h1>Anteprima DICOM non diagnostica</h1><p>Usare il DICOMDIR con un lettore professionale per valutazioni cliniche.</p><button id="previous">Precedente</button><button id="next">Successiva</button><span id="count"></span><img id="image" alt="Istanza DICOM"><script>const images={image_list};let index=0;const image=document.querySelector('#image');const count=document.querySelector('#count');function show(){{image.src=images[index];count.textContent=`${{index+1}} / ${{images.length}}`;}}document.querySelector('#previous').onclick=()=>{{index=(index+images.length-1)%images.length;show();}};document.querySelector('#next').onclick=()=>{{index=(index+1)%images.length;show();}};show();</script></html>"""
+
+
 def prepare_dicom_media(
     person: PersonConfig,
     studies: tuple[DicomStudy, ...],
