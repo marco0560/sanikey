@@ -9,6 +9,7 @@ from .containers import ContainerStagingResult, stage_container_documents
 from .dicom import DicomStudy, catalog_dicom_studies
 from .documents import (
     ExtractedText,
+    _known_suffix,
     duplicate_document_warnings,
     excluded_source_files,
     extract_text,
@@ -219,7 +220,7 @@ def _preflight_document_warnings(document: DocumentRecord) -> tuple[str, ...]:
         Preflight warnings.
     """
 
-    suffix = document.path.suffix.lower()
+    suffix = _known_suffix(document.path)
     if suffix == ".pdf" or document.kind.startswith("dicom_"):
         return ()
     if suffix == ".doc":

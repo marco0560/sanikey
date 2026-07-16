@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import io
+import tarfile
 import warnings
 import zipfile
 from dataclasses import dataclass, replace
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
+
+from .documents import _known_suffix
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -168,6 +171,7 @@ def _studies_from_document(
         "dicom_img",
         "dicom_iso",
         "dicom_rar",
+        "dicom_tar_xz",
         "dicom_zip",
     }:
         warnings = (
@@ -475,9 +479,9 @@ def _dicom_support_kind(document: DocumentRecord) -> str:
         Original or promoted DICOM support kind.
     """
 
-    suffix = document.path.suffix.lower()
-    if document.kind == "archive" and suffix in {".7z", ".rar", ".zip"}:
-        return f"dicom_{suffix[1:]}"
+    suffix = _known_suffix(document.path)
+    if document.kind == "archive" and suffix in {".7z", ".rar", ".tar.xz", ".zip"}:
+        return f"dicom_{suffix[1:].replace('.', '_')}"
     return document.kind
 
 
@@ -496,13 +500,15 @@ def _archive_contains_dicom(document: DocumentRecord) -> bool:
         DICOM content.
     """
 
-    suffix = document.path.suffix.lower()
+    suffix = _known_suffix(document.path)
     if suffix == ".zip":
         return _zip_contains_dicom(document.path)
     if suffix == ".rar":
         return _rar_contains_dicom(document.path)
     if suffix == ".7z":
         return _seven_zip_contains_dicom(document.path)
+    if suffix == ".tar.xz":
+        return _tar_xz_contains_dicom(document.path)
     return False
 
 
@@ -596,6 +602,39 @@ def _seven_zip_contains_dicom(path: Path) -> bool:
             )
     except (OSError, py7zr.Bad7zFile, py7zr.PasswordRequired):
         return False
+
+
+def _tar_xz_contains_dicom(path: Path) -> bool:
+    """Return whether a TAR.XZ archive contains DICOM content.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        TAR.XZ archive path.
+
+    Returns
+    -------
+    bool
+        ``True`` when member names or magic bytes indicate DICOM content.
+    """
+
+    try:
+        with tarfile.open(path, mode="r:xz") as archive:
+            members = tuple(
+                member for member in archive.getmembers() if member.isfile()
+            )
+            if any(_looks_like_dicom_member_name(member.name) for member in members):
+                return True
+            for member in members:
+                handle = archive.extractfile(member)
+                if handle is None:
+                    continue
+                with handle:
+                    if _stream_has_dicom_magic(handle):
+                        return True
+    except (OSError, tarfile.TarError):
+        return False
+    return False
 
 
 def _looks_like_dicom_member_name(name: str) -> bool:

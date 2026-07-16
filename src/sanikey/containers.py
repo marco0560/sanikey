@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import tarfile
 import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING
 from .documents import (
     DocumentRecordOrigin,
     _is_excluded_by_ingestion,
+    _known_suffix,
     document_record_for_path,
 )
 
@@ -21,7 +23,7 @@ if TYPE_CHECKING:
     from .models import DocumentRecord
     from .progress import ProgressReporter
 
-CONTAINER_SUFFIXES = {".7z", ".img", ".iso", ".rar", ".zip"}
+CONTAINER_SUFFIXES = {".7z", ".img", ".iso", ".rar", ".tar.xz", ".zip"}
 
 
 @dataclass(frozen=True)
@@ -161,7 +163,7 @@ def _container_documents(
     return tuple(
         document
         for document in documents
-        if document.path.suffix.lower() in CONTAINER_SUFFIXES
+        if _known_suffix(document.path) in CONTAINER_SUFFIXES
     )
 
 
@@ -282,7 +284,7 @@ def _extract_container(container: DocumentRecord, target: Path) -> None:
         If the container suffix is unsupported or extraction fails.
     """
 
-    suffix = container.path.suffix.lower()
+    suffix = _known_suffix(container.path)
     if suffix == ".zip":
         _extract_zip(container.path, target)
         return
@@ -291,6 +293,9 @@ def _extract_container(container: DocumentRecord, target: Path) -> None:
         return
     if suffix == ".rar":
         _extract_rar(container.path, target)
+        return
+    if suffix == ".tar.xz":
+        _extract_tar_xz(container.path, target)
         return
     if suffix in {".img", ".iso"}:
         _extract_with_7z(container.path, target)
@@ -388,6 +393,42 @@ def _extract_rar(source: Path, target: Path) -> None:
                 _safe_member_path(target, name)
             archive.extractall(path=target)
     except (OSError, rarfile.Error) as exc:
+        raise ValueError(exc) from exc
+
+
+def _extract_tar_xz(source: Path, target: Path) -> None:
+    """Extract a TAR.XZ archive with path traversal protection.
+
+    Parameters
+    ----------
+    source : pathlib.Path
+        TAR.XZ archive.
+    target : pathlib.Path
+        Extraction target.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If the archive cannot be read or extracted.
+    """
+
+    try:
+        with tarfile.open(source, mode="r:xz") as archive:
+            for member in archive.getmembers():
+                if not member.isfile():
+                    continue
+                output = _safe_member_path(target, member.name)
+                handle = archive.extractfile(member)
+                if handle is None:
+                    continue
+                output.parent.mkdir(parents=True, exist_ok=True)
+                with handle, output.open("wb") as output_file:
+                    shutil.copyfileobj(handle, output_file)
+    except (OSError, tarfile.TarError) as exc:
         raise ValueError(exc) from exc
 
 

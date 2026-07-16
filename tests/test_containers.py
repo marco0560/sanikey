@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import tarfile
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -387,6 +388,37 @@ def test_stage_container_documents_extracts_7z_archive(tmp_path: Path) -> None:
     path = person.source_documents / "20260102 Archive.7z"
     with py7zr.SevenZipFile(path, "w") as archive:
         archive.write(source_file, arcname="inner.txt")
+
+    result = stage_container_documents(
+        person,
+        (_document(path, person.source_documents),),
+    )
+
+    assert result.warning_messages == ()
+    assert result.documents[0].internal_path == "inner.txt"
+    assert result.documents[0].path.read_text(encoding="utf-8") == "synthetic"
+
+
+def test_stage_container_documents_extracts_tar_xz_archive(tmp_path: Path) -> None:
+    """Verify TAR.XZ archives are staged.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    source_file = tmp_path / "inner.txt"
+    source_file.write_text("synthetic", encoding="utf-8")
+    path = person.source_documents / "20260102 Archive.tar.xz"
+    with tarfile.open(path, "w:xz") as archive:
+        archive.add(source_file, arcname="inner.txt")
 
     result = stage_container_documents(
         person,

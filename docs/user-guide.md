@@ -363,7 +363,7 @@ Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 - `.docx`, `.odt`: testo tramite librerie Python;
 - `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`: celle tramite `python-calamine`;
 - `.doc`: conversione tramite LibreOffice o `soffice`, se disponibile;
-- `.zip`, `.7z`, `.rar`: inventario dei file contenuti nell'archivio.
+- `.zip`, `.7z`, `.rar`, `.tar.xz`: inventario dei file contenuti nell'archivio.
 
 Le misurazioni longitudinali come peso, pressione, glicemia e INR si importano
 con un passaggio esplicito:
@@ -391,13 +391,13 @@ catalogo dei sorgenti e delle espansioni già presenti. L'output predefinito di
 `process-dicom --verbose` per contatori e tabella tecnica degli studi.
 
 I file ISO DICOM consegnati dagli ospedali sono conservati come documenti
-sorgente. Gli archivi `.zip`, `.7z` e `.rar` sono trattati inizialmente come
-archivi generici e promossi a supporti DICOM solo se contengono `DICOMDIR`, file
-`.dcm`, path DICOM riconoscibili, immagini disco `.iso`/`.img`, ZIP annidati
-con contenuto DICOM o file con magic bytes DICOM. Quando vengono estratti in
-staging, eventuali immagini disco `.iso` o `.img` annidate vengono espanse a
-loro volta. I file DICOM interni sono catalogati come DICOM e non passano
-dall'OCR o dall'estrazione testo ordinaria.
+sorgente. Gli archivi `.zip`, `.7z`, `.rar` e `.tar.xz` sono trattati
+inizialmente come archivi generici e promossi a supporti DICOM solo se
+contengono `DICOMDIR`, file `.dcm`, path DICOM riconoscibili, immagini disco
+`.iso`/`.img`, ZIP annidati con contenuto DICOM o file con magic bytes DICOM.
+Quando vengono estratti in staging, eventuali immagini disco `.iso` o `.img`
+annidate vengono espanse a loro volta. I file DICOM interni sono catalogati come
+DICOM e non passano dall'OCR o dall'estrazione testo ordinaria.
 Nel frontend non vengono mostrati i singoli file DICOM: la consultazione mostra
 schede aggregate per studio, con numero istanze, UID quando disponibile e link
 di apertura del viewer HTML quando rilevato. I supporti e i file tecnici non

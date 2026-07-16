@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tarfile
 import zipfile
 from dataclasses import replace
 from pathlib import Path
@@ -237,6 +238,7 @@ def test_scan_documents_classifies_archive_and_office_kinds(
     (document_dir / "20260102 Archive.7z").write_bytes(b"archive")
     (document_dir / "20260103 Legacy.rar").write_bytes(b"rar")
     (document_dir / "20260104 Support.zip").write_bytes(b"zip")
+    (document_dir / "20260105 Support.tar.xz").write_bytes(b"tar")
     (document_dir / "20260105 Report.docx").write_bytes(b"docx")
     (document_dir / "20260106 Workbook.xlsx").write_bytes(b"xlsx")
 
@@ -247,9 +249,13 @@ def test_scan_documents_classifies_archive_and_office_kinds(
         "20260102 Archive.7z": "archive",
         "20260103 Legacy.rar": "archive",
         "20260104 Support.zip": "archive",
+        "20260105 Support.tar.xz": "archive",
         "20260105 Report.docx": "office",
         "20260106 Workbook.xlsx": "office",
     }
+    assert {document.path.name: document.title for document in documents}[
+        "20260105 Support.tar.xz"
+    ] == "Support"
 
 
 def test_scan_documents_classifies_img_disk_images_as_dicom_support(
@@ -552,6 +558,37 @@ def test_extract_text_lists_7z_archive_contents(tmp_path: Path) -> None:
     extracted = extract_text(document)
 
     assert "contenuto archivio 7z:" in extracted.text
+    assert "report.txt" in extracted.text
+    assert extracted.warnings == ()
+
+
+def test_extract_text_lists_tar_xz_archive_contents(tmp_path: Path) -> None:
+    """Verify TAR.XZ files produce an archive inventory.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    payload = tmp_path / "payload"
+    payload.mkdir(parents=True)
+    (payload / "report.txt").write_text("hello", encoding="utf-8")
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Archive.tar.xz"
+    with tarfile.open(path, "w:xz") as archive:
+        archive.add(payload / "report.txt", arcname="report.txt")
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "contenuto archivio tar.xz:" in extracted.text
     assert "report.txt" in extracted.text
     assert extracted.warnings == ()
 

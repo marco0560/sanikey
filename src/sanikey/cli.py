@@ -15,6 +15,7 @@ from .database import build_database
 from .dicom import catalog_dicom_studies
 from .documents import (
     ExtractedText,
+    _known_suffix,
     document_page_count,
     extract_text,
     scan_documents,
@@ -970,6 +971,7 @@ _DICOM_SUPPORT_KINDS = frozenset(
         "dicom_img",
         "dicom_iso",
         "dicom_rar",
+        "dicom_tar_xz",
         "dicom_zip",
     }
 )
@@ -1002,7 +1004,8 @@ def _print_process_dicom_human(
     containers = tuple(
         document
         for document in source_documents
-        if document.path.suffix.lower() in {".7z", ".img", ".iso", ".rar", ".zip"}
+        if _known_suffix(document.path)
+        in {".7z", ".img", ".iso", ".rar", ".tar.xz", ".zip"}
     )
     support_rows = {
         study.support_path: study

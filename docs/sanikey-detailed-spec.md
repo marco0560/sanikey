@@ -2464,9 +2464,9 @@ processati con OCRmyPDF quando il testo digitale non e' sufficiente.
 ### 6.11 Supporti DICOM
 
 Un documento `dicom_iso` rappresenta un supporto consegnato da una struttura
-sanitaria e contenente uno studio diagnostico. Gli archivi `.zip`, `.7z` e
-`.rar` rappresentano inizialmente archivi generici e sono promossi a supporti
-DICOM solo quando il contenuto indica uno studio diagnostico.
+sanitaria e contenente uno studio diagnostico. Gli archivi `.zip`, `.7z`,
+`.rar` e `.tar.xz` rappresentano inizialmente archivi generici e sono promossi a
+supporti DICOM solo quando il contenuto indica uno studio diagnostico.
 
 I file DICOM interni sono catalogati come istanze diagnostiche e non sono
 inviati alla pipeline OCR o all'estrazione testo ordinaria. Questa condizione
@@ -2479,6 +2479,7 @@ Esempio:
 20250318_RMN_Anca.zip
 20250318_RMN_Anca.7z
 20250318_RMN_Anca.rar
+20250318_RMN_Anca.tar.xz
 ```
 
 Il sistema deve:
@@ -2495,7 +2496,8 @@ dell'operatore non fa parte delle decisioni iniziali.
 
 #### 6.11.1 Archivi
 
-Gli archivi `.zip`, `.7z` e `.rar` possono comparire tra i documenti sorgente.
+Gli archivi `.zip`, `.7z`, `.rar` e `.tar.xz` possono comparire tra i documenti
+sorgente.
 
 L'estensione dell'archivio non e' sufficiente per classificarlo come DICOM.
 Il sistema deve riconoscere un archivio DICOM da segnali di contenuto, come
@@ -3779,8 +3781,13 @@ directory DICOM estratta.
 Tipologie supportate:
 
 ```text
+dicom_7z
+dicom_file
+dicom_img
 dicom_iso
-dicom_archive
+dicom_rar
+dicom_tar_xz
+dicom_zip
 dicom_directory
 ```
 

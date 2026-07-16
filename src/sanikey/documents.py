@@ -7,6 +7,7 @@ import hashlib
 import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import warnings
 import zipfile
@@ -24,7 +25,7 @@ DATE_PREFIX_RE = re.compile(r"^(?P<date>\d{8})[\s_-]+(?P<title>.+)$")
 DICOM_EXTENSIONS = {".dcm": "dicom_file", ".img": "dicom_img", ".iso": "dicom_iso"}
 TEXT_EXTENSIONS = {".txt", ".md"}
 IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png"}
-ARCHIVE_EXTENSIONS = {".7z", ".rar", ".zip"}
+ARCHIVE_EXTENSIONS = {".7z", ".rar", ".tar.xz", ".zip"}
 DOCX_EXTENSIONS = {".docx"}
 LEGACY_OFFICE_EXTENSIONS = {".doc"}
 ODF_EXTENSIONS = {".odt"}
@@ -320,7 +321,7 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
         Extracted text and non-fatal warnings.
     """
 
-    suffix = document.path.suffix.lower()
+    suffix = _known_suffix(document.path)
     if suffix in TEXT_EXTENSIONS:
         return ExtractedText(
             document_id=document.document_id,
@@ -369,7 +370,7 @@ def document_page_count(document: DocumentRecord) -> int | None:
         count in the local extractor.
     """
 
-    suffix = document.path.suffix.lower()
+    suffix = _known_suffix(document.path)
     if suffix in TEXT_EXTENSIONS:
         return 1
     if suffix == ".pdf":
@@ -407,7 +408,7 @@ def document_record_for_path(
     record_origin = provenance or DocumentRecordOrigin()
     relative = path.relative_to(root)
     category = _document_category(relative)
-    date, title = _title_from_name(path.stem)
+    date, title = _title_from_name(_document_title_stem(path))
     kind = _document_kind(path)
     document_id = digest
     if record_origin.origin != "source":
@@ -537,7 +538,7 @@ def _document_kind(path: Path) -> str:
         Document kind.
     """
 
-    suffix = path.suffix.lower()
+    suffix = _known_suffix(path)
     if _has_dicom_magic(path):
         return "dicom_file"
     if suffix in DICOM_EXTENSIONS:
@@ -553,6 +554,47 @@ def _document_kind(path: Path) -> str:
     if suffix in OFFICE_EXTENSIONS | SPREADSHEET_EXTENSIONS:
         return "office"
     return "binary"
+
+
+def _known_suffix(path: Path) -> str:
+    """Return the known logical suffix for a path.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to inspect.
+
+    Returns
+    -------
+    str
+        Multi-part suffix such as ``.tar.xz`` when recognized, otherwise the
+        final path suffix.
+    """
+
+    suffixes = tuple(item.lower() for item in path.suffixes)
+    if suffixes[-2:] == (".tar", ".xz"):
+        return ".tar.xz"
+    return path.suffix.lower()
+
+
+def _document_title_stem(path: Path) -> str:
+    """Return the filename stem used for document titles.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to inspect.
+
+    Returns
+    -------
+    str
+        Filename without a recognized suffix.
+    """
+
+    suffix = _known_suffix(path)
+    if suffix and path.name.lower().endswith(suffix):
+        return path.name[: -len(suffix)]
+    return path.stem
 
 
 def _has_dicom_magic(path: Path) -> bool:
@@ -697,13 +739,15 @@ def _extract_archive_text(document: DocumentRecord) -> ExtractedText:
         Textual archive inventory or warning.
     """
 
-    suffix = document.path.suffix.lower()
+    suffix = _known_suffix(document.path)
     if suffix == ".zip":
         return _extract_zip_inventory(document)
     if suffix == ".7z":
         return _extract_7z_inventory(document)
     if suffix == ".rar":
         return _extract_rar_inventory(document)
+    if suffix == ".tar.xz":
+        return _extract_tar_xz_inventory(document)
     return ExtractedText(
         document_id=document.document_id,
         text="",
@@ -799,6 +843,35 @@ def _extract_rar_inventory(document: DocumentRecord) -> ExtractedText:
     return ExtractedText(
         document_id=document.document_id,
         text=_archive_inventory_text("rar", names),
+    )
+
+
+def _extract_tar_xz_inventory(document: DocumentRecord) -> ExtractedText:
+    """Extract TAR.XZ member names.
+
+    Parameters
+    ----------
+    document : DocumentRecord
+        TAR.XZ document.
+
+    Returns
+    -------
+    ExtractedText
+        Textual inventory or warning.
+    """
+
+    try:
+        with tarfile.open(document.path, mode="r:xz") as archive:
+            names = [member.name for member in archive.getmembers() if member.isfile()]
+    except (OSError, tarfile.TarError) as exc:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"estrazione inventario TAR.XZ non riuscita: {exc}",),
+        )
+    return ExtractedText(
+        document_id=document.document_id,
+        text=_archive_inventory_text("tar.xz", names),
     )
 
 

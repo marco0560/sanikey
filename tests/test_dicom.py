@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tarfile
 import warnings
 import zipfile
 from datetime import datetime
@@ -219,6 +220,35 @@ def test_catalog_dicom_studies_detects_dicom_zip_by_magic(tmp_path: Path) -> Non
 
     assert len(studies) == 1
     assert studies[0].support_kind == "dicom_zip"
+
+
+def test_catalog_dicom_studies_detects_dicom_tar_xz_by_magic(
+    tmp_path: Path,
+) -> None:
+    """Verify TAR.XZ members with DICOM magic are cataloged as DICOM support.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    payload = tmp_path / "IM000001"
+    payload.write_bytes((b"\0" * 128) + b"DICM")
+    path = person.source_documents / "20260102 Study.tar.xz"
+    with tarfile.open(path, "w:xz") as archive:
+        archive.add(payload, arcname="IM000001")
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert len(studies) == 1
+    assert studies[0].support_kind == "dicom_tar_xz"
 
 
 def test_catalog_dicom_studies_detects_dicom_7z_disk_image(tmp_path: Path) -> None:

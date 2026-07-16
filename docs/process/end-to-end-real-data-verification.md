@@ -618,11 +618,11 @@ Controllare che ogni membro estratto abbia `container_id`, `internal_path`,
 `sha256` e `path`. Questo manifest e' intenzionalmente completo e può essere
 molto grande: serve per audit, controllo manuale e provenienza dei membri
 estratti, inclusi i file tecnici non ingeriti come documenti. Gli archivi
-`.zip`, `.7z` e `.rar` devono risultare supporti DICOM solo quando il contenuto
-lo giustifica, per esempio per presenza di `DICOMDIR`, file `.dcm`, immagini
-disco `.iso`/`.img`, ZIP annidati con slice DICOM, path DICOM o magic bytes
-DICOM. I file DICOM interni devono risultare catalogati come DICOM derivati, non
-trattati come documenti OCR o testo ordinario. Se un archivio contiene
+`.zip`, `.7z`, `.rar` e `.tar.xz` devono risultare supporti DICOM solo quando
+il contenuto lo giustifica, per esempio per presenza di `DICOMDIR`, file `.dcm`,
+immagini disco `.iso`/`.img`, ZIP annidati con slice DICOM, path DICOM o magic
+bytes DICOM. I file DICOM interni devono risultare catalogati come DICOM
+derivati, non trattati come documenti OCR o testo ordinario. Se un archivio contiene
 un'immagine disco `.iso` o `.img`, la directory di staging deve contenere sia
 l'immagine disco estratta sia la sua espansione ricorsiva sotto una seconda
 directory di container. I path tecnici dei viewer, ad esempio `Help`, `Manual`,
