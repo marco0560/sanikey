@@ -2070,7 +2070,7 @@ usb_uuid = "1A2B-3C4D"
 
     assert result.returncode == 0
     assert "documenti=1 duplicati=0 avvisi=1" in result.stdout
-    assert "estrazione testo DOCX non riuscita" in result.stdout
+    assert "estrazione Pandoc non riuscita" in result.stdout
 
 
 def test_scan_documents_preflight_skips_legacy_office_conversion(

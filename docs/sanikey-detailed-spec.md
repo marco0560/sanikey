@@ -2533,8 +2533,11 @@ trattati come documenti derivati ordinari.
 
 #### 6.11.2 Documenti Office e OpenDocument
 
-Il sistema può estrarre testo da documenti `.docx` e `.odt`, e celle dai fogli
-di calcolo `.xlsx`, `.xlsm`, `.xlsb`, `.xls` e `.ods` tramite `python-calamine`.
+Il sistema estrae testo da documenti `.docx`, `.odt`, `.rtf`, `.htm` e `.html`
+tramite Pandoc, e celle dai fogli di calcolo `.xlsx`, `.xlsm`, `.xlsb`, `.xls`
+e `.ods` tramite `python-calamine`.
+
+Pandoc e' un requisito del sistema di build per questi documenti.
 
 Per documenti legacy `.doc`, l'estrazione richiede LibreOffice o `soffice`
 disponibile come comando di sistema.

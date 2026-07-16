@@ -112,6 +112,55 @@ def _write_xlsx(path: Path, rows: tuple[tuple[str, ...], ...]) -> None:
         )
 
 
+def _write_ods(path: Path, text: str) -> None:
+    """Write a minimal ODS workbook containing one text cell.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Output workbook path.
+    text : str
+        Cell value.
+
+    Returns
+    -------
+    None
+    """
+
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            "mimetype",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            compress_type=zipfile.ZIP_STORED,
+        )
+        archive.writestr(
+            "content.xml",
+            f"""<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  office:version="1.2">
+  <office:body><office:spreadsheet><table:table table:name="Sheet1">
+    <table:table-row><table:table-cell office:value-type="string">
+      <text:p>{text}</text:p>
+    </table:table-cell></table:table-row>
+  </table:table></office:spreadsheet></office:body>
+</office:document-content>""",
+        )
+        archive.writestr(
+            "META-INF/manifest.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest
+  xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"
+  manifest:version="1.2">
+  <manifest:file-entry manifest:full-path="/"
+    manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>""",
+        )
+
+
 def test_scan_documents_builds_stable_records(tmp_path: Path) -> None:
     """Verify scanner derives category, date, title, kind, and digest.
 
@@ -594,7 +643,7 @@ def test_extract_text_lists_tar_xz_archive_contents(tmp_path: Path) -> None:
 
 
 def test_extract_text_reads_docx_documents(tmp_path: Path) -> None:
-    """Verify DOCX text extraction.
+    """Verify DOCX text extraction through Pandoc.
 
     Parameters
     ----------
@@ -606,21 +655,149 @@ def test_extract_text_reads_docx_documents(tmp_path: Path) -> None:
     None
     """
 
-    import docx
-
     person = _person(tmp_path)
     document_dir = person.source_documents
     document_dir.mkdir(parents=True)
     path = document_dir / "20260102 Report.docx"
-    document_file = docx.Document()
-    document_file.add_paragraph("Synthetic DOCX text")
-    document_file.save(path)
+    source = document_dir / "source.md"
+    source.write_text("Synthetic DOCX text", encoding="utf-8")
+    subprocess.run(
+        [
+            "pandoc",
+            "--from",
+            "markdown",
+            "--to",
+            "docx",
+            "--output",
+            str(path),
+            str(source),
+        ],
+        check=True,
+    )
+    source.unlink()
     document = scan_documents(person)[0]
 
     extracted = extract_text(document)
 
     assert "Synthetic DOCX text" in extracted.text
     assert extracted.warnings == ()
+
+
+@pytest.mark.parametrize(
+    ("extension", "content"),
+    [
+        (".html", "<p>Testo HTML sintetico</p>"),
+        (".rtf", r"{\rtf1\ansi Testo RTF sintetico}"),
+    ],
+)
+def test_extract_text_reads_pandoc_documents(
+    tmp_path: Path,
+    extension: str,
+    content: str,
+) -> None:
+    """Verify Pandoc extracts text from supported non-Office formats.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    extension : str
+        Supported Pandoc input extension.
+    content : str
+        Synthetic source document content.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / f"20260102 Documento{extension}"
+    path.write_text(content, encoding="utf-8")
+    document = scan_documents(person)[0]
+
+    extracted = extract_text(document)
+
+    assert "sintetico" in extracted.text.casefold()
+    assert extracted.warnings == ()
+
+
+def test_extract_text_warns_when_pandoc_is_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify supported documents remain catalogued without Pandoc.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Documento.rtf"
+    path.write_text(r"{\rtf1\ansi Testo}", encoding="utf-8")
+    document = scan_documents(person)[0]
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: None)
+
+    extracted = extract_text(document)
+
+    assert extracted.text == ""
+    assert extracted.warnings == (
+        "Pandoc non installato; estrazione testo del documento saltata",
+    )
+
+
+def test_extract_text_warns_when_pandoc_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify Pandoc failures are emitted as non-fatal warnings.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document_dir = person.source_documents
+    document_dir.mkdir(parents=True)
+    path = document_dir / "20260102 Documento.rtf"
+    path.write_text(r"{\rtf1\ansi Testo}", encoding="utf-8")
+    document = scan_documents(person)[0]
+    monkeypatch.setattr(documents_module.shutil, "which", lambda _: "pandoc")
+    monkeypatch.setattr(
+        documents_module.subprocess,
+        "run",
+        lambda command, **_kwargs: subprocess.CompletedProcess(
+            command,
+            1,
+            "",
+            "input non valido",
+        ),
+    )
+
+    extracted = extract_text(document)
+
+    assert extracted.text == ""
+    assert extracted.warnings == ("estrazione Pandoc non riuscita: input non valido",)
 
 
 def test_extract_text_reads_xlsx_workbooks(tmp_path: Path) -> None:
@@ -782,7 +959,7 @@ def test_extract_text_captures_xlsx_library_warnings(
 
 
 def test_extract_text_reads_odt_documents(tmp_path: Path) -> None:
-    """Verify ODT text extraction.
+    """Verify ODT text extraction through Pandoc.
 
     Parameters
     ----------
@@ -794,16 +971,26 @@ def test_extract_text_reads_odt_documents(tmp_path: Path) -> None:
     None
     """
 
-    from odf.opendocument import OpenDocumentText
-    from odf.text import P
-
     person = _person(tmp_path)
     document_dir = person.source_documents
     document_dir.mkdir(parents=True)
     path = document_dir / "20260102 Report.odt"
-    document_file = OpenDocumentText()
-    document_file.text.addElement(P(text="Synthetic ODT text"))
-    document_file.save(path)
+    source = document_dir / "source.md"
+    source.write_text("Synthetic ODT text", encoding="utf-8")
+    subprocess.run(
+        [
+            "pandoc",
+            "--from",
+            "markdown",
+            "--to",
+            "odt",
+            "--output",
+            str(path),
+            str(source),
+        ],
+        check=True,
+    )
+    source.unlink()
     document = scan_documents(person)[0]
 
     extracted = extract_text(document)
@@ -813,7 +1000,7 @@ def test_extract_text_reads_odt_documents(tmp_path: Path) -> None:
 
 
 def test_extract_text_reads_ods_spreadsheets(tmp_path: Path) -> None:
-    """Verify ODS text extraction.
+    """Verify ODS text extraction through Calamine.
 
     Parameters
     ----------
@@ -825,23 +1012,11 @@ def test_extract_text_reads_ods_spreadsheets(tmp_path: Path) -> None:
     None
     """
 
-    from odf.opendocument import OpenDocumentSpreadsheet
-    from odf.table import Table, TableCell, TableRow
-    from odf.text import P
-
     person = _person(tmp_path)
     document_dir = person.source_documents
     document_dir.mkdir(parents=True)
     path = document_dir / "20260102 Spreadsheet.ods"
-    document_file = OpenDocumentSpreadsheet()
-    table = Table(name="Sheet1")
-    row = TableRow()
-    cell = TableCell(valuetype="string")
-    cell.addElement(P(text="Synthetic ODS text"))
-    row.addElement(cell)
-    table.addElement(row)
-    document_file.spreadsheet.addElement(table)
-    document_file.save(path)
+    _write_ods(path, "Synthetic ODS text")
     document = scan_documents(person)[0]
 
     extracted = extract_text(document)
@@ -892,7 +1067,10 @@ def test_extract_text_reads_legacy_office_through_libreoffice(
     assert extracted.warnings == ()
 
 
-@pytest.mark.parametrize("extension", [".docx", ".xlsx", ".xls", ".ods", ".odt"])
+@pytest.mark.parametrize(
+    "extension",
+    [".docx", ".odt", ".xlsx", ".xls", ".ods"],
+)
 def test_extract_text_warns_for_corrupt_office_documents(
     tmp_path: Path,
     extension: str,

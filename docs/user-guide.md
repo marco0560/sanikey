@@ -360,10 +360,14 @@ Durante la build, SaniKey tenta di estrarre testo dai formati supportati:
 - `.md`: contenuto testuale diretto e rendering HTML Markdown nel frontend;
 - `.pdf`: testo digitale con PyMuPDF e OCR con OCRmyPDF quando necessario;
 - `.jpg`, `.jpeg`, `.png`: documento immagine consultabile, senza OCR diretto;
-- `.docx`, `.odt`: testo tramite librerie Python;
+- `.docx`, `.odt`, `.rtf`, `.htm`, `.html`: testo tramite Pandoc;
 - `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`: celle tramite `python-calamine`;
 - `.doc`: conversione tramite LibreOffice o `soffice`, se disponibile;
 - `.zip`, `.7z`, `.rar`, `.tar.xz`: inventario dei file contenuti nell'archivio.
+
+Pandoc e' un requisito del sistema di build per l'estrazione dei documenti
+DOCX, ODT, RTF e HTML. LibreOffice o `soffice` resta richiesto soltanto per i
+documenti legacy `.doc`.
 
 Le misurazioni longitudinali come peso, pressione, glicemia e INR si importano
 con un passaggio esplicito:

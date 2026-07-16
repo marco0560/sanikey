@@ -26,10 +26,9 @@ DICOM_EXTENSIONS = {".dcm": "dicom_file", ".img": "dicom_img", ".iso": "dicom_is
 TEXT_EXTENSIONS = {".txt", ".md"}
 IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 ARCHIVE_EXTENSIONS = {".7z", ".rar", ".tar.xz", ".zip"}
-DOCX_EXTENSIONS = {".docx"}
+PANDOC_EXTENSIONS = {".docx", ".htm", ".html", ".odt", ".rtf"}
 LEGACY_OFFICE_EXTENSIONS = {".doc"}
-ODF_EXTENSIONS = {".odt"}
-OFFICE_EXTENSIONS = DOCX_EXTENSIONS | LEGACY_OFFICE_EXTENSIONS | ODF_EXTENSIONS
+OFFICE_EXTENSIONS = PANDOC_EXTENSIONS | LEGACY_OFFICE_EXTENSIONS
 SPREADSHEET_EXTENSIONS = {".ods", ".xls", ".xlsb", ".xlsm", ".xlsx"}
 MIN_PDF_TEXT_CHARACTERS = 40
 
@@ -331,12 +330,10 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
         return _extract_pdf_text(document)
     if suffix in ARCHIVE_EXTENSIONS:
         return _extract_archive_text(document)
-    if suffix in DOCX_EXTENSIONS:
-        return _extract_docx_text(document)
     if suffix in SPREADSHEET_EXTENSIONS:
         return _extract_spreadsheet_text(document)
-    if suffix in ODF_EXTENSIONS:
-        return _extract_odf_text(document)
+    if suffix in PANDOC_EXTENSIONS:
+        return _extract_pandoc_text(document)
     if suffix in LEGACY_OFFICE_EXTENSIONS:
         return _extract_legacy_office_text(document)
     if suffix in IMAGE_EXTENSIONS:
@@ -896,36 +893,58 @@ def _archive_inventory_text(kind: str, names: list[str]) -> str:
     return "\n".join((f"contenuto archivio {kind}:", *sorted(names)))
 
 
-def _extract_docx_text(document: DocumentRecord) -> ExtractedText:
-    """Extract text from a DOCX document.
+def _extract_pandoc_text(document: DocumentRecord) -> ExtractedText:
+    """Extract document text through Pandoc.
 
     Parameters
     ----------
     document : DocumentRecord
-        DOCX document.
+        DOCX, HTML, ODT, or RTF document.
 
     Returns
     -------
     ExtractedText
-        Extracted text or warning.
+        Extracted text or warning when Pandoc is unavailable or conversion
+        fails.
     """
 
-    try:
-        import docx
-        from docx.opc.exceptions import PackageNotFoundError
-
-        parsed = docx.Document(str(document.path))
-        parts = [paragraph.text for paragraph in parsed.paragraphs if paragraph.text]
-        for table in parsed.tables:
-            for row in table.rows:
-                parts.extend(cell.text for cell in row.cells if cell.text)
-    except (OSError, PackageNotFoundError, ValueError, zipfile.BadZipFile) as exc:
+    executable = shutil.which("pandoc")
+    if executable is None:
         return ExtractedText(
             document_id=document.document_id,
             text="",
-            warnings=(f"estrazione testo DOCX non riuscita: {exc}",),
+            warnings=("Pandoc non installato; estrazione testo del documento saltata",),
         )
-    return ExtractedText(document_id=document.document_id, text="\n".join(parts))
+    try:
+        completed = subprocess.run(
+            [
+                executable,
+                "--from",
+                document.path.suffix.removeprefix("."),
+                "--to",
+                "plain",
+                "--wrap=none",
+                str(document.path),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=("estrazione Pandoc scaduta per timeout",),
+        )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        return ExtractedText(
+            document_id=document.document_id,
+            text="",
+            warnings=(f"estrazione Pandoc non riuscita: {detail}",),
+        )
+    return ExtractedText(document_id=document.document_id, text=completed.stdout)
 
 
 def _extract_spreadsheet_text(document: DocumentRecord) -> ExtractedText:
@@ -980,52 +999,6 @@ def _extract_spreadsheet_text(document: DocumentRecord) -> ExtractedText:
         text="\n".join(parts),
         warnings=warning_messages,
     )
-
-
-def _extract_odf_text(document: DocumentRecord) -> ExtractedText:
-    """Extract text from ODF documents.
-
-    Parameters
-    ----------
-    document : DocumentRecord
-        ODT or ODS document.
-
-    Returns
-    -------
-    ExtractedText
-        Extracted text or warning.
-    """
-
-    try:
-        from odf import table as odf_table
-        from odf.opendocument import load
-        from odf.teletype import extractText
-
-        parsed = load(str(document.path))
-        if document.path.suffix.lower() == ".ods":
-            parts = []
-            for sheet in parsed.spreadsheet.getElementsByType(odf_table.Table):
-                sheet_name = sheet.getAttribute("name")
-                if sheet_name:
-                    parts.append(f"[{sheet_name}]")
-                for row in sheet.getElementsByType(odf_table.TableRow):
-                    values = [
-                        extractText(cell)
-                        for cell in row.getElementsByType(odf_table.TableCell)
-                    ]
-                    values = [value for value in values if value]
-                    if values:
-                        parts.append("\t".join(values))
-            text = "\n".join(parts)
-        else:
-            text = extractText(parsed.text)
-    except (AttributeError, OSError, ValueError, zipfile.BadZipFile) as exc:
-        return ExtractedText(
-            document_id=document.document_id,
-            text="",
-            warnings=(f"estrazione testo ODF non riuscita: {exc}",),
-        )
-    return ExtractedText(document_id=document.document_id, text=text)
 
 
 def _extract_legacy_office_text(document: DocumentRecord) -> ExtractedText:

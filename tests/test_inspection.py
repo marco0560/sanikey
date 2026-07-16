@@ -66,7 +66,7 @@ def test_inspect_patient_documents_preflight_reports_office_warnings(
 
     assert result.preflight_warning_messages
     assert str(path) in result.preflight_warning_messages[0]
-    assert "estrazione testo DOCX non riuscita" in result.preflight_warning_messages[0]
+    assert "estrazione Pandoc non riuscita" in result.preflight_warning_messages[0]
 
 
 def test_inspect_patient_documents_preflight_skips_non_lightweight_files(
