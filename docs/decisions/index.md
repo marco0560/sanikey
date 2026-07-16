@@ -14,3 +14,4 @@ Decisioni successive:
 - [Pattern di ingestione espliciti](adr-explicit-ingestion-patterns.md)
 - [Lingua italiana per errori e interfaccia](adr-italian-interface-language.md)
 - [Immagini sorgente senza OCR diretto](adr-source-image-ocr-policy.md)
+- [Compatibilita' del PC di consultazione](adr-consultation-host-compatibility.md)

@@ -7453,7 +7453,8 @@ Quando disponibile, il frontend deve consentire l'accesso rapido agli studi
 diagnostici. La sezione clinica `Studi DICOM` mostra gli studi aggregati e
 preferisce il viewer HTML esportato. Supporti, file tecnici e singole istanze
 non devono comparire come documenti clinici ordinari. Uno studio catalogato
-senza viewer HTML deve restare visibile come anomalia da verificare.
+senza viewer HTML deve restare visibile come anomalia da verificare. Il PC di
+consultazione non richiede installazioni, servizi locali o viewer nativi.
 
 ---
 
@@ -7469,7 +7470,9 @@ Per uno studio diagnostico devono essere mostrati:
 
 ### 14.27 Viewer DICOM
 
-Se il supporto diagnostico contiene un viewer fornito dalla struttura sanitaria, il frontend deve consentirne l'avvio.
+Se il supporto diagnostico contiene un viewer HTML statico fornito dalla
+struttura sanitaria, il frontend deve consentirne l'apertura. Viewer nativi,
+autorun ed eseguibili non sono avviati dal frontend.
 
 Esempio:
 
@@ -7481,7 +7484,9 @@ Apri Viewer Diagnostico
 
 ### 14.28 Assenza del viewer
 
-L'assenza del viewer non deve compromettere la consultazione del referto associato.
+L'assenza del viewer non deve compromettere la consultazione del referto
+associato. Lo studio deve restare visibile come anomalia e il supporto
+originale deve restare disponibile per verifica tecnica.
 
 ---
 

@@ -151,10 +151,15 @@ La UI e' progettata per PC non noti in anticipo:
 
 I file DICOM sono artefatti tecnici. Il database può conservarli come record,
 ma il frontend mostra schede aggregate per studio DICOM invece delle singole
-istanze, che non sono leggibili da un medico senza viewer dedicato.
-Quando un supporto contiene un viewer HTML statico, per esempio IHE PDI,
-l'export copia la subtree necessaria al viewer e la scheda dello studio espone
-`Apri studio DICOM` come azione primaria in un tab separato.
+istanze. Quando un supporto contiene un viewer HTML statico, per esempio IHE
+PDI, l'export copia la subtree necessaria al viewer e la scheda dello studio
+espone `Apri studio DICOM` come azione primaria in un tab separato.
+
+Il PC di consultazione non richiede installazioni, applicazioni esterne o
+servizi locali. Un viewer nativo del CD non viene avviato dal browser. Gli
+studi senza viewer HTML compatibile restano anomalie da verificare fino alla
+disponibilità di un fallback statico generato da SaniKey; ogni futuro fallback
+deve restare consultabile da `file://` e non diagnostico.
 
 La personalizzazione UI e' export-time e viene validata dalla configurazione:
 `[global.ui]` definisce i default dell'export, mentre `[[person]].ui` puo'

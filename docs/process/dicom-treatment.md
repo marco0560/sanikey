@@ -1,56 +1,81 @@
-# DICOM handling
+# Trattamento DICOM
 
-## Question
+## Sintesi
 
-Ggive me a recap of what is the treatment of archives containing iso images or DICOM studies (possibly nested).
-I Imagined a workflow for the doctor identical or close to what happens when she inserts the CD in the PC. Hilight the differences.
+Il comportamento corrente è vicino al CD originale solo quando il supporto
+contiene un viewer HTML apribile dal browser. Non equivale all'avvio
+dell'autorun o del viewer nativo del CD.
 
-## Synthesis
+## Archivi e immagini disco
 
-Current SaniKey behavior is close only when the support contains a browser-openable HTML viewer. It is not equivalent to inserting the original CD and launching its native autorun/viewer.
+- Gli archivi sorgente come `.zip`, `.7z`, `.rar`, `.tar.xz`, `.iso` e `.img`
+  sono rilevati come documenti contenitore o supporto.
+- `scan-documents`, `process-dicom` e `build-patient` espandono per default i
+  contenitori supportati in `local_build/staging/containers/`.
+- `process-dicom --no-stage-containers` evita l'estrazione e cataloga soltanto
+  i supporti sorgente e le espansioni gia' esistenti.
+- Se un archivio contiene un'immagine disco annidata, ad esempio ZIP -> ISO ->
+  albero DICOM, SaniKey espande ricorsivamente anche l'immagine annidata.
+- L'espansione registra tutti i membri estratti nel manifesto per l'audit.
+- Soltanto i documenti derivati clinicamente utili entrano nella pipeline dei
+  documenti; i percorsi tecnici o di supporto possono essere filtrati con
+  `exclude_patterns`.
+- Le istanze DICOM sono catalogate come record e studi DICOM, non mostrate come
+  migliaia di file ordinari.
 
-## Archive And ISO Handling
+## Studi DICOM
 
-- Source archives such as `.zip`, `.7z`, `.rar`, `.tar.xz`, `.iso`, `.img` are detected as container/support documents.
-- `scan-documents`, `process-dicom` and `build-patient` stage supported containers by default under `local_build/staging/containers/`.
-- `process-dicom --no-stage-containers` skips extraction and catalogs only source supports plus already existing expansions.
-- If an archive contains a nested disk image, for example ZIP -> ISO -> DICOM tree, SaniKey recursively stages the nested image.
-- Staging records all extracted members in the manifest for audit.
-- Only clinically useful derived documents enter the document pipeline; technical/support paths can be filtered by configured `exclude_patterns`.
-- DICOM instances are cataloged as DICOM records/studies, not shown as thousands of ordinary files.
-
-## DICOM Study Handling
-
-- SaniKey scans the staged support for DICOM files and `DICOMDIR`.
-- It groups instances by `StudyInstanceUID` when possible.
-- If `DICOMDIR` has usable study records, those are used too.
-- The frontend shows aggregated DICOM study cards, with metadata such as date, UID and instance count.
-- If a recognized HTML viewer exists, especially IHE PDI paths such as `IHE_PDI/PAGES/STUDIES/*.HTM`, SaniKey copies the required viewer subtree to USB under:
+- SaniKey cerca file DICOM e `DICOMDIR` nel supporto espanso.
+- Quando possibile raggruppa le istanze per `StudyInstanceUID`.
+- Se `DICOMDIR` contiene record di studio utilizzabili, usa anche quelli.
+- Il frontend mostra schede aggregate degli studi DICOM con metadati quali
+  data, UID e numero di istanze.
+- Se esiste un viewer HTML riconosciuto, in particolare nei percorsi IHE PDI
+  come `IHE_PDI/PAGES/STUDIES/*.HTM`, SaniKey copia il sottoalbero necessario
+  sulla chiavetta in:
   `patients/<id>/dicom-viewers/<study_id>/...`
-- The frontend exposes that as `Apri studio DICOM`.
+- Il frontend lo espone con l'azione `Apri studio DICOM`.
 
-## USB Export
+## Export USB
 
-- The original source support, for example `Referto TAC.zip`, may still be copied under `patients/<id>/documents/` unless excluded by ingestion patterns, but the clinical `Studi DICOM` pane does not advertise archive downloads as the primary workflow.
-- Files excluded by `exclude_patterns` are not copied into `patients/<id>/documents/`.
-- Recognized DICOM HTML viewers are copied separately via the DICOM viewer manifest, even though technical viewer paths are not ordinary ingested documents.
-- Current UI shows `Apri studio DICOM` when `viewer_href` exists, omits non-viewable DICOM support records from the ordinary document pane, and flags cataloged studies without an HTML viewer as anomalies.
+- Il supporto sorgente originale, ad esempio `Referto TAC.zip`, puo' essere
+  ancora copiato in `patients/<id>/documents/` salvo esclusione dai pattern di
+  ingestione, ma il pannello clinico `Studi DICOM` non presenta il download
+  dell'archivio come flusso primario.
+- I file esclusi da `exclude_patterns` non sono copiati in
+  `patients/<id>/documents/`.
+- I viewer HTML DICOM riconosciuti sono copiati separatamente mediante il
+  manifesto dei viewer, anche quando i loro percorsi tecnici non sono documenti
+  ordinari importati.
+- L'interfaccia corrente mostra `Apri studio DICOM` quando esiste `viewer_href`,
+  omette i record di supporto DICOM non consultabili dal pannello dei documenti
+  ordinari e segnala come anomalie gli studi catalogati senza viewer HTML.
 
-## Differences From Inserting The CD
+## Differenze rispetto all'inserimento del CD
 
-- SaniKey does not launch native CD autorun programs or `.exe` viewers from the browser.
-- Native Windows/Mac/Linux viewer applications from the CD are generally not executable from a static `file://` web frontend in a reliable or safe way.
-- SaniKey does not emulate the full original CD environment.
-- SaniKey only gives a near-CD workflow when the CD includes an HTML/static viewer that can run directly in the browser.
-- If the CD only has a native executable viewer, SaniKey can preserve/catalog the support, but the doctor may need to open/download the original support manually outside the web UI.
-- If the viewer depends on runtime files filtered by `exclude_patterns`, those files will not be in `patients/<id>/documents`; only recognized viewer subtrees copied through `dicom-viewers` are guaranteed to be present.
+- SaniKey non avvia dal browser autorun nativi del CD o viewer `.exe`.
+- Le applicazioni viewer native Windows, macOS o Linux presenti nel CD non sono
+  in generale eseguibili in modo affidabile o sicuro da un frontend statico
+  `file://`.
+- SaniKey non emula l'intero ambiente originale del CD.
+- SaniKey offre un flusso vicino al CD soltanto quando il CD include un viewer
+  HTML statico direttamente apribile dal browser.
+- Se il CD contiene soltanto un viewer eseguibile, SaniKey conserva e cataloga
+  il supporto ma non richiede né distribuisce l'applicazione sul PC di
+  consultazione. Lo studio resta un'anomalia finché non esiste un viewer HTML
+  statico compatibile.
+- Se il viewer dipende da file runtime filtrati da `exclude_patterns`, tali file
+  non saranno in `patients/<id>/documents`; sono garantiti soltanto i
+  sottoalberi dei viewer riconosciuti copiati attraverso `dicom-viewers`.
 
-## Current workflow
+## Flusso corrente
 
-So the intended doctor workflow now is:
+Il flusso previsto per il medico e':
 
 1. Open USB `index.html`.
 2. Search or open `Studi DICOM` when the section is available.
 3. Click `Apri studio DICOM`.
-4. If an HTML viewer was recognized, it opens directly in a new browser tab.
-5. If no HTML viewer was recognized, the study remains visible in `Studi DICOM` as an anomaly to investigate, while the original support remains available for technical verification.
+4. Se è stato riconosciuto un viewer HTML, si apre direttamente in una nuova
+   scheda del browser.
+5. Se non è stato riconosciuto, lo studio resta visibile come anomalia da
+   verificare e il supporto originale resta disponibile per verifica tecnica.

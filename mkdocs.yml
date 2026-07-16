@@ -51,6 +51,7 @@ nav:
       - Indice decisioni: decisions/index.md
       - Lingua italiana per errori e interfaccia: decisions/adr-italian-interface-language.md
       - Immagini sorgente senza OCR diretto: decisions/adr-source-image-ocr-policy.md
+      - Compatibilita' del PC di consultazione: decisions/adr-consultation-host-compatibility.md
   - Rilascio:
       - Lista di controllo: release/checklist.md
       - Processo: release/process.md
