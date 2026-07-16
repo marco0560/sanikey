@@ -45,7 +45,7 @@ Creare un'area privata non committata dal repository, per esempio:
 
 ```bash
 mkdir -p local-data/{usb-target,{patient-a,patient-b}/{documents,metadata/observations},generated/{patient-a,patient-b}}
-mkdir -p local-data/{patient-a,patient-b}/documents/{_Parametri,_Terapia}
+mkdir -p local-data/{patient-a,patient-b}/documents/{_Archivi,_Parametri,_Terapia}
 ```
 
 con `local-data/` in `.gitignore`.
@@ -506,11 +506,13 @@ uv run sanikey process-dicom --no-progress
 ```
 
 Il comando crea lo stesso staging automatico dei container usato da
-`scan-documents` e stampa `archivi_preparati=`, `membri_in_archivi=` e
-`documenti_derivati=` quando trova archivi o immagini disco supportate.
-Usare `--no-stage-containers` solo per verificare il catalogo limitato ai
-sorgenti e alle espansioni già presenti. Gli avvisi `contenitore DICOM non
-espanso` indicano supporti riconosciuti ma non ispezionati internamente.
+`scan-documents` e stampa una riga per ogni supporto DICOM trovato, con esito
+`ok`, `nessuno studio DICOM`, `piu studi DICOM: N` oppure `problema: ...`.
+Usare `--verbose` solo per mostrare la tabella tecnica degli studi e i contatori
+di staging. Usare `--no-stage-containers` solo per verificare il catalogo
+limitato ai sorgenti e alle espansioni già presenti. Gli avvisi `contenitore
+DICOM non espanso` indicano supporti riconosciuti ma non ispezionati
+internamente.
 
 ### Preflight e inventario leggibile
 

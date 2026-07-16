@@ -134,7 +134,7 @@ Conservare:
 
 Struttura:
 
-Dischi/
+_Archivi/
   20250318_RMN_Anca.iso
   20250318_RMN_Anca.zip
 

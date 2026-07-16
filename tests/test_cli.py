@@ -15,6 +15,7 @@ import pytest
 from sanikey import __version__, cli
 from sanikey.cli import _config_path, build_parser
 from sanikey.config import AccountsConfig, PersonConfig, default_accounts_path
+from sanikey.dicom import DicomStudy
 from sanikey.documents import ExtractedText
 from sanikey.errors import ConfigError
 from sanikey.models import DocumentRecord
@@ -2171,8 +2172,27 @@ usb_uuid = "1A2B-3C4D"
         check=False,
     )
     assert result.returncode == 0
-    assert "studi_dicom=1" in result.stdout
-    assert "dicom_iso" in result.stdout
+    assert "patient-a\tdicom_iso\tproblema: " in result.stdout
+    assert "20260102 Study.iso" in result.stdout
+    assert "studi_dicom=1" not in result.stdout
+
+    verbose_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            MODULE,
+            "process-dicom",
+            str(config_path),
+            "--verbose",
+            "--no-progress",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert verbose_result.returncode == 0
+    assert "studi_dicom=1" in verbose_result.stdout
+    assert "dicom_iso" in verbose_result.stdout
 
 
 def test_process_dicom_stages_containers_by_default(tmp_path: Path) -> None:
@@ -2225,9 +2245,8 @@ usb_uuid = "1A2B-3C4D"
     )
 
     assert result.returncode == 0
-    assert "archivi_preparati=1 membri_in_archivi=1 documenti_derivati=1" in (
-        result.stdout
-    )
+    assert "patient-a\tdicom_zip\tok\t" in result.stdout
+    assert "archivi_preparati=" not in result.stdout
     assert "contenitore DICOM non espanso" not in result.stdout
     assert (build_root / "staging" / "containers").is_dir()
     assert (build_root / "manifests" / "container_staging.json").is_file()
@@ -2286,7 +2305,124 @@ usb_uuid = "1A2B-3C4D"
     assert result.returncode == 0
     assert "archivi_preparati=" not in result.stdout
     assert "contenitore DICOM non espanso" in result.stdout
+    assert "patient-a\tdicom_zip\tproblema: " in result.stdout
     assert not (build_root / "staging" / "containers").exists()
+
+
+def test_process_dicom_human_output_reports_archives_without_studies(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify human DICOM output includes non-DICOM archives.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    archive = DocumentRecord(
+        document_id="archive-1",
+        patient_id="patient-a",
+        path=tmp_path / "20260102 Reports.zip",
+        title="Reports",
+        category="documenti",
+        kind="archive",
+        sha256="a" * 64,
+    )
+
+    cli._print_process_dicom_human("patient-a", (archive,), (), None)
+
+    assert capsys.readouterr().out == (
+        f"patient-a\tarchive\tnessuno studio DICOM\t{archive.path}\n"
+    )
+
+
+def test_process_dicom_human_output_reports_multiple_studies_in_archive(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify human DICOM output flags archives containing multiple studies.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    archive = DocumentRecord(
+        document_id="archive-1",
+        patient_id="patient-a",
+        path=tmp_path / "20260102 Study.zip",
+        title="Study",
+        category="dicom",
+        kind="archive",
+        sha256="a" * 64,
+    )
+    first = DocumentRecord(
+        document_id="dicom-1",
+        patient_id="patient-a",
+        path=tmp_path / "generated" / "archive-1" / "DICOM" / "S1" / "1.dcm",
+        title="Slice 1",
+        category="dicom",
+        kind="dicom_file",
+        sha256="b" * 64,
+        origin="container",
+        container_id="archive-1",
+        internal_path="DICOM/S1/1.dcm",
+    )
+    second = DocumentRecord(
+        document_id="dicom-2",
+        patient_id="patient-a",
+        path=tmp_path / "generated" / "archive-1" / "DICOM" / "S2" / "1.dcm",
+        title="Slice 2",
+        category="dicom",
+        kind="dicom_file",
+        sha256="c" * 64,
+        origin="container",
+        container_id="archive-1",
+        internal_path="DICOM/S2/1.dcm",
+    )
+    staging = SimpleNamespace(
+        documents=(first, second),
+        members=(
+            SimpleNamespace(container_id="archive-1", path=str(first.path)),
+            SimpleNamespace(container_id="archive-1", path=str(second.path)),
+        ),
+        warning_messages=(),
+    )
+    studies = (
+        DicomStudy(
+            study_id="study-1",
+            patient_id="patient-a",
+            support_path=first.path,
+            support_kind="dicom_study",
+        ),
+        DicomStudy(
+            study_id="study-2",
+            patient_id="patient-a",
+            support_path=second.path,
+            support_kind="dicom_study",
+        ),
+    )
+
+    cli._print_process_dicom_human("patient-a", (archive,), studies, staging)
+
+    assert capsys.readouterr().out == (
+        f"patient-a\tarchive\tpiu studi DICOM: 2\t{archive.path}\n"
+    )
 
 
 def test_build_database_subcommand_runs(tmp_path: Path) -> None:

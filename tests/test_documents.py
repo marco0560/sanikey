@@ -165,11 +165,15 @@ def test_scan_documents_hides_service_directory_prefix_from_category(
         "pressione",
         encoding="utf-8",
     )
+    archive_dir = person.source_documents / "_Archivi"
+    archive_dir.mkdir()
+    (archive_dir / "20260103 Studio.iso").write_bytes(b"iso")
 
     documents = scan_documents(person)
 
-    assert documents[0].category == "Parametri"
-    assert documents[0].path.name == "20260102 Pressione.txt"
+    documents_by_name = {document.path.name: document for document in documents}
+    assert documents_by_name["20260102 Pressione.txt"].category == "Parametri"
+    assert documents_by_name["20260103 Studio.iso"].category == "Archivi"
 
 
 def test_scan_documents_applies_ingestion_exclusions(tmp_path: Path) -> None:

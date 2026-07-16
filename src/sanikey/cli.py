@@ -33,6 +33,8 @@ from .usb import export_usb, validate_usb
 
 if TYPE_CHECKING:
     from .config import AccountsConfig, PersonConfig
+    from .containers import ContainerStagingResult
+    from .dicom import DicomStudy
     from .models import DocumentRecord
 
 
@@ -244,6 +246,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-stage-containers",
         action="store_true",
         help="Salta lo staging dei contenitori durante il catalogo DICOM",
+    )
+    dicom_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Stampa anche la tabella tecnica degli studi DICOM",
     )
     _add_progress_argument(dicom_parser)
     dicom_parser.set_defaults(func=run_process_dicom)
@@ -931,61 +939,368 @@ def run_process_dicom(args: argparse.Namespace) -> int:
         print(f"ERRORE: {exc}")
         return 1
     for person in _selected_people(config, args.patient):
-        documents = scan_documents(person)
-        progress = _progress_from_args(args)
+        source_documents = scan_documents(person)
+        documents = source_documents
+        progress = _progress_from_args(args) if args.verbose else None
         staging = None
         if not args.no_stage_containers:
             staging = stage_container_documents(
                 person,
-                documents,
+                source_documents,
                 progress=progress,
                 progress_label=f"stage-containers {person.id}",
             )
-            documents = (*documents, *staging.documents)
+            documents = (*source_documents, *staging.documents)
         studies = catalog_dicom_studies(
             person,
             documents,
             progress=progress,
             progress_label=f"catalog-dicom {person.id}",
         )
-        summary = f"paziente={person.id} studi_dicom={len(studies)}"
-        if staging is not None:
-            staged_container_ids = {member.container_id for member in staging.members}
-            summary = (
-                f"{summary} archivi_preparati={len(staged_container_ids)} "
-                f"membri_in_archivi={len(staging.members)} "
-                f"documenti_derivati={len(staging.documents)}"
-            )
-        print(summary)
-        for study in studies:
-            extracted = (
-                ""
-                if study.extracted_path is None
-                else _repo_relative_path(study.extracted_path)
-            )
-            print(
-                "\t".join(
-                    (
-                        study.patient_id,
-                        study.support_kind,
-                        str(study.instance_count),
-                        str(len(study.viewer_paths)),
-                        str(len(study.warnings)),
-                        study.study_date or "",
-                        study.study_instance_uid or "",
-                        study.study_description or "",
-                        _repo_relative_path(study.support_path),
-                        extracted,
-                    )
+        if args.verbose:
+            _print_process_dicom_verbose(person.id, studies, staging)
+        else:
+            _print_process_dicom_human(person.id, source_documents, studies, staging)
+    return 0
+
+
+_DICOM_SUPPORT_KINDS = frozenset(
+    {
+        "dicom_7z",
+        "dicom_img",
+        "dicom_iso",
+        "dicom_rar",
+        "dicom_zip",
+    }
+)
+
+
+def _print_process_dicom_human(
+    patient_id: str,
+    source_documents: tuple[DocumentRecord, ...],
+    studies: tuple[DicomStudy, ...],
+    staging: ContainerStagingResult | None,
+) -> None:
+    """Print the human DICOM catalog summary.
+
+    Parameters
+    ----------
+    patient_id : str
+        Patient identifier.
+    source_documents : tuple[sanikey.models.DocumentRecord, ...]
+        Source document records.
+    studies : tuple[sanikey.dicom.DicomStudy, ...]
+        Cataloged DICOM study/support records.
+    staging : sanikey.containers.ContainerStagingResult | None
+        Optional container staging result.
+
+    Returns
+    -------
+    None
+    """
+
+    containers = tuple(
+        document
+        for document in source_documents
+        if document.path.suffix.lower() in {".7z", ".img", ".iso", ".rar", ".zip"}
+    )
+    support_rows = {
+        study.support_path: study
+        for study in studies
+        if study.support_kind in _DICOM_SUPPORT_KINDS
+    }
+    study_counts = _dicom_study_counts_by_container(containers, studies, staging)
+    matched_staging_warnings: set[int] = set()
+    for container in containers:
+        study = support_rows.get(container.path)
+        staging_warnings = _matching_staging_warnings(container.path, staging)
+        matched_staging_warnings.update(staging_warnings)
+        warnings = (
+            *(study.warnings if study is not None else ()),
+            *(
+                staging.warning_messages[index]
+                for index in staging_warnings
+                if staging is not None
+            ),
+        )
+        result = _format_process_dicom_human_result(
+            study_counts.get(container.document_id, 0),
+            warnings,
+        )
+        support_kind = study.support_kind if study is not None else container.kind
+        print(
+            "\t".join(
+                (
+                    patient_id,
+                    support_kind,
+                    result,
+                    _repo_relative_path(container.path),
                 )
             )
-            for warning in study.warnings:
-                path = _repo_relative_path(study.support_path)
-                print(f"AVVISO: {path}: {warning}")
-        if staging is not None:
-            for warning in staging.warning_messages:
-                print(f"AVVISO: {warning}")
-    return 0
+        )
+    if staging is not None:
+        for index, warning in enumerate(staging.warning_messages):
+            if index in matched_staging_warnings:
+                continue
+            print(
+                "\t".join(
+                    (patient_id, "staging", f"problema: {_single_line_text(warning)}")
+                )
+            )
+
+
+_DICOM_STUDY_KINDS = frozenset({"dicom_study", "dicomdir_study", "dicom_file"})
+
+
+def _format_process_dicom_human_result(
+    study_count: int,
+    warnings: tuple[str, ...],
+) -> str:
+    """Format the human result for one DICOM archive/support.
+
+    Parameters
+    ----------
+    study_count : int
+        Number of actual DICOM studies found below the support.
+    warnings : tuple[str, ...]
+        Non-fatal warnings associated with the support.
+
+    Returns
+    -------
+    str
+        Human result field.
+    """
+
+    if warnings:
+        return f"problema: {'; '.join(_single_line_text(item) for item in warnings)}"
+    if study_count == 0:
+        return "nessuno studio DICOM"
+    if study_count == 1:
+        return "ok"
+    return f"piu studi DICOM: {study_count}"
+
+
+def _dicom_study_counts_by_container(
+    containers: tuple[DocumentRecord, ...],
+    studies: tuple[DicomStudy, ...],
+    staging: ContainerStagingResult | None,
+) -> dict[str, int]:
+    """Count actual DICOM studies attributable to each source container.
+
+    Parameters
+    ----------
+    containers : tuple[sanikey.models.DocumentRecord, ...]
+        Source containers to summarize.
+    studies : tuple[sanikey.dicom.DicomStudy, ...]
+        Cataloged DICOM records.
+    staging : sanikey.containers.ContainerStagingResult | None
+        Optional staging result.
+
+    Returns
+    -------
+    dict[str, int]
+        Mapping from source container document id to number of actual studies.
+    """
+
+    if staging is None:
+        return {
+            container.document_id: sum(
+                1
+                for study in studies
+                if study.support_path == container.path
+                and study.support_kind in _DICOM_STUDY_KINDS
+            )
+            for container in containers
+        }
+    descendants = {
+        container.document_id: _descendant_container_ids(container.document_id, staging)
+        for container in containers
+    }
+    counts = dict.fromkeys((container.document_id for container in containers), 0)
+    for study in studies:
+        if study.support_kind not in _DICOM_STUDY_KINDS:
+            continue
+        owner_id = _staged_document_container_id(study.support_path, staging)
+        if owner_id is None:
+            continue
+        for container_id, descendant_ids in descendants.items():
+            if owner_id in descendant_ids:
+                counts[container_id] += 1
+    return counts
+
+
+def _descendant_container_ids(
+    container_id: str,
+    staging: ContainerStagingResult,
+) -> set[str]:
+    """Return a source container and all nested container ids.
+
+    Parameters
+    ----------
+    container_id : str
+        Root container document id.
+    staging : sanikey.containers.ContainerStagingResult
+        Container staging result.
+
+    Returns
+    -------
+    set[str]
+        Root and descendant container ids.
+    """
+
+    children: dict[str, set[str]] = {}
+    for document in staging.documents:
+        if document.container_id is None:
+            continue
+        children.setdefault(document.container_id, set()).add(document.document_id)
+    pending = [container_id]
+    seen: set[str] = set()
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        pending.extend(sorted(children.get(current, ())))
+    return seen
+
+
+def _staged_document_container_id(
+    path: Path,
+    staging: ContainerStagingResult,
+) -> str | None:
+    """Return the immediate container id for a staged document path.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Staged file path.
+    staging : sanikey.containers.ContainerStagingResult
+        Container staging result.
+
+    Returns
+    -------
+    str | None
+        Immediate container id when ``path`` belongs to a staged member.
+    """
+
+    path_text = str(path)
+    for member in staging.members:
+        if member.path == path_text:
+            return member.container_id
+    for document in staging.documents:
+        if document.container_id is None:
+            continue
+        try:
+            path.relative_to(document.path.parent)
+        except ValueError:
+            continue
+        return document.container_id
+    return None
+
+
+def _single_line_text(value: str) -> str:
+    """Collapse diagnostic text to one printable line.
+
+    Parameters
+    ----------
+    value : str
+        Diagnostic text.
+
+    Returns
+    -------
+    str
+        Text with internal whitespace collapsed.
+    """
+
+    return " ".join(value.split())
+
+
+def _matching_staging_warnings(
+    path: Path,
+    staging: ContainerStagingResult | None,
+) -> tuple[int, ...]:
+    """Return staging warning indexes that refer to a DICOM support.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        DICOM support or container path.
+    staging : sanikey.containers.ContainerStagingResult | None
+        Optional staging result.
+
+    Returns
+    -------
+    tuple[int, ...]
+        Indexes of staging warnings mentioning the support path.
+    """
+
+    if staging is None:
+        return ()
+    support_path = str(path)
+    return tuple(
+        index
+        for index, warning in enumerate(staging.warning_messages)
+        if support_path in warning
+    )
+
+
+def _print_process_dicom_verbose(
+    patient_id: str,
+    studies: tuple[DicomStudy, ...],
+    staging: ContainerStagingResult | None,
+) -> None:
+    """Print the verbose technical DICOM catalog.
+
+    Parameters
+    ----------
+    patient_id : str
+        Patient identifier.
+    studies : tuple[object, ...]
+        Cataloged DICOM study/support records.
+    staging : object | None
+        Optional container staging result.
+
+    Returns
+    -------
+    None
+    """
+
+    summary = f"paziente={patient_id} studi_dicom={len(studies)}"
+    if staging is not None:
+        staged_container_ids = {member.container_id for member in staging.members}
+        summary = (
+            f"{summary} archivi_preparati={len(staged_container_ids)} "
+            f"membri_in_archivi={len(staging.members)} "
+            f"documenti_derivati={len(staging.documents)}"
+        )
+    print(summary)
+    for study in studies:
+        extracted_path = study.extracted_path
+        extracted = (
+            "" if extracted_path is None else _repo_relative_path(extracted_path)
+        )
+        print(
+            "\t".join(
+                (
+                    study.patient_id,
+                    study.support_kind,
+                    str(study.instance_count),
+                    str(len(study.viewer_paths)),
+                    str(len(study.warnings)),
+                    study.study_date or "",
+                    study.study_instance_uid or "",
+                    study.study_description or "",
+                    _repo_relative_path(study.support_path),
+                    extracted,
+                )
+            )
+        )
+        for warning in study.warnings:
+            path = _repo_relative_path(study.support_path)
+            print(f"AVVISO: {path}: {warning}")
+    if staging is not None:
+        for warning in staging.warning_messages:
+            print(f"AVVISO: {warning}")
 
 
 def run_build_database(args: argparse.Namespace) -> int:

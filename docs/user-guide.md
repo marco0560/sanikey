@@ -265,6 +265,13 @@ ciascun paziente. L'implementazione attuale esegue scansione deterministica,
 estrae il testo supportato, cataloga i supporti DICOM e registra i metadati in
 un archivio SQLite generato.
 
+Usare directory con prefisso `_` per contenuti di servizio che devono restare in
+testa all'ordine alfabetico senza diventare categorie cliniche ordinarie. Le
+directory convenzionali sono `_Archivi` per supporti compressi, immagini disco e
+altri container tecnici, `_Parametri` per fogli di misurazioni longitudinali e
+`_Terapia` per documenti sulla terapia corrente. Il prefisso `_` non viene
+mostrato nella categoria del documento.
+
 Per verificare il numero di file rilevati senza stampare l'intero inventario:
 
 ```bash
@@ -378,7 +385,10 @@ documento autorevole; i membri estratti sono documenti derivati con provenance
 verso il contenitore, path interno e SHA256 proprio. Se un archivio è cifrato,
 corrotto o non leggibile, il contenitore resta catalogato e il problema viene
 registrato come avviso. `process-dicom --no-stage-containers` esegue il solo
-catalogo dei sorgenti e delle espansioni già presenti.
+catalogo dei sorgenti e delle espansioni già presenti. L'output predefinito di
+`process-dicom` è una riga per archivio/supporto trovato e segnala `ok`,
+`nessuno studio DICOM`, `piu studi DICOM: N` oppure `problema: ...`; usare
+`process-dicom --verbose` per contatori e tabella tecnica degli studi.
 
 I file ISO DICOM consegnati dagli ospedali sono conservati come documenti
 sorgente. Gli archivi `.zip`, `.7z` e `.rar` sono trattati inizialmente come
