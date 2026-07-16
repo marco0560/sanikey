@@ -157,9 +157,11 @@ espone `Apri studio DICOM` come azione primaria in un tab separato.
 
 Il PC di consultazione non richiede installazioni, applicazioni esterne o
 servizi locali. Un viewer nativo del CD non viene avviato dal browser. Gli
-studi senza viewer HTML compatibile restano anomalie da verificare fino alla
-disponibilità di un fallback statico generato da SaniKey; ogni futuro fallback
-deve restare consultabile da `file://` e non diagnostico.
+studi senza viewer HTML compatibile ricevono un fallback statico JPEG generato
+da SaniKey quando le istanze sono decodificabili. Ogni fallback resta
+consultabile da `file://` e non diagnostico. Il media DICOM standard e il suo
+`DICOMDIR` sono esportati una volta per supporto e servono al lettore
+professionale eventualmente gia' presente sul PC.
 
 La personalizzazione UI e' export-time e viene validata dalla configurazione:
 `[global.ui]` definisce i default dell'export, mentre `[[person]].ui` puo'

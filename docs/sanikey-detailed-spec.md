@@ -7474,8 +7474,10 @@ Per uno studio diagnostico devono essere mostrati:
 ### 14.27 Viewer DICOM
 
 Se il supporto diagnostico contiene un viewer HTML statico fornito dalla
-struttura sanitaria, il frontend deve consentirne l'apertura. Viewer nativi,
-autorun ed eseguibili non sono avviati dal frontend.
+struttura sanitaria, il frontend deve consentirne l'apertura. In assenza di
+tale viewer, il frontend deve offrire un'anteprima JPEG statica generata da
+SaniKey, dichiarata non diagnostica. Viewer nativi, autorun ed eseguibili non
+sono avviati dal frontend.
 
 Esempio:
 
@@ -7488,8 +7490,9 @@ Apri Viewer Diagnostico
 ### 14.28 Assenza del viewer
 
 L'assenza del viewer non deve compromettere la consultazione del referto
-associato. Lo studio deve restare visibile come anomalia e il supporto
-originale deve restare disponibile per verifica tecnica.
+associato. Il supporto deve esporre un `DICOMDIR` per lettori professionali
+gia' installati e, quando decodificabile, un'anteprima non diagnostica. Lo
+studio resta un'anomalia se tali artefatti non possono essere generati.
 
 ---
 

@@ -50,6 +50,14 @@ dell'autorun o del viewer nativo del CD.
 - L'interfaccia corrente mostra `Apri studio DICOM` quando esiste `viewer_href`,
   omette i record di supporto DICOM non consultabili dal pannello dei documenti
   ordinari e segnala come anomalie gli studi catalogati senza viewer HTML.
+- Per ogni supporto espanso con istanze leggibili viene creato un media DICOM
+  condiviso con `DICOMDIR`; non viene duplicato una volta per ciascuno studio.
+- Il media e' copiato in `patients/<id>/dicom-media/` e puo' essere aperto o
+  importato da un lettore DICOM professionale gia' installato sul PC.
+- Quando non esiste un viewer HTML nativo, SaniKey genera una pagina statica
+  con anteprime JPEG in `patients/<id>/dicom-previews/`. Le anteprime sono
+  esplicitamente non diagnostiche: servono a identificare lo studio, non a
+  svolgere una valutazione clinica.
 
 ## Differenze rispetto all'inserimento del CD
 
@@ -77,5 +85,10 @@ Il flusso previsto per il medico e':
 3. Click `Apri studio DICOM`.
 4. Se è stato riconosciuto un viewer HTML, si apre direttamente in una nuova
    scheda del browser.
-5. Se non è stato riconosciuto, lo studio resta visibile come anomalia da
-   verificare e il supporto originale resta disponibile per verifica tecnica.
+5. Se non e' stato riconosciuto, aprire l'anteprima non diagnostica quando
+   disponibile.
+6. Per la valutazione clinica, importare il collegamento `DICOMDIR per viewer
+   professionale` nel lettore DICOM gia' disponibile sul PC.
+7. Se non sono disponibili ne' anteprima ne' `DICOMDIR`, lo studio resta
+   visibile come anomalia da verificare e il supporto originale resta
+   disponibile per verifica tecnica.
