@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
+import shutil
 import tarfile
 import warnings
 import zipfile
 from dataclasses import dataclass, replace
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from .documents import _known_suffix
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .config import PersonConfig
     from .models import DocumentRecord
     from .progress import ProgressReporter
@@ -84,6 +84,142 @@ class DicomMetadata:
     study_instance_uid: str | None = None
     study_date: str | None = None
     study_description: str | None = None
+
+
+@dataclass(frozen=True)
+class DicomMedia:
+    """Prepared portable DICOM media for one expanded support.
+
+    Parameters
+    ----------
+    media_id : str
+        Stable identifier for the exported support.
+    study_ids : tuple[str, ...]
+        Studies contained in the support.
+    directory : pathlib.Path
+        Generated media directory.
+    instance_count : int
+        Number of copied DICOM instances.
+    warnings : tuple[str, ...]
+        Non-fatal media preparation warnings.
+    """
+
+    media_id: str
+    study_ids: tuple[str, ...]
+    directory: Path
+    instance_count: int
+    warnings: tuple[str, ...] = ()
+
+
+def prepare_dicom_media(
+    person: PersonConfig,
+    studies: tuple[DicomStudy, ...],
+) -> tuple[DicomMedia, ...]:
+    """Create one portable DICOM media directory for each expanded support.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    studies : tuple[DicomStudy, ...]
+        Cataloged DICOM studies.
+
+    Returns
+    -------
+    tuple[DicomMedia, ...]
+        Prepared media entries sorted by identifier.
+    """
+
+    grouped: dict[Path, list[DicomStudy]] = {}
+    for study in studies:
+        if study.extracted_path is not None and study.extracted_path.is_dir():
+            grouped.setdefault(study.extracted_path, []).append(study)
+    target_root = person.local_build / "dicom-media"
+    if target_root.exists():
+        shutil.rmtree(target_root)
+    target_root.mkdir(parents=True, exist_ok=True)
+    entries = []
+    for source, support_studies in sorted(
+        grouped.items(), key=lambda item: str(item[0])
+    ):
+        media_id = hashlib.sha256(
+            source.relative_to(person.local_build).as_posix().encode("utf-8")
+        ).hexdigest()[:16]
+        destination = target_root / media_id
+        files = tuple(
+            path
+            for path in sorted(source.rglob("*"))
+            if path.is_file()
+            and path.name.upper() != "DICOMDIR"
+            and _is_dicom_instance_path(path)
+        )
+        warnings_for_media: list[str] = []
+        if files:
+            try:
+                from pydicom.fileset import FileSet
+
+                file_set = FileSet()
+                for path in files:
+                    file_set.add(path)
+                file_set.write(destination)
+            except (AttributeError, OSError, ValueError, RuntimeError) as exc:
+                shutil.rmtree(destination, ignore_errors=True)
+                warnings_for_media.append(f"DICOMDIR non rigenerato: {exc}")
+        else:
+            warnings_for_media.append("supporto senza istanze DICOM leggibili")
+        entries.append(
+            DicomMedia(
+                media_id=media_id,
+                study_ids=tuple(sorted(study.study_id for study in support_studies)),
+                directory=destination,
+                instance_count=len(files),
+                warnings=tuple(warnings_for_media),
+            )
+        )
+    manifest = person.local_build / "manifests" / "dicom_media.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "media": [
+                    {
+                        "media_id": entry.media_id,
+                        "study_ids": entry.study_ids,
+                        "instance_count": entry.instance_count,
+                        "warnings": entry.warnings,
+                    }
+                    for entry in entries
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return tuple(entries)
+
+
+def _is_dicom_instance_path(path: Path) -> bool:
+    """Return whether a path carries the standard DICOM file marker.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Candidate file.
+
+    Returns
+    -------
+    bool
+        ``True`` when the file has the DICOM preamble marker.
+    """
+
+    try:
+        with path.open("rb") as handle:
+            return _stream_has_dicom_magic(handle)
+    except OSError:
+        return False
 
 
 def catalog_dicom_studies(

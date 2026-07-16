@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import sanikey.dicom as dicom_module
 from sanikey.config import PersonConfig
-from sanikey.dicom import catalog_dicom_studies
+from sanikey.dicom import catalog_dicom_studies, prepare_dicom_media
 from sanikey.documents import scan_documents
 
 if TYPE_CHECKING:
@@ -69,11 +69,11 @@ def _write_dicom_file(
     """
 
     from pydicom.dataset import FileDataset, FileMetaDataset
-    from pydicom.uid import ExplicitVRLittleEndian, generate_uid
+    from pydicom.uid import CTImageStorage, ExplicitVRLittleEndian, generate_uid
 
     file_meta = FileMetaDataset()
     file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
-    file_meta.MediaStorageSOPClassUID = generate_uid()
+    file_meta.MediaStorageSOPClassUID = CTImageStorage
     file_meta.MediaStorageSOPInstanceUID = generate_uid()
     file_meta.ImplementationClassUID = generate_uid()
     dataset = FileDataset(
@@ -84,11 +84,20 @@ def _write_dicom_file(
     )
     dataset.StudyInstanceUID = study_uid
     dataset.StudyDate = study_date
+    dataset.StudyTime = "000000"
     dataset.StudyDescription = study_description
+    dataset.Modality = "CT"
+    dataset.SeriesInstanceUID = generate_uid()
+    dataset.SeriesNumber = 1
+    dataset.SeriesDate = study_date
+    dataset.SeriesTime = "000000"
+    dataset.InstanceNumber = 1
     dataset.SOPClassUID = file_meta.MediaStorageSOPClassUID
     dataset.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
     dataset.PatientName = "Synthetic^Patient"
     dataset.PatientID = "SYNTHETIC"
+    dataset.PatientBirthDate = "19700101"
+    dataset.StudyID = "1"
     dataset.ContentDate = study_date
     dataset.ContentTime = datetime.now().strftime("%H%M%S")
     dataset.save_as(path, enforce_file_format=True)
@@ -582,3 +591,37 @@ def test_catalog_dicom_studies_prefers_ihe_pdi_html_viewer(
     assert len(studies) == 1
     assert studies[0].html_viewer_path == viewer
     assert fallback in studies[0].viewer_paths
+
+
+def test_prepare_dicom_media_writes_dicomdir_once_per_support(tmp_path: Path) -> None:
+    """Verify portable DICOM media groups studies from one support.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    support = person.source_documents / "20260102 Studio.iso"
+    support.write_bytes(b"iso")
+    document = scan_documents(person)[0]
+    extracted = person.local_build / "staging" / "containers" / document.document_id
+    extracted.mkdir(parents=True)
+    _write_dicom_file(
+        extracted / "IM000001.dcm",
+        study_uid="1.2.826.0.1.3680043.10.543.99",
+    )
+
+    studies = catalog_dicom_studies(person, (document,))
+    media = prepare_dicom_media(person, studies)
+
+    assert len(media) == 1
+    assert media[0].study_ids == (studies[0].study_id,)
+    assert media[0].instance_count == 1
+    assert (media[0].directory / "DICOMDIR").is_file()
