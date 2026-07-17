@@ -2398,8 +2398,12 @@ def test_process_dicom_human_output_reports_multiple_studies_in_archive(
     staging = SimpleNamespace(
         documents=(first, second),
         members=(
-            SimpleNamespace(container_id="archive-1", path=str(first.path)),
-            SimpleNamespace(container_id="archive-1", path=str(second.path)),
+            SimpleNamespace(
+                container_id="archive-1", path=str(first.path), kind="dicom_file"
+            ),
+            SimpleNamespace(
+                container_id="archive-1", path=str(second.path), kind="dicom_file"
+            ),
         ),
         warning_messages=(),
     )
@@ -2423,6 +2427,138 @@ def test_process_dicom_human_output_reports_multiple_studies_in_archive(
     assert capsys.readouterr().out == (
         f"patient-a\tarchive\tpiu studi DICOM: 2\t{archive.path}\n"
     )
+
+
+def test_process_dicom_human_output_attributes_shared_study_to_each_archive(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify a duplicate study is not reported as absent in its second archive.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    first_archive = DocumentRecord(
+        document_id="archive-1",
+        patient_id="patient-a",
+        path=tmp_path / "a.tar.xz",
+        title="A",
+        category="dicom",
+        kind="archive",
+        sha256="a" * 64,
+    )
+    second_archive = DocumentRecord(
+        document_id="archive-2",
+        patient_id="patient-a",
+        path=tmp_path / "b.tar.xz",
+        title="B",
+        category="dicom",
+        kind="archive",
+        sha256="b" * 64,
+    )
+    first_path = tmp_path / "generated" / "archive-1" / "1.dcm"
+    second_path = tmp_path / "generated" / "archive-2" / "1.dcm"
+    staging = SimpleNamespace(
+        documents=(),
+        members=(
+            SimpleNamespace(
+                container_id="archive-1",
+                path=str(first_path),
+                kind="dicom_file",
+            ),
+            SimpleNamespace(
+                container_id="archive-2",
+                path=str(second_path),
+                kind="dicom_file",
+            ),
+        ),
+        warning_messages=(),
+    )
+    study = DicomStudy(
+        study_id="study",
+        patient_id="patient-a",
+        support_path=first_path,
+        support_kind="dicom_study",
+        support_paths=(first_path, second_path),
+    )
+
+    cli._print_process_dicom_human(
+        "patient-a", (first_archive, second_archive), (study,), staging
+    )
+
+    assert capsys.readouterr().out == (
+        f"patient-a\tarchive\tok\t{first_archive.path}\n"
+        f"patient-a\tarchive\tok\t{second_archive.path}\n"
+    )
+
+
+def test_process_dicom_human_output_attributes_nested_study_to_outer_archive(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify a DICOM study in a nested archive belongs to its outer archive.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    archive = DocumentRecord(
+        document_id="outer",
+        patient_id="patient-a",
+        path=tmp_path / "cone-beam.tar.xz",
+        title="Cone beam",
+        category="dicom",
+        kind="archive",
+        sha256="a" * 64,
+    )
+    nested_path = tmp_path / "generated" / "outer" / "payload.zip"
+    slice_path = tmp_path / "generated" / "nested" / "Slice0001.dcm"
+    staging = SimpleNamespace(
+        documents=(),
+        members=(
+            SimpleNamespace(
+                container_id="outer",
+                document_id="nested",
+                path=str(nested_path),
+                kind="archive",
+            ),
+            SimpleNamespace(
+                container_id="nested",
+                document_id="slice",
+                path=str(slice_path),
+                kind="dicom_file",
+            ),
+        ),
+        warning_messages=(),
+    )
+    study = DicomStudy(
+        study_id="study",
+        patient_id="patient-a",
+        support_path=slice_path,
+        support_kind="dicom_study",
+        support_paths=(slice_path,),
+    )
+
+    cli._print_process_dicom_human("patient-a", (archive,), (study,), staging)
+
+    assert capsys.readouterr().out == (f"patient-a\tarchive\tok\t{archive.path}\n")
 
 
 def test_build_database_subcommand_runs(tmp_path: Path) -> None:

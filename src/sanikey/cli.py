@@ -1123,11 +1123,13 @@ def _dicom_study_counts_by_container(
     for study in studies:
         if study.support_kind not in _DICOM_STUDY_KINDS:
             continue
-        owner_id = _staged_document_container_id(study.support_path, staging)
-        if owner_id is None:
-            continue
+        owners = {
+            owner_id
+            for path in (study.support_paths or (study.support_path,))
+            if (owner_id := _staged_document_container_id(path, staging)) is not None
+        }
         for container_id, descendant_ids in descendants.items():
-            if owner_id in descendant_ids:
+            if owners & descendant_ids:
                 counts[container_id] += 1
     return counts
 
@@ -1152,10 +1154,10 @@ def _descendant_container_ids(
     """
 
     children: dict[str, set[str]] = {}
-    for document in staging.documents:
-        if document.container_id is None:
+    for member in staging.members:
+        if getattr(member, "kind", None) not in {"archive", "dicom_img", "dicom_iso"}:
             continue
-        children.setdefault(document.container_id, set()).add(document.document_id)
+        children.setdefault(member.container_id, set()).add(member.document_id)
     pending = [container_id]
     seen: set[str] = set()
     while pending:

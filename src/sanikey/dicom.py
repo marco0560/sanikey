@@ -51,6 +51,8 @@ class DicomStudy:
         DICOM study description when available.
     instance_count : int
         Number of DICOM instances grouped into the study.
+    support_paths : tuple[pathlib.Path, ...]
+        Staged DICOM instance paths contributing to the study.
     """
 
     study_id: str
@@ -65,6 +67,7 @@ class DicomStudy:
     study_date: str | None = None
     study_description: str | None = None
     instance_count: int = 1
+    support_paths: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -474,6 +477,10 @@ def _studies_from_dicom_files(
                 study_date=first_metadata.study_date,
                 study_description=first_metadata.study_description,
                 instance_count=len(items),
+                support_paths=tuple(
+                    document.path
+                    for document, _ in sorted(items, key=lambda item: str(item[0].path))
+                ),
             )
         )
     return (*tuple(studies), *tuple(fallback))
@@ -620,6 +627,9 @@ def _coalesce_dicom_studies(studies: tuple[DicomStudy, ...]) -> tuple[DicomStudy
             study_date=existing.study_date or study.study_date,
             study_description=(existing.study_description or study.study_description),
             instance_count=max(existing.instance_count, study.instance_count),
+            support_paths=_deduplicate_paths(
+                (*existing.support_paths, *study.support_paths)
+            ),
         )
     return tuple(merged.values())
 
