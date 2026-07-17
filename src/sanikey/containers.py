@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import shutil
 import subprocess
 import tarfile
 import zipfile
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
@@ -19,6 +21,8 @@ from .documents import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from .config import PersonConfig
     from .models import DocumentRecord
     from .progress import ProgressReporter
@@ -112,6 +116,41 @@ def stage_container_documents(
         Staged member documents, provenance manifest, and warnings.
     """
 
+    with _container_staging_lock(person):
+        return _stage_container_documents_unlocked(
+            person,
+            documents,
+            progress=progress,
+            progress_label=progress_label,
+        )
+
+
+def _stage_container_documents_unlocked(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+    *,
+    progress: ProgressReporter | None = None,
+    progress_label: str | None = None,
+) -> ContainerStagingResult:
+    """Extract supported containers while holding the patient staging lock.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+    documents : tuple[DocumentRecord, ...]
+        Source and derived documents to inspect for containers.
+    progress : ProgressReporter | None, optional
+        Progress reporter for staged containers.
+    progress_label : str | None, optional
+        Label for the progress line.
+
+    Returns
+    -------
+    ContainerStagingResult
+        Staged member documents, provenance manifest, and warnings.
+    """
+
     staging_root = person.local_build / "staging" / "containers"
     if staging_root.exists():
         shutil.rmtree(staging_root)
@@ -146,6 +185,31 @@ def stage_container_documents(
         warning_messages=tuple(warnings),
         manifest=manifest,
     )
+
+
+@contextmanager
+def _container_staging_lock(person: PersonConfig) -> Iterator[None]:
+    """Serialize operations that replace one patient staging directory.
+
+    Parameters
+    ----------
+    person : PersonConfig
+        Patient configuration.
+
+    Yields
+    ------
+    None
+        Control while the exclusive advisory lock is held.
+    """
+
+    person.local_build.mkdir(parents=True, exist_ok=True)
+    lock_path = person.local_build / ".container-staging.lock"
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _container_documents(
