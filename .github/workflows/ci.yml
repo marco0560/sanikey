@@ -28,6 +28,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      - name: Install system document converters
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes pandoc
+
       - name: Install project dependencies
         run: |
           retry() {
