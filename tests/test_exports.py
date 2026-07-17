@@ -154,6 +154,58 @@ links = ["therapy-a"]
     assert "/home/" not in content_search_script
 
 
+def test_generate_exports_indexes_observation_points_by_series_name(
+    tmp_path: Path,
+) -> None:
+    """Verify imported observation points have a searchable clinical title.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.metadata_directory.mkdir()
+    observations = person.metadata_directory / "observations"
+    observations.mkdir()
+    (observations / "series.toml").write_text(
+        """[[series]]
+id = "peso"
+name = "Peso"
+value_type = "numeric"
+unit = "kg"
+""",
+        encoding="utf-8",
+    )
+    (observations / "peso.toml").write_text(
+        """[[point]]
+id = "peso-2026-01-02"
+series_id = "peso"
+observation_date = "2026-01-02"
+source_type = "csv"
+source_reference = "peso.csv:2"
+numeric_value = 70.5
+""",
+        encoding="utf-8",
+    )
+
+    result = generate_exports(
+        person,
+        (),
+        load_curated_metadata(person.metadata_directory),
+    )
+
+    search = json.loads(result.search.read_text(encoding="utf-8"))
+    point = next(item for item in search if item["type"] == "observation_point")
+    assert point["title"] == "Peso"
+    assert point["section"] == "observations"
+
+
 def test_generate_exports_writes_advanced_search_dictionary_and_warning(
     tmp_path: Path,
 ) -> None:

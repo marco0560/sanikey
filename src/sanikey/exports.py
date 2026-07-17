@@ -755,6 +755,7 @@ def _clinical_payload(
         medication.id: _medication_payload(medication)
         for medication in metadata.medications
     }
+    series_names = {series.id: series.name for series in metadata.observation_series}
     return {
         "problems": [_problem_payload(problem) for problem in metadata.problems],
         "medications": list(medications.values()),
@@ -772,7 +773,8 @@ def _clinical_payload(
             for series in metadata.observation_series
         ],
         "observation_points": [
-            _observation_point_payload(point) for point in metadata.observation_points
+            _observation_point_payload(point, series_names)
+            for point in metadata.observation_points
         ],
         "dicom_studies": [
             _dicom_study_payload(person, study) for study in dicom_studies
@@ -1009,13 +1011,18 @@ def _observation_series_payload(series: Any) -> dict[str, Any]:
     }
 
 
-def _observation_point_payload(point: Any) -> dict[str, Any]:
+def _observation_point_payload(
+    point: Any,
+    series_names: dict[str, str],
+) -> dict[str, Any]:
     """Build one observation point frontend payload.
 
     Parameters
     ----------
     point : Any
         Observation point model.
+    series_names : dict[str, str]
+        Series identifiers mapped to their clinical display names.
 
     Returns
     -------
@@ -1024,9 +1031,11 @@ def _observation_point_payload(point: Any) -> dict[str, Any]:
     """
 
     value = _observation_point_value(point)
+    title = series_names.get(point.series_id, point.series_id)
     return {
         "id": point.id,
         "type": "observation_point",
+        "title": title,
         "series_id": point.series_id,
         "date": point.observation_date,
         "value": value,
