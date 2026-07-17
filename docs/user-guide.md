@@ -260,6 +260,9 @@ uv run sanikey list-patients
 
 ## Preparare i Documenti Sorgente
 
+Per convenzioni di naming, categorie, cartelle di servizio, archivi DICOM e
+casi da rivedere, leggere prima [Organizzare l'Archivio Sanitario](organizzare-archivio-sanitario.md).
+
 Inserisci i file sorgente nella directory `source_documents` configurata per
 ciascun paziente. L'implementazione attuale esegue scansione deterministica,
 estrae il testo supportato, cataloga i supporti DICOM e registra i metadati in

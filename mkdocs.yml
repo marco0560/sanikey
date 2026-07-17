@@ -28,7 +28,9 @@ plugins:
 
 nav:
   - Pagina iniziale: index.md
-  - Guida Utente: user-guide.md
+  - Guida Utente:
+      - Uso di SaniKey: user-guide.md
+      - Organizzare l'archivio sanitario: organizzare-archivio-sanitario.md
   - Esempi:
       - Panoramica: examples.md
       - Esempio configurazione: config-example/README.md
