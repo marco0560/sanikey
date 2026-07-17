@@ -72,6 +72,9 @@ class ContainerStagingResult:
         Provenance records for staged members.
     warning_messages : tuple[str, ...]
         Non-fatal staging warnings.
+    nested_containers : tuple[DocumentRecord, ...]
+        Extracted container members eligible for recursive staging but not
+        necessarily for the clinical document pipeline.
     manifest : pathlib.Path
         Container staging manifest path.
     """
@@ -80,6 +83,7 @@ class ContainerStagingResult:
     members: tuple[StagedContainerMember, ...]
     warning_messages: tuple[str, ...]
     manifest: Path
+    nested_containers: tuple[DocumentRecord, ...] = ()
 
 
 def stage_container_documents(
@@ -128,7 +132,7 @@ def stage_container_documents(
         warnings.extend(container_result.warning_messages)
         staged_documents.extend(container_result.documents)
         members.extend(container_result.members)
-        queued.extend(_container_documents(container_result.documents))
+        queued.extend(_container_documents(container_result.nested_containers))
         if progress is not None:
             progress.advance(len(processed))
     if progress is not None and progress_label is not None:
@@ -228,6 +232,7 @@ def _stage_one_container(
         members=members,
         warning_messages=(),
         manifest=person.local_build / "manifests" / "container_staging.json",
+        nested_containers=_container_documents(extracted_documents),
     )
 
 

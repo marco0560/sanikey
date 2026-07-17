@@ -260,6 +260,36 @@ def test_catalog_dicom_studies_detects_dicom_tar_xz_by_magic(
     assert studies[0].support_kind == "dicom_tar_xz"
 
 
+def test_catalog_dicom_studies_detects_dicom_in_nested_zip_in_tar_xz(
+    tmp_path: Path,
+) -> None:
+    """Verify TAR.XZ archives inspect opaque nested ZIP members.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    nested = tmp_path / "opaque.zip"
+    with zipfile.ZipFile(nested, "w") as archive:
+        archive.writestr("Slice0001.dcm", (b"\0" * 128) + b"DICM")
+    path = person.source_documents / "20250411 Study.tar.xz"
+    with tarfile.open(path, "w:xz") as archive:
+        archive.add(nested, arcname="opaque-name.zip")
+
+    studies = catalog_dicom_studies(person, scan_documents(person))
+
+    assert len(studies) == 1
+    assert studies[0].support_kind == "dicom_tar_xz"
+
+
 def test_catalog_dicom_studies_detects_dicom_7z_disk_image(tmp_path: Path) -> None:
     """Verify 7z archives with ISO members are cataloged as DICOM support.
 

@@ -863,6 +863,10 @@ def _tar_xz_contains_dicom(path: Path) -> bool:
                 if handle is None:
                     continue
                 with handle:
+                    if member.name.lower().endswith(
+                        ".zip"
+                    ) and _nested_zip_contains_dicom(handle.read()):
+                        return True
                     if _stream_has_dicom_magic(handle):
                         return True
     except (OSError, tarfile.TarError):

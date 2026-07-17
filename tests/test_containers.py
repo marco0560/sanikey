@@ -553,6 +553,40 @@ def test_stage_container_documents_recurses_into_multiple_nested_disk_images(
     ]
 
 
+def test_stage_container_documents_recurses_into_nested_zip(
+    tmp_path: Path,
+) -> None:
+    """Verify nested archives are staged without becoming clinical documents.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    nested = tmp_path / "opaque.zip"
+    with zipfile.ZipFile(nested, "w") as archive:
+        archive.writestr("Slice0001.dcm", (b"\0" * 128) + b"DICM")
+    source = person.source_documents / "20250411 Study.tar.xz"
+    with tarfile.open(source, "w:xz") as archive:
+        archive.add(nested, arcname="opaque.zip")
+
+    result = stage_container_documents(
+        person,
+        (_document(source, person.source_documents),),
+    )
+
+    assert [document.kind for document in result.documents] == ["dicom_file"]
+    assert result.documents[0].internal_path == "Slice0001.dcm"
+    assert any(member.internal_path == "opaque.zip" for member in result.members)
+
+
 def test_stage_container_documents_keeps_multiple_dicom_trees(
     tmp_path: Path,
 ) -> None:
