@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import tarfile
 import warnings
 import zipfile
+from dataclasses import replace
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 import sanikey.dicom as dicom_module
-from sanikey.config import PersonConfig
+from sanikey.config import IngestionConfig, PersonConfig
 from sanikey.dicom import catalog_dicom_studies, prepare_dicom_media
-from sanikey.documents import scan_documents
+from sanikey.documents import document_record_for_path, scan_documents
+from sanikey.exports import generate_exports
+from sanikey.metadata import load_curated_metadata
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -623,6 +627,105 @@ def test_catalog_dicom_studies_prefers_ihe_pdi_html_viewer(
     assert fallback in studies[0].viewer_paths
 
 
+def test_catalog_dicom_studies_applies_configured_viewer_exclusions(
+    tmp_path: Path,
+) -> None:
+    """Verify viewer discovery uses configured ingestion exclusions.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = replace(
+        _person(tmp_path),
+        ingestion=IngestionConfig(exclude_patterns=("**/help/**",)),
+    )
+    person.source_documents.mkdir(parents=True)
+    archive = person.source_documents / "20260102 TAC.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("DICOMDIR", b"")
+    document = scan_documents(person)[0]
+    extracted = person.local_build / "staging" / "containers" / document.document_id
+    help_page = extracted / "Help" / "index.htm"
+    help_page.parent.mkdir(parents=True)
+    help_page.write_text("<html>help</html>", encoding="utf-8")
+
+    studies = catalog_dicom_studies(person, (document,))
+
+    assert studies[0].html_viewer_path is None
+    assert studies[0].viewer_paths == ()
+
+
+def test_catalog_dicom_studies_links_grouped_instances_to_support(
+    tmp_path: Path,
+) -> None:
+    """Verify grouped studies inherit their containing support for DICOMDIR.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    archive = person.source_documents / "20260102 TAC.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("DICOMDIR", b"")
+    archive_document = scan_documents(person)[0]
+    extracted = (
+        person.local_build / "staging" / "containers" / archive_document.document_id
+    )
+    extracted.mkdir(parents=True)
+    instance = extracted / "IM000001.dcm"
+    _write_dicom_file(instance, study_uid="1.2.826.0.1.3680043.10.543.199")
+    instance_document = document_record_for_path(
+        instance,
+        root=extracted,
+        patient_id=person.id,
+    )
+
+    studies = catalog_dicom_studies(person, (archive_document, instance_document))
+    grouped = next(study for study in studies if study.support_kind == "dicom_study")
+    media = prepare_dicom_media(person, studies)
+
+    assert grouped.extracted_path == extracted
+    assert len(media) == 1
+    assert grouped.study_id in media[0].study_ids
+    assert (media[0].directory / "DICOMDIR").is_file()
+
+    export = generate_exports(
+        person,
+        (archive_document, instance_document),
+        load_curated_metadata(person.metadata_directory),
+        dicom_studies=studies,
+    )
+    payload = json.loads(
+        export.data_script.read_text(encoding="utf-8")
+        .removeprefix("window.SANIKEY_DATA = ")
+        .rstrip(";\n")
+    )
+    exported_study = next(
+        item
+        for item in payload["clinical"]["dicom_studies"]
+        if item["id"] == grouped.study_id
+    )
+
+    assert exported_study["dicomdir_href"] == (
+        f"../dicom-media/{media[0].media_id}/DICOMDIR"
+    )
+
+
 def test_prepare_dicom_media_writes_dicomdir_once_per_support(tmp_path: Path) -> None:
     """Verify portable DICOM media groups studies from one support.
 
@@ -655,3 +758,45 @@ def test_prepare_dicom_media_writes_dicomdir_once_per_support(tmp_path: Path) ->
     assert media[0].study_ids == (studies[0].study_id,)
     assert media[0].instance_count == 1
     assert (media[0].directory / "DICOMDIR").is_file()
+
+
+def test_prepare_dicom_media_captures_pydicom_warnings_with_file_path(
+    tmp_path: Path,
+    recwarn: pytest.WarningsRecorder,
+) -> None:
+    """Verify pydicom warnings are retained with a useful file path.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    recwarn : pytest.WarningsRecorder
+        Warning recorder fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    support = person.source_documents / "20260102 Studio.iso"
+    support.write_bytes(b"iso")
+    document = scan_documents(person)[0]
+    extracted = person.local_build / "staging" / "containers" / document.document_id
+    extracted.mkdir(parents=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        _write_dicom_file(
+            extracted / "IM000001.dcm",
+            study_uid="1.2.826.0.1.3680043.10.543.100",
+            study_description="x" * 76,
+        )
+    recwarn.clear()
+
+    studies = catalog_dicom_studies(person, (document,))
+    media = prepare_dicom_media(person, studies)
+
+    assert list(recwarn) == []
+    assert media[0].warnings
+    assert str(extracted / "IM000001.dcm") in media[0].warnings[0]

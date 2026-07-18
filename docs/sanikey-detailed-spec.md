@@ -1308,6 +1308,7 @@ patients/patient-a/metadata/
 ├── document_tags.toml
 ├── problems.toml
 ├── medications.toml
+├── medication_leaflets.toml
 ├── clinical_summary.toml
 │
 ├── timeline_overrides.toml
@@ -3449,6 +3450,7 @@ metadata/
 │
 ├── problems.toml
 ├── allergies.toml
+├── medication_leaflets.toml
 ├── clinical_summary.toml
 │
 ├── medications/
@@ -5513,6 +5515,13 @@ rehabilitation/
 ```
 
 ## 11. Generazione e Assistenza AI
+
+!!! warning "Stato di implementazione"
+    Questo capitolo descrive l'architettura obiettivo, non una funzionalita'
+    disponibile. L'implementazione corrente conserva solo uno scaffold
+    sperimentale: genera un segnaposto, ne permette il cambio di stato e non
+    analizza documenti, non registra provenienza AI, non preserva uno storico
+    di revisione e non promuove alcun dato nei metadati curati.
 
 ### 11.1 Scopo
 

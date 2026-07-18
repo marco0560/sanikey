@@ -44,14 +44,17 @@ dell'autorun o del viewer nativo del CD.
   dell'archivio come flusso primario.
 - I file esclusi da `exclude_patterns` non sono copiati in
   `patients/<id>/documents/`.
-- I viewer HTML DICOM riconosciuti sono copiati separatamente mediante il
-  manifesto dei viewer, anche quando i loro percorsi tecnici non sono documenti
-  ordinari importati.
+- I viewer HTML DICOM sono rilevati soltanto nei path non esclusi dai pattern
+  configurati di ingestione e sono copiati separatamente mediante il manifesto
+  dei viewer.
 - L'interfaccia corrente mostra `Apri studio DICOM` quando esiste `viewer_href`,
   omette i record di supporto DICOM non consultabili dal pannello dei documenti
   ordinari e segnala come anomalie gli studi catalogati senza viewer HTML.
 - Per ogni supporto espanso con istanze leggibili viene creato un media DICOM
   condiviso con `DICOMDIR`; non viene duplicato una volta per ciascuno studio.
+- Quando le istanze di uno studio sono aggregate dai membri estratti di un
+  supporto, lo studio clinico conserva il collegamento al supporto: usa le sue
+  istanze per l'anteprima e riceve il link al relativo `DICOMDIR`.
 - Il media e' copiato in `patients/<id>/dicom-media/` e puo' essere aperto o
   importato da un lettore DICOM professionale gia' installato sul PC.
 - Quando non esiste un viewer HTML nativo, SaniKey genera una pagina statica
@@ -72,9 +75,9 @@ dell'autorun o del viewer nativo del CD.
   il supporto ma non richiede né distribuisce l'applicazione sul PC di
   consultazione. Lo studio resta un'anomalia finché non esiste un viewer HTML
   statico compatibile.
-- Se il viewer dipende da file runtime filtrati da `exclude_patterns`, tali file
-  non saranno in `patients/<id>/documents`; sono garantiti soltanto i
-  sottoalberi dei viewer riconosciuti copiati attraverso `dicom-viewers`.
+- Se il viewer o un suo entrypoint corrisponde a `exclude_patterns`, non viene
+  rilevato né copiato attraverso `dicom-viewers`. Per recuperarlo occorre un
+  `include_patterns` esplicito in configurazione.
 
 ## Flusso corrente
 

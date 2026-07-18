@@ -37,12 +37,13 @@ La pipeline implementata è:
 3. Eseguire la scansione dei documenti sorgente configurati, applicando gli
    eventuali pattern di esclusione.
 4. Caricare i metadati curati.
-5. Catalogare supporti DICOM e directory di espansione manuale.
-6. Estrarre il testo supportato.
-7. Costruire un archivio SQLite per paziente.
-8. Generare export JSON.
-9. Generare i file statici del frontend.
-10. Esportare la build in una struttura USB e scrivere i checksum.
+5. Aggiornare localmente FI e RCP AIFA per i riferimenti confermati.
+6. Catalogare supporti DICOM e directory di espansione manuale.
+7. Estrarre il testo supportato.
+8. Costruire un archivio SQLite per paziente.
+9. Generare export JSON.
+10. Generare i file statici del frontend.
+11. Esportare la build in una struttura USB e scrivere i checksum.
 
 Il comando `deploy-usb` esegue la build dei pazienti abilitati e poi esporta la
 struttura USB.
@@ -55,6 +56,8 @@ struttura USB.
 - `documents.py`: scansiona i documenti, calcola digest, estrae testo
   supportato, applica esclusioni configurate e rileva duplicati.
 - `metadata.py`: carica metadati curati da file TOML.
+- `leaflets.py`: ricerca e verifica riferimenti AIFA, scarica FI/RCP locali e
+  registra la data dell'ultimo download riuscito.
 - `markdown.py`: converte contenuti Markdown curati o documentali in HTML
   statico con HTML grezzo disabilitato.
 - `dicom.py`: cataloga supporti DICOM, legge DICOMDIR, raggruppa istanze per
@@ -70,7 +73,8 @@ struttura USB.
 - `usb.py`: esporta e valida la struttura USB.
   Controlla anche link frontend relativi, UUID/fstype/spazio dei target fisici
   configurati e copia con `rsync` quando disponibile.
-- `proposals.py`: salva proposte deterministiche da revisione manuale.
+- `proposals.py`: scaffold sperimentale per proposte non autorevoli; non
+  analizza documenti e non promuove metadati curati.
 - `cli.py`: espone l'interfaccia a riga di comando.
 
 ## Modello di Paziente Configurato
@@ -126,6 +130,9 @@ corrisponde agli artefatti frontend generati da `frontend.py`.
 I link ai documenti originali sono relativi a `patients/<id>/web/index.html` e
 puntano a `../documents/...`; `validate-usb` rifiuta payload con path assoluti,
 URL `file://` o link rotti.
+I FI e gli RCP confermati sono copiati separatamente in
+`patients/<id>/medication-leaflets/`; l'export clinico usa quei PDF locali e
+conserva anche i link AIFA per la verifica online.
 I viewer HTML DICOM riconosciuti durante lo staging vengono copiati sotto
 `patients/<id>/dicom-viewers/` e linkati dal frontend con `viewer_href`
 relativi.

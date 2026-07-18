@@ -417,6 +417,23 @@ instructions = "dopo il pasto"
 """,
         encoding="utf-8",
     )
+    (person.metadata_directory / "medication_leaflets.toml").write_text(
+        """[[leaflet]]
+medication_id = "drug-a"
+codice_sis = "123"
+aic6 = "456"
+""",
+        encoding="utf-8",
+    )
+    leaflet_dir = person.local_build / "medication-leaflets" / "drug-a"
+    leaflet_dir.mkdir(parents=True)
+    (leaflet_dir / "foglio-illustrativo.pdf").write_bytes(b"%PDF-fi")
+    (leaflet_dir / "rcp.pdf").write_bytes(b"%PDF-rcp")
+    manifest_dir = person.local_build / "manifests"
+    manifest_dir.mkdir()
+    (manifest_dir / "medication-leaflets.json").write_text(
+        '{"downloaded_at": {"drug-a": "2026-07-18"}}\n', encoding="utf-8"
+    )
     (person.metadata_directory / "procedures.toml").write_text(
         """
 [[procedure]]
@@ -475,6 +492,13 @@ date = "2026-01-05"
     assert therapy["medication_name"] == "Drug A"
     assert therapy["active_ingredient"] == "Ingredient A"
     assert therapy["schedule"] == ["risveglio", "cena"]
+    assert (
+        therapy["leaflet_href"]
+        == "../medication-leaflets/drug-a/foglio-illustrativo.pdf"
+    )
+    assert therapy["rcp_href"] == "../medication-leaflets/drug-a/rcp.pdf"
+    assert therapy["leaflet_downloaded_at"] == "2026-07-18"
+    assert therapy["aifa_fi_url"].endswith("/123/farmaci/456/stampati/FI")
     assert {"label": "Schedula", "value": "risveglio, cena"} in therapy["fields"]
     assert therapy_event["id"] == "therapy-therapy-a"
     assert therapy_event["title"] == "Terapia: Drug A"

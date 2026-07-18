@@ -18,6 +18,7 @@ from .inspection import (
     inspect_patient_documents,
     static_document_warning_messages,
 )
+from .leaflets import download_confirmed_leaflets
 from .metadata import load_curated_metadata
 from .observation_imports import ensure_observation_imports_current
 
@@ -179,6 +180,7 @@ def build_patient(
     dicom_previews = generate_dicom_previews(person, dicom_studies)
     ensure_observation_imports_current(person)
     metadata = load_curated_metadata(person.metadata_directory)
+    download_confirmed_leaflets(build_root, metadata.medication_leaflets)
     extraction_documents = tuple(
         document for document in documents if not document.kind.startswith("dicom_")
     )

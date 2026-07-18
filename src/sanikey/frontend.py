@@ -202,6 +202,7 @@ def _index_html(person: PersonConfig) -> str:
     <section id="parameters" data-section-panel="parameters" aria-label="Parametri" hidden></section>
     <section id="dicom" data-section-panel="dicom" aria-label="Studi DICOM"></section>
   </main>
+  <footer class="app-footer"><a href="https://github.com/marco0560/sanikey" target="_blank" rel="noopener">SaniKey su GitHub</a></footer>
   <dialog id="basic-help-dialog" class="help-dialog">
     <article>
       <h2>Aiuto ricerca base</h2>
@@ -342,7 +343,32 @@ function renderTimelineLinks(item) {
   if (!links.length) {
     return "";
   }
-  return `<p>${links.map((link) => `<a href="#entity-${attr(link)}">Dettaglio</a>`).join(" ")}</p>`;
+  return `<p>${links.map((link) => `<a href="#entity-${attr(link)}" data-detail-link="${attr(link)}">Dettaglio</a>`).join(" ")}</p>`;
+}
+
+function setupTimelineDetailLinks(documents) {
+  const timeline = document.querySelector("#timeline");
+  timeline.addEventListener("click", (event) => {
+    const link = event.target.closest("[data-detail-link]");
+    if (!link) {
+      return;
+    }
+    const detailId = text(link.dataset.detailLink);
+    let detail = document.getElementById(`entity-${detailId}`);
+    if (!detail) {
+      renderDocuments(documents);
+      const search = document.querySelector("#search");
+      search.value = "";
+      detail = document.getElementById(`entity-${detailId}`);
+    }
+    const panel = detail && detail.closest("[data-section-panel]");
+    if (!panel) {
+      return;
+    }
+    event.preventDefault();
+    window.SaniKeyUi.showSection(panel.dataset.sectionPanel, "left");
+    requestAnimationFrame(() => detail.scrollIntoView({block: "start"}));
+  });
 }
 
 function renderDocuments(documents, query = "") {
@@ -368,7 +394,7 @@ function renderDocumentActions(item) {
     return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">${label}</a>${media}</p>`;
   }
   if (item.href) {
-    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">Apri originale</a></p>`;
+    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri originale</a></p>`;
   }
   return `<span class="muted">Origine nel contenitore</span>`;
 }
@@ -511,8 +537,15 @@ function renderEntityActions(item, section) {
   if (section === "dicom" && item.viewer_href) {
     return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a></p>`;
   }
+  if (section !== "dicom" && item.href) {
+    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri originale</a></p>`;
+  }
   if (item.href) {
-    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">${section === "dicom" ? "Supporto originale per verifica tecnica" : "Apri originale"}</a></p>`;
+    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}">Supporto originale per verifica tecnica</a></p>`;
+  }
+  if (section === "therapies" && item.leaflet_href) {
+    const downloaded = item.leaflet_downloaded_at ? ` scaricato il ${escapeHtml(formatDate(item.leaflet_downloaded_at))}` : "";
+    return `<p class="actions"><a href="${attr(item.leaflet_href)}" target="_blank" rel="noopener">Foglio illustrativo${downloaded}</a>${item.rcp_href ? ` <a href="${attr(item.rcp_href)}" target="_blank" rel="noopener">RCP</a>` : ""} <a href="${attr(item.aifa_fi_url)}" target="_blank" rel="noopener">Verifica su AIFA</a></p>`;
   }
   return "";
 }
@@ -558,7 +591,7 @@ function renderResultAction(item) {
     return `<a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a>`;
   }
   if (item.type === "document" && item.href) {
-    return `<a class="primary-action" href="${attr(item.href)}">Apri originale</a>`;
+    return `<a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri originale</a>`;
   }
   return `<a href="#entity-${attr(item.id)}">Vai alla scheda</a>`;
 }
@@ -959,6 +992,7 @@ function main() {
   configureDicomNavigation(dicomStudies);
   renderObservationSections(data.clinical || {});
   renderDocuments(documents);
+  setupTimelineDetailLinks(documents);
   const advancedInput = document.querySelector("#advanced-search");
   const advancedResults = document.querySelector("#advanced-results");
   advancedResults.innerHTML = '<p class="muted">La ricerca avanzata carica il testo estratto al primo uso.</p>';
@@ -1395,6 +1429,14 @@ input {
   border-top: 1px solid var(--border);
   margin-top: 1rem;
   padding-top: 0.75rem;
+}
+
+.app-footer {
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  text-align: center;
 }
 
 .help-dialog {

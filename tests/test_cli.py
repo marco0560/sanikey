@@ -18,6 +18,7 @@ from sanikey.config import AccountsConfig, PersonConfig, default_accounts_path
 from sanikey.dicom import DicomStudy
 from sanikey.documents import ExtractedText
 from sanikey.errors import ConfigError
+from sanikey.leaflets import AifaCandidate
 from sanikey.models import DocumentRecord
 
 MODULE = "sanikey"
@@ -182,6 +183,30 @@ def test_all_sanikey_long_options_have_short_aliases() -> None:
                 missing.extend(long_options)
 
     assert not missing
+
+
+def test_each_subcommand_help_starts_with_a_summary() -> None:
+    """Verify every SaniKey subcommand help includes an initial summary.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    parser = build_parser()
+    subparsers = next(
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+
+    for command, command_parser in subparsers.choices.items():
+        assert command_parser.description, command
+        assert command_parser.description in command_parser.format_help(), command
 
 
 def test_short_option_aliases_parse_like_long_options() -> None:
@@ -644,6 +669,14 @@ def test_cli_formatting_helpers_cover_fallbacks(tmp_path: Path) -> None:
     assert cli._repo_relative_path(in_source.path, repo_root=tmp_path) == (
         "patient-a/source/20260102 Report.txt"
     )
+    assert (
+        cli._repo_relative_text(f"errore: {in_source.path}", repo_root=tmp_path)
+        == "errore: patient-a/source/20260102 Report.txt"
+    )
+    assert (
+        cli._repo_relative_text("errore: /tmp/esterno.pdf", repo_root=tmp_path)
+        == "errore: /tmp/esterno.pdf"
+    )
     assert cli._format_extract_text_result(
         person,
         in_source,
@@ -786,6 +819,7 @@ def test_direct_content_runners_cover_success_paths(
     """
 
     person = _person(tmp_path)
+    monkeypatch.chdir(tmp_path)
     document = _document(person.source_documents / "20260102 Report.txt")
     config = _accounts(tmp_path, person)
     args = argparse.Namespace(
@@ -871,7 +905,7 @@ def test_direct_content_runners_cover_success_paths(
         lambda *_args: SimpleNamespace(data_dir=tmp_path / "data"),
     )
     assert cli.run_generate_exports(args) == 0
-    assert f"dati={tmp_path / 'data'}" in capsys.readouterr().out
+    assert "dati=data" in capsys.readouterr().out
 
     monkeypatch.setattr(
         cli,
@@ -879,7 +913,7 @@ def test_direct_content_runners_cover_success_paths(
         lambda _person: SimpleNamespace(web_dir=tmp_path / "web"),
     )
     assert cli.run_build_web(args) == 0
-    assert f"web={tmp_path / 'web'}" in capsys.readouterr().out
+    assert "web=web" in capsys.readouterr().out
 
 
 def test_direct_build_and_usb_runners_cover_success_and_failure(
@@ -3164,3 +3198,58 @@ usb_uuid = "1A2B-3C4D"
     )
     assert result.returncode == 0
     assert "patient-a" in result.stdout
+
+
+def test_resolve_medication_leaflets_preserves_verified_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify a current AIFA reference is retained without operator input.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.metadata_directory.mkdir(parents=True)
+    (person.metadata_directory / "medications.toml").write_text(
+        '[[medication]]\nid = "drug-a"\nname = "Drug A"\n', encoding="utf-8"
+    )
+    (person.metadata_directory / "medication_leaflets.toml").write_text(
+        """[[leaflet]]
+medication_id = "drug-a"
+codice_sis = "123"
+aic6 = "456"
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+    monkeypatch.setattr(
+        cli,
+        "lookup_aifa_candidates",
+        lambda _medication: (AifaCandidate("Drug A", "123", "456"),),
+    )
+
+    result = cli.run_resolve_medication_leaflets(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml", patient="patient-a", select=[]
+        )
+    )
+
+    assert result == 0
+    assert "riferimento AIFA verificato" in capsys.readouterr().out
+    saved = (person.metadata_directory / "medication_leaflets.toml").read_text(
+        encoding="utf-8"
+    )
+    assert "source_fingerprint" in saved

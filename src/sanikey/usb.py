@@ -182,6 +182,9 @@ def _export_patient(person: PersonConfig, target: Path) -> None:
     if db_source.is_file():
         shutil.copy2(db_source, patient_root / "medical_archive.db")
     _copy_tree(person.local_build / "web", patient_root / "web")
+    _copy_tree(
+        person.local_build / "medication-leaflets", patient_root / "medication-leaflets"
+    )
     _copy_source_documents(person, patient_root / "documents")
     _copy_dicom_html_viewers(person.local_build, patient_root / "dicom-viewers")
     _copy_tree(person.local_build / "dicom-media", patient_root / "dicom-media")

@@ -58,6 +58,16 @@ instructions = "dopo il pasto"
 """,
         encoding="utf-8",
     )
+    (tmp_path / "medication_leaflets.toml").write_text(
+        """
+[[leaflet]]
+medication_id = "drug-a"
+codice_sis = "123"
+aic6 = "456"
+source_fingerprint = "a"
+""",
+        encoding="utf-8",
+    )
     (tmp_path / "procedures.toml").write_text(
         """
 [[procedure]]
@@ -106,6 +116,8 @@ links = ["procedure-a"]
     assert metadata.medications[0].name == "Drug A"
     assert metadata.medications[0].form == "compresse"
     assert metadata.medications[0].strength_per_unit == "100 mg"
+    assert metadata.medication_leaflets[0].aic6 == "456"
+    assert metadata.medication_leaflets[0].source_fingerprint == "a"
     assert metadata.therapies[0].medication_id == "drug-a"
     assert metadata.therapies[0].role is None
     assert metadata.therapies[0].schedule == ("risveglio", "cena")

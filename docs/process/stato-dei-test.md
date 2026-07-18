@@ -156,6 +156,11 @@ C'è copertura su un item malformato, ma non su:
 
 Decisioni coinvolte: DA-054..DA-060, DA-067, DA-100, DA-117.
 
+Stato prodotto: **gap aperto**. Esistono soltanto una proposta placeholder e il
+cambio di stato in un file sperimentale. Non esistono generazione da documenti,
+provenienza AI, conservazione di revisioni o promozione verso i metadati curati.
+Le proposte, anche quando marcate approvate, non entrano in export o ricerca.
+
 Sono testati la proposta placeholder e il cambio status. Non risultano test per:
 
 - esclusione delle proposte non approvate da export/search standard: coperto per

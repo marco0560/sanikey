@@ -10,6 +10,7 @@ from .models import (
     ClinicalProblem,
     CuratedMetadata,
     Medication,
+    MedicationLeaflet,
     Observation,
     ObservationPoint,
     ObservationSeries,
@@ -57,6 +58,11 @@ def load_curated_metadata(metadata_dir: Path) -> CuratedMetadata:
             metadata_dir / "medications.toml",
             "medication",
             _medication_from_table,
+        ),
+        medication_leaflets=_load_items(
+            metadata_dir / "medication_leaflets.toml",
+            "leaflet",
+            _medication_leaflet_from_table,
         ),
         therapies=_load_items(
             metadata_dir / "therapies.toml",
@@ -205,6 +211,35 @@ def _medication_from_table(item: dict[str, Any], path: Path, index: int) -> Medi
         active_ingredient=_optional_string(item, "active_ingredient"),
         form=_optional_string(item, "form"),
         strength_per_unit=_optional_string(item, "strength_per_unit"),
+    )
+
+
+def _medication_leaflet_from_table(
+    item: dict[str, Any], path: Path, index: int
+) -> MedicationLeaflet:
+    """Parse one confirmed AIFA medication-document reference.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw item table.
+    path : pathlib.Path
+        Source file path.
+    index : int
+        Item index.
+
+    Returns
+    -------
+    MedicationLeaflet
+        Parsed confirmed reference.
+    """
+
+    return MedicationLeaflet(
+        medication_id=_required_string(item, "medication_id", path, index),
+        codice_sis=_required_string(item, "codice_sis", path, index),
+        aic6=_required_string(item, "aic6", path, index),
+        downloaded_at=_optional_string(item, "downloaded_at"),
+        source_fingerprint=_optional_string(item, "source_fingerprint"),
     )
 
 
@@ -521,6 +556,11 @@ def _validate_curated_metadata(metadata: CuratedMetadata, metadata_dir: Path) ->
         metadata_dir / "medications.toml",
     )
     _validate_unique_ids(
+        "medication_leaflet",
+        (item.medication_id for item in metadata.medication_leaflets),
+        metadata_dir / "medication_leaflets.toml",
+    )
+    _validate_unique_ids(
         "therapy",
         (item.id for item in metadata.therapies),
         metadata_dir / "therapies.toml",
@@ -561,6 +601,12 @@ def _validate_curated_metadata(metadata: CuratedMetadata, metadata_dir: Path) ->
             _fail(
                 f"{metadata_dir / 'therapies.toml'}: therapy {therapy.id} "
                 f"referenzia medication_id sconosciuto {therapy.medication_id}",
+            )
+    for leaflet in metadata.medication_leaflets:
+        if leaflet.medication_id not in medication_ids:
+            _fail(
+                f"{metadata_dir / 'medication_leaflets.toml'}: riferimento AIFA "
+                f"per medication_id sconosciuto {leaflet.medication_id}",
             )
 
 

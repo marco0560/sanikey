@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from .documents import _known_suffix
+from .documents import _is_excluded_by_ingestion, _known_suffix
 
 if TYPE_CHECKING:
     from .config import PersonConfig
@@ -259,14 +259,33 @@ def prepare_dicom_media(
                 from pydicom.fileset import FileSet
 
                 file_set = FileSet()
+                reported_warning_messages: set[str] = set()
                 for path in files:
-                    file_set.add(path)
-                file_set.write(destination)
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always", UserWarning)
+                        file_set.add(path)
+                    _append_dicom_value_warnings(
+                        warnings_for_media,
+                        reported_warning_messages,
+                        path,
+                        caught,
+                    )
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", UserWarning)
+                    file_set.write(destination)
+                _append_dicom_value_warnings(
+                    warnings_for_media,
+                    reported_warning_messages,
+                    source,
+                    caught,
+                )
             except (AttributeError, OSError, ValueError, RuntimeError) as exc:
                 shutil.rmtree(destination, ignore_errors=True)
-                warnings_for_media.append(f"DICOMDIR non rigenerato: {exc}")
+                warnings_for_media.append(f"{source}: DICOMDIR non rigenerato: {exc}")
         else:
-            warnings_for_media.append("supporto senza istanze DICOM leggibili")
+            warnings_for_media.append(
+                f"{source}: supporto senza istanze DICOM leggibili"
+            )
         entries.append(
             DicomMedia(
                 media_id=media_id,
@@ -299,6 +318,38 @@ def prepare_dicom_media(
         encoding="utf-8",
     )
     return tuple(entries)
+
+
+def _append_dicom_value_warnings(
+    target: list[str],
+    reported_messages: set[str],
+    path: Path,
+    caught: list[warnings.WarningMessage],
+) -> None:
+    """Append unique non-fatal pydicom warnings with their affected path.
+
+    Parameters
+    ----------
+    target : list[str]
+        Mutable warning messages for one generated DICOM media directory.
+    reported_messages : set[str]
+        Warning texts already emitted for the same media directory.
+    path : pathlib.Path
+        Input file or support associated with the captured warning.
+    caught : list[warnings.WarningMessage]
+        Warnings captured while pydicom processed ``path``.
+
+    Returns
+    -------
+    None
+    """
+
+    for warning in caught:
+        message = str(warning.message)
+        if message in reported_messages:
+            continue
+        reported_messages.add(message)
+        target.append(f"{path}: metadati DICOM non conformi: {message}")
 
 
 def _is_dicom_instance_path(path: Path) -> bool:
@@ -366,8 +417,10 @@ def catalog_dicom_studies(
                 support_studies.extend(_studies_from_document(person, document))
         if progress is not None:
             progress.advance(index, total=len(documents))
-    studies = _coalesce_dicom_studies(
-        (*support_studies, *_studies_from_dicom_files(person, tuple(dicom_files)))
+    studies = _link_studies_to_supports(
+        _coalesce_dicom_studies(
+            (*support_studies, *_studies_from_dicom_files(person, tuple(dicom_files)))
+        )
     )
     if progress is not None and progress_label is not None:
         progress.done(f"done studies={len(studies)}")
@@ -398,8 +451,10 @@ def _studies_from_document(
         if studies:
             return studies
     extracted = _manual_extracted_path(person, document)
-    viewers = _viewer_paths(extracted) if extracted is not None else ()
-    html_viewer = _html_viewer_path(extracted) if extracted is not None else None
+    viewers = _viewer_paths(person, extracted) if extracted is not None else ()
+    html_viewer = (
+        _html_viewer_path(person, extracted) if extracted is not None else None
+    )
     warnings: tuple[str, ...] = ()
     support_kind = _dicom_support_kind(document)
     if extracted is None and support_kind in {
@@ -632,6 +687,91 @@ def _coalesce_dicom_studies(studies: tuple[DicomStudy, ...]) -> tuple[DicomStudy
             ),
         )
     return tuple(merged.values())
+
+
+def _link_studies_to_supports(
+    studies: tuple[DicomStudy, ...],
+) -> tuple[DicomStudy, ...]:
+    """Link instance-grouped studies to their extracted DICOM supports.
+
+    Parameters
+    ----------
+    studies : tuple[DicomStudy, ...]
+        Coalesced DICOM support and clinical-study records.
+
+    Returns
+    -------
+    tuple[DicomStudy, ...]
+        Records where grouped studies inherit the extracted support and any
+        configured, browser-openable viewer from the support containing their
+        instance files.
+
+    Notes
+    -----
+    A clinical study grouped from staged instance files has no extracted root
+    of its own.  The association is derived from file containment, not from
+    archive names, so preview and DICOMDIR generation can use the same source
+    support.
+    """
+
+    supports = tuple(
+        study
+        for study in studies
+        if study.extracted_path is not None and study.extracted_path.is_dir()
+    )
+    linked = []
+    for study in studies:
+        if study.extracted_path is not None or not study.support_paths:
+            linked.append(study)
+            continue
+        candidates = tuple(
+            support
+            for support in supports
+            if any(
+                _path_is_within(instance_path, support.extracted_path)
+                for instance_path in study.support_paths
+            )
+        )
+        if not candidates:
+            linked.append(study)
+            continue
+        preferred = min(candidates, key=lambda item: str(item.extracted_path))
+        linked.append(
+            replace(
+                study,
+                extracted_path=preferred.extracted_path,
+                viewer_paths=_deduplicate_paths(
+                    (*study.viewer_paths, *preferred.viewer_paths)
+                ),
+                html_viewer_path=study.html_viewer_path or preferred.html_viewer_path,
+            )
+        )
+    return tuple(linked)
+
+
+def _path_is_within(path: Path, root: Path | None) -> bool:
+    """Return whether a path is contained by an extracted support root.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Candidate DICOM instance path.
+    root : pathlib.Path | None
+        Extracted support root.
+
+    Returns
+    -------
+    bool
+        ``True`` when ``path`` is inside ``root``.
+    """
+
+    if root is None:
+        return False
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _study_merge_sort_key(study: DicomStudy) -> tuple[int, str]:
@@ -1043,11 +1183,13 @@ def _manual_extracted_path(
     return None
 
 
-def _viewer_paths(extracted_path: Path) -> tuple[Path, ...]:
+def _viewer_paths(person: PersonConfig, extracted_path: Path) -> tuple[Path, ...]:
     """Find likely DICOM viewer launch files in an extracted directory.
 
     Parameters
     ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration containing the ingestion policy.
     extracted_path : pathlib.Path
         Manually expanded study directory.
 
@@ -1059,6 +1201,8 @@ def _viewer_paths(extracted_path: Path) -> tuple[Path, ...]:
 
     candidates = []
     for path in extracted_path.rglob("*"):
+        if _is_excluded_dicom_path(person, extracted_path, path):
+            continue
         if path.is_file() and path.name.lower() in {
             "viewer.exe",
             "start.exe",
@@ -1070,11 +1214,13 @@ def _viewer_paths(extracted_path: Path) -> tuple[Path, ...]:
     return tuple(sorted(candidates))
 
 
-def _html_viewer_path(extracted_path: Path) -> Path | None:
+def _html_viewer_path(person: PersonConfig, extracted_path: Path) -> Path | None:
     """Return the preferred HTML viewer entrypoint in an extracted support.
 
     Parameters
     ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration containing the ingestion policy.
     extracted_path : pathlib.Path
         Manually expanded or staged DICOM support directory.
 
@@ -1085,7 +1231,11 @@ def _html_viewer_path(extracted_path: Path) -> Path | None:
         available.
     """
 
-    candidates = tuple(path for path in extracted_path.rglob("*") if path.is_file())
+    candidates = tuple(
+        path
+        for path in extracted_path.rglob("*")
+        if path.is_file() and not _is_excluded_dicom_path(person, extracted_path, path)
+    )
     ihe_studies = _html_candidates_under(candidates, ("ihe_pdi", "pages", "studies"))
     if ihe_studies:
         return ihe_studies[0]
@@ -1100,6 +1250,35 @@ def _html_viewer_path(extracted_path: Path) -> Path | None:
     if named:
         return tuple(sorted(named))[0]
     return None
+
+
+def _is_excluded_dicom_path(
+    person: PersonConfig,
+    extracted_path: Path,
+    path: Path,
+) -> bool:
+    """Return whether ingestion configuration excludes a DICOM support path.
+
+    Parameters
+    ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration containing include and exclude patterns.
+    extracted_path : pathlib.Path
+        Root directory extracted from the DICOM support.
+    path : pathlib.Path
+        Candidate file or directory below the extracted root.
+
+    Returns
+    -------
+    bool
+        ``True`` when the configured ingestion policy excludes the path.
+    """
+
+    try:
+        relative = path.relative_to(extracted_path).as_posix()
+    except ValueError:
+        return False
+    return _is_excluded_by_ingestion(relative, person.ingestion)
 
 
 def _html_candidates_under(

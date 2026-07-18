@@ -61,7 +61,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     material_stylesheet = result.material_stylesheet.read_text(encoding="utf-8").lower()
     generated = "\n".join(
         (index, script, helper, stylesheet, material, material_stylesheet)
-    )
+    ).replace("https://github.com/marco0560/sanikey", "")
     forbidden_fragments = (
         "telemetry",
         "document.cookie",
@@ -88,6 +88,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "setupsections" in helper
     assert "showsection" in helper
     assert "matchmedia" in helper
+    assert "data-detail-link" in script
+    assert "setuptimelinedetaillinks" in script
     assert "custom-elements" not in material
     assert "customElements.define".lower() in material
     assert "function formatdate(value)" in script
@@ -99,9 +101,11 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "item.href" in script
     assert "item.viewer_href" in script
     assert "apri studio dicom" in script
+    assert script.count('target="_blank" rel="noopener">apri originale') == 3
     assert "scarica supporto originale" not in script
     assert "renderdicomstudies" in script
     assert "configuredicomnavigation" in script
+    assert "https://github.com/marco0560/sanikey" in index
     assert "rendertherapies" in script
     assert "configuretherapynavigation" in script
     assert "sortdicomstudies" in script

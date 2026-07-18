@@ -15,3 +15,4 @@ Decisioni successive:
 - [Lingua italiana per errori e interfaccia](adr-italian-interface-language.md)
 - [Immagini sorgente senza OCR diretto](adr-source-image-ocr-policy.md)
 - [Compatibilita' del PC di consultazione](adr-consultation-host-compatibility.md)
+- [Fogli illustrativi locali con verifica AIFA](adr-medication-leaflets.md)

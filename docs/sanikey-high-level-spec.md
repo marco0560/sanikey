@@ -195,6 +195,7 @@ File:
 document_tags.toml
 problems.toml
 medications.toml
+medication_leaflets.toml
 clinical_summary.toml
 
 Motivazione:

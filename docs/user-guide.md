@@ -163,7 +163,7 @@ confrontato sia con il path relativo sia con il solo nome file. Il confronto e'
 case-insensitive, quindi `"**/Help/**"` esclude anche `help`, `HELP` o
 combinazioni miste. `include_patterns` ha precedenza su `exclude_patterns` e
 serve a recuperare un file specifico dentro una directory esclusa. Gli stessi
-pattern filtrano anche la copia dei documenti
+pattern filtrano anche il rilevamento di viewer HTML nei supporti DICOM e la copia dei documenti
 originali in `export-usb`: un file escluso dall'ingestione non viene copiato
 nella directory `patients/<id>/documents` della chiavetta.
 
@@ -463,6 +463,8 @@ Le immagini sorgente `.jpg`, `.jpeg` e `.png` restano documenti consultabili e
 apribili dal frontend, ma SaniKey non esegue OCR diretto con Tesseract su questi
 file. Questa scelta evita testo rumoroso e tempi di build non necessari. I PDF
 scansionati restano invece gestiti dalla pipeline PDF con OCRmyPDF quando serve.
+L'azione `Apri originale` apre il file in una nuova scheda del browser, cosi' la
+ricerca e la posizione di consultazione restano disponibili nella scheda iniziale.
 
 ## Costruire un Archivio
 
@@ -526,6 +528,38 @@ La sintassi della ricerca avanzata è case-insensitive e accent-insensitive.
 Supporta parole, frasi tra virgolette, `AND`, `OR`, `NOT` e parentesi. Parole
 adiacenti equivalgono a `AND`, quindi `creatinina 2024` è equivalente a
 `creatinina AND 2024`.
+
+### Fogli Illustrativi Della Terapia
+
+I farmaci sono descritti normalmente in `metadata/medications.toml`: il
+paziente o l'operatore non inserisce AIC, URL o altri codici AIFA. Prima della
+build, su Linux con Internet, eseguire per ciascun paziente:
+
+```bash
+uv run sanikey resolve-medication-leaflets PATIENT
+```
+
+Il comando cerca il nome, il principio attivo, la forma e il dosaggio curati.
+Se trova un solo candidato, lo conferma e scrive
+`metadata/medication_leaflets.toml`. Se ne trova più di uno, stampa la lista e
+attende una scelta esplicita dell'operatore:
+
+```bash
+uv run sanikey resolve-medication-leaflets PATIENT --select FARMACO=NUMERO
+```
+
+Alle esecuzioni successive verifica ogni riferimento già confermato nella banca
+dati AIFA e lo conserva senza chiedere alcun intervento quando è ancora
+presente. Se AIFA non è raggiungibile, conserva il riferimento e segnala che la
+verifica non è stata possibile. Se il riferimento non è più presente o resta
+ambigua una nuova associazione, non sostituisce mai la scelta da solo.
+
+Durante `build-patient` o `build-all`, SaniKey riscarica FI e RCP dei
+riferimenti confermati. La scheda `Terapia` preferisce i PDF locali offline,
+indica la data dell'ultimo download riuscito e offre anche il collegamento AIFA
+per il controllo online. Le informazioni dei medicinali possono cambiare anche
+con lo stesso AIC; la copia locale resta quindi una fotografia alla data
+mostrata.
 
 La sezione `Sintesi Clinica` mostra una dashboard clinica sempre consultabile.
 Include, quando presenti, problemi, terapie, farmaci, osservazioni e procedure.
@@ -608,24 +642,6 @@ febbraio = ["02", "2"]
 Le espansioni sono simmetriche: cercare `rx` trova anche `radiografia`, e
 cercare `radiografia` trova anche `rx`.
 
-## Revisionare le Proposte
-
-La prima implementazione include proposte deterministiche da revisionare
-manualmente. I provider AI reali sono rimandati.
-
-Genera le proposte:
-
-```bash
-uv run sanikey generate-proposals --patient patient-a
-```
-
-Approva o rifiuta una proposta:
-
-```bash
-uv run sanikey review-proposal patient-a PROPOSAL-ID approved
-uv run sanikey review-proposal patient-a PROPOSAL-ID rejected
-```
-
 ## Esportare su USB
 
 Costruisci ed esporta tutti i pazienti abilitati verso una radice USB o una
@@ -694,6 +710,7 @@ policy operativa locale.
 Usa prima questi controlli:
 
 - `uv run sanikey validate-config`
+- `uv run sanikey resolve-medication-leaflets PATIENT-ID`
 - `uv run sanikey build-patient PATIENT-ID --mode full`
 - `uv run sanikey validate-usb /path/to/usb-root`
 - `uv run python scripts/validate_repo.py`

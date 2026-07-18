@@ -42,3 +42,7 @@ iniziale e restano rimandati per scelta progettuale:
 | 10 | Frontend statico | DA-079..DA-090, DA-113..DA-115 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` superato | `d3a3038` |
 | 11 | Export e deploy USB | DA-004..DA-005, DA-104..DA-112, DA-125..DA-129 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` superato | `67f17ce` |
 | 12 | Esempi, documentazione e accettazione finale | DA-013, DA-130..DA-144 | [x] | `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/validate_repo.py` superato | `9599181` |
+
+La fase 08 ha consegnato soltanto lo scaffold sperimentale delle proposte. Il
+ciclo completo di generazione da documenti, provenienza, revisione persistente
+e promozione tipizzata verso i metadati curati e' un gap di prodotto aperto.

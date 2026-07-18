@@ -587,6 +587,31 @@ Eseguire la build completa per tutti i pazienti abilitati:
 uv run sanikey build-all --mode full
 ```
 
+### Verifica FI e RCP
+
+Con una connessione Internet disponibile sul PC dell'operatore, risolvere i
+riferimenti AIFA prima della build. Il comando non chiede nulla per riferimenti
+già confermati e ancora presenti nella banca dati; richiede una scelta solo se
+un medicinale ha più candidati o un riferimento non è più riconosciuto.
+
+```bash
+uv run sanikey resolve-medication-leaflets patient-a
+uv run sanikey resolve-medication-leaflets patient-b
+```
+
+Per ogni riga che mostra più candidati, rieseguire con la scelta verificata:
+
+```bash
+uv run sanikey resolve-medication-leaflets patient-a --select FARMACO=NUMERO
+```
+
+Eseguire quindi la build. Verificare che in
+`local-data/generated/patient-a/medication-leaflets/` e nella copia USB siano
+presenti `foglio-illustrativo.pdf` e `rcp.pdf` per i farmaci confermati, e che
+la scheda `Terapia` indichi la data del download locale. Se AIFA non e'
+raggiungibile, il comando conserva le associazioni esistenti ma la build non
+puo' aggiornare la copia locale.
+
 In alternativa, per isolare un problema, eseguire un paziente alla volta:
 
 ```bash

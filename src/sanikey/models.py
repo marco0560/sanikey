@@ -125,6 +125,31 @@ class Medication:
 
 
 @dataclass(frozen=True)
+class MedicationLeaflet:
+    """Represent one confirmed AIFA medication-document reference.
+
+    Parameters
+    ----------
+    medication_id : str
+        Curated medication identifier.
+    codice_sis : str
+        AIFA organisation identifier.
+    aic6 : str
+        AIFA medicine identifier.
+    downloaded_at : str | None, optional
+        ISO date of the local document download.
+    source_fingerprint : str | None, optional
+        Stable fingerprint of the curated medication fields used for the lookup.
+    """
+
+    medication_id: str
+    codice_sis: str
+    aic6: str
+    downloaded_at: str | None = None
+    source_fingerprint: str | None = None
+
+
+@dataclass(frozen=True)
 class TherapyEpisode:
     """Represent one medication therapy interval.
 
@@ -311,6 +336,8 @@ class CuratedMetadata:
         Curated clinical problems.
     medications : tuple[Medication, ...]
         Curated medication identities.
+    medication_leaflets : tuple[MedicationLeaflet, ...]
+        Confirmed AIFA references for local medication documents.
     therapies : tuple[TherapyEpisode, ...]
         Curated therapy episodes.
     procedures : tuple[Procedure, ...]
@@ -331,6 +358,7 @@ class CuratedMetadata:
 
     problems: tuple[ClinicalProblem, ...] = ()
     medications: tuple[Medication, ...] = ()
+    medication_leaflets: tuple[MedicationLeaflet, ...] = ()
     therapies: tuple[TherapyEpisode, ...] = ()
     procedures: tuple[Procedure, ...] = ()
     observations: tuple[Observation, ...] = ()

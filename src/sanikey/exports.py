@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
+from .leaflets import leaflet_download_dates, leaflet_urls
 from .markdown import render_markdown
 from .models import TimelineEvent
 
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
         CuratedMetadata,
         DocumentRecord,
         Medication,
+        MedicationLeaflet,
         Observation,
         Procedure,
         TherapyEpisode,
@@ -97,7 +99,12 @@ def generate_exports(
         _document_payload(person, document, metadata, dicom_viewers)
         for document in ordered_documents
     ]
-    clinical_payload = _clinical_payload(person, metadata, dicom_studies)
+    clinical_payload = _clinical_payload(
+        person,
+        metadata,
+        dicom_studies,
+        leaflet_download_dates(person.local_build),
+    )
     search_payload = [
         *(
             _document_search_payload(person, document, metadata, dicom_viewers)
@@ -340,6 +347,8 @@ def _dicom_viewers_by_support(
     ----------
     dicom_studies : tuple[DicomStudy, ...]
         Cataloged DICOM studies.
+    leaflet_dates : dict[str, str]
+        Successful local FI download dates keyed by medication id.
 
     Returns
     -------
@@ -733,6 +742,7 @@ def _clinical_payload(
     person: PersonConfig,
     metadata: CuratedMetadata,
     dicom_studies: tuple[DicomStudy, ...],
+    leaflet_dates: dict[str, str],
 ) -> dict[str, Any]:
     """Build frontend payloads for curated clinical entities.
 
@@ -744,6 +754,8 @@ def _clinical_payload(
         Curated metadata.
     dicom_studies : tuple[DicomStudy, ...]
         Cataloged DICOM studies.
+    leaflet_dates : dict[str, str]
+        Successful local FI download dates keyed by medication id.
 
     Returns
     -------
@@ -751,8 +763,14 @@ def _clinical_payload(
         JSON-serializable clinical dashboard payload.
     """
 
+    leaflets = {item.medication_id: item for item in metadata.medication_leaflets}
     medications = {
-        medication.id: _medication_payload(medication)
+        medication.id: _medication_payload(
+            person,
+            medication,
+            leaflets.get(medication.id),
+            leaflet_dates.get(medication.id),
+        )
         for medication in metadata.medications
     }
     series_names = {series.id: series.name for series in metadata.observation_series}
@@ -806,13 +824,24 @@ def _problem_payload(problem: ClinicalProblem) -> dict[str, Any]:
     }
 
 
-def _medication_payload(medication: Medication) -> dict[str, Any]:
+def _medication_payload(
+    person: PersonConfig,
+    medication: Medication,
+    leaflet: MedicationLeaflet | None,
+    downloaded_at: str | None,
+) -> dict[str, Any]:
     """Build one medication frontend payload.
 
     Parameters
     ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration used to locate local leaflet copies.
     medication : Medication
         Medication model.
+    leaflet : sanikey.models.MedicationLeaflet | None
+        Confirmed AIFA reference, when available.
+    downloaded_at : str | None
+        Actual date of the local FI download, when present.
 
     Returns
     -------
@@ -825,7 +854,7 @@ def _medication_payload(medication: Medication) -> dict[str, Any]:
         {"label": "Forma", "value": medication.form},
         {"label": "Dosaggio per unita'", "value": medication.strength_per_unit},
     ]
-    return {
+    payload = {
         "id": medication.id,
         "type": "medication",
         "title": medication.name,
@@ -844,6 +873,21 @@ def _medication_payload(medication: Medication) -> dict[str, Any]:
         ).strip(),
         "fields": [field for field in fields if field["value"]],
     }
+    if leaflet is not None:
+        local = person.local_build / "medication-leaflets" / medication.id
+        payload.update(
+            {
+                "leaflet_href": f"../medication-leaflets/{medication.id}/foglio-illustrativo.pdf"
+                if (local / "foglio-illustrativo.pdf").is_file()
+                else None,
+                "rcp_href": f"../medication-leaflets/{medication.id}/rcp.pdf"
+                if (local / "rcp.pdf").is_file()
+                else None,
+                "leaflet_downloaded_at": downloaded_at or leaflet.downloaded_at,
+                **leaflet_urls(leaflet),
+            }
+        )
+    return payload
 
 
 def _therapy_payload(
@@ -910,6 +954,11 @@ def _therapy_payload(
             if item
         ).strip(),
         "fields": _visible_fields(fields),
+        "leaflet_href": medication.get("leaflet_href"),
+        "rcp_href": medication.get("rcp_href"),
+        "leaflet_downloaded_at": medication.get("leaflet_downloaded_at"),
+        "aifa_fi_url": medication.get("aifa_fi_url"),
+        "aifa_rcp_url": medication.get("aifa_rcp_url"),
     }
 
 

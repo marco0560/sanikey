@@ -25,7 +25,13 @@ from .exports import generate_exports
 from .frontend import build_frontend
 from .inspection import inspect_patient_documents
 from .integrity import check_source_snapshots, write_source_snapshot
+from .leaflets import (
+    lookup_aifa_candidates,
+    medication_fingerprint,
+    write_confirmed_references,
+)
 from .metadata import load_curated_metadata
+from .models import MedicationLeaflet
 from .observation_imports import import_observations
 from .privacy import validate_privacy
 from .progress import ProgressDots
@@ -127,12 +133,17 @@ def build_parser() -> argparse.ArgumentParser:
         parser_class=ItalianArgumentParser,
     )
 
-    info_parser = subparsers.add_parser("info", help="Mostra informazioni progetto")
+    info_parser = subparsers.add_parser(
+        "info",
+        help="Mostra informazioni progetto",
+        description="Mostra le informazioni essenziali del progetto SaniKey.",
+    )
     info_parser.set_defaults(func=run_info)
 
     validate_parser = subparsers.add_parser(
         "validate-config",
         help="Valida la configurazione account locale e i vincoli di privacy",
+        description="Verifica configurazione locale, metadati e vincoli di privacy.",
     )
     _add_config_arguments(validate_parser)
     validate_parser.set_defaults(func=run_validate_config)
@@ -140,6 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser = subparsers.add_parser(
         "list-patients",
         help="Elenca i pazienti configurati",
+        description="Elenca i pazienti configurati e il loro stato di abilitazione.",
     )
     _add_config_arguments(list_parser)
     list_parser.add_argument(
@@ -153,6 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser = subparsers.add_parser(
         "scan-documents",
         help="Scansiona i documenti sorgente configurati",
+        description="Inventaria i documenti sorgente e i contenitori rilevati.",
     )
     _add_config_arguments(scan_parser)
     scan_parser.add_argument("-p", "--patient", help="Scansiona solo un id paziente")
@@ -193,6 +206,7 @@ def build_parser() -> argparse.ArgumentParser:
     integrity_parser = subparsers.add_parser(
         "document-integrity",
         help="Crea o verifica snapshot di integrita' dei documenti sorgente",
+        description="Crea o verifica snapshot di integrita' dei documenti sorgente.",
     )
     _add_config_arguments(integrity_parser, allow_config_flag=True)
     integrity_parser.add_argument(
@@ -213,6 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
     extract_parser = subparsers.add_parser(
         "extract-text",
         help="Estrae il testo supportato dai documenti sorgente configurati",
+        description="Estrae e segnala il testo dei documenti sorgente supportati.",
     )
     _add_config_arguments(extract_parser)
     extract_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
@@ -227,6 +242,7 @@ def build_parser() -> argparse.ArgumentParser:
     observations_parser = subparsers.add_parser(
         "import-observations",
         help="Importa misurazioni longitudinali da CSV e fogli di calcolo",
+        description="Importa misurazioni longitudinali da sorgenti dichiarate.",
     )
     _add_config_arguments(observations_parser, allow_config_flag=True)
     observations_parser.add_argument(
@@ -239,6 +255,7 @@ def build_parser() -> argparse.ArgumentParser:
     dicom_parser = subparsers.add_parser(
         "process-dicom",
         help="Cataloga supporti DICOM e directory di espansione manuale",
+        description="Cataloga studi DICOM e verifica i supporti che li contengono.",
     )
     _add_config_arguments(dicom_parser)
     dicom_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
@@ -260,6 +277,7 @@ def build_parser() -> argparse.ArgumentParser:
     database_parser = subparsers.add_parser(
         "build-database",
         help="Costruisce database SQLite di archivio per paziente",
+        description="Costruisce il database SQLite per i pazienti selezionati.",
     )
     _add_config_arguments(database_parser)
     database_parser.add_argument(
@@ -270,6 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_patient_parser = subparsers.add_parser(
         "build-patient",
         help="Esegue la pipeline di build locale per un paziente",
+        description="Esegue l'intera build locale per un solo paziente.",
     )
     _add_config_arguments(build_patient_parser, allow_config_flag=True)
     build_patient_parser.add_argument("patient")
@@ -285,6 +304,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_all_parser = subparsers.add_parser(
         "build-all",
         help="Esegue la pipeline di build locale per tutti i pazienti abilitati",
+        description="Esegue l'intera build locale per tutti i pazienti abilitati.",
     )
     _add_config_arguments(build_all_parser)
     build_all_parser.add_argument(
@@ -299,6 +319,7 @@ def build_parser() -> argparse.ArgumentParser:
     update_parser = subparsers.add_parser(
         "update-archive",
         help="Esegue l'aggiornamento incrementale predefinito dell'archivio",
+        description="Aggiorna incrementalmente l'archivio di uno o tutti i pazienti.",
     )
     _add_config_arguments(update_parser)
     update_parser.add_argument("-p", "--patient", help="Aggiorna solo un id paziente")
@@ -306,7 +327,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     proposals_parser = subparsers.add_parser(
         "generate-proposals",
-        help="Genera proposte deterministiche per revisione manuale",
+        help="Sperimentale: genera un segnaposto per revisione manuale",
+        description="Sperimentale: genera un segnaposto non operativo per revisione.",
     )
     _add_config_arguments(proposals_parser)
     proposals_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
@@ -314,7 +336,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     review_parser = subparsers.add_parser(
         "review-proposal",
-        help="Approva o respinge una proposta salvata",
+        help="Sperimentale: cambia lo stato di una proposta salvata",
+        description="Sperimentale: cambia lo stato senza promuovere metadati curati.",
     )
     _add_config_arguments(review_parser, allow_config_flag=True)
     review_parser.add_argument("patient")
@@ -322,9 +345,29 @@ def build_parser() -> argparse.ArgumentParser:
     review_parser.add_argument("status", choices=("approved", "rejected"))
     review_parser.set_defaults(func=run_review_proposal)
 
+    leaflet_parser = subparsers.add_parser(
+        "resolve-medication-leaflets",
+        help="Cerca e conferma riferimenti AIFA per FI e RCP",
+        description=(
+            "Verifica i riferimenti AIFA e richiede una scelta solo nei casi ambigui."
+        ),
+    )
+    _add_config_arguments(leaflet_parser, allow_config_flag=True)
+    leaflet_parser.add_argument("patient", help="Id del paziente da elaborare")
+    leaflet_parser.add_argument(
+        "-s",
+        "--select",
+        action="append",
+        default=[],
+        metavar="FARMACO=NUMERO",
+        help="Conferma un candidato numerato, per esempio metformina=1",
+    )
+    leaflet_parser.set_defaults(func=run_resolve_medication_leaflets)
+
     exports_parser = subparsers.add_parser(
         "generate-exports",
         help="Genera export JSON statici per frontend, ricerca e timeline",
+        description="Genera gli export JSON statici per consultazione e ricerca.",
     )
     _add_config_arguments(exports_parser)
     exports_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
@@ -333,6 +376,7 @@ def build_parser() -> argparse.ArgumentParser:
     web_parser = subparsers.add_parser(
         "build-web",
         help="Genera file frontend statici",
+        description="Genera il frontend statico del paziente selezionato.",
     )
     _add_config_arguments(web_parser)
     web_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
@@ -341,6 +385,7 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser = subparsers.add_parser(
         "export-usb",
         help="Esporta gli artefatti generati in una directory layout USB",
+        description="Copia gli artefatti generati in una directory USB pronta all'uso.",
     )
     _add_config_arguments(export_parser, allow_config_flag=True)
     export_parser.add_argument("target", type=Path)
@@ -350,6 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate_usb_parser = subparsers.add_parser(
         "validate-usb",
         help="Valida una directory layout USB generata",
+        description="Verifica integrita' e struttura di una directory USB generata.",
     )
     validate_usb_parser.add_argument("target", type=Path)
     validate_usb_parser.set_defaults(func=run_validate_usb)
@@ -357,6 +403,7 @@ def build_parser() -> argparse.ArgumentParser:
     deploy_parser = subparsers.add_parser(
         "deploy-usb",
         help="Costruisce tutti i pazienti abilitati e li esporta in un layout USB",
+        description="Costruisce ed esporta tutti i pazienti abilitati su USB.",
     )
     _add_config_arguments(deploy_parser, allow_config_flag=True)
     deploy_parser.add_argument("target", type=Path)
@@ -410,7 +457,7 @@ def run_validate_config(args: argparse.Namespace) -> int:
         return 1
     enabled = len(config.enabled_people())
     total = len(config.people)
-    print(f"configurazione={config.path}")
+    print(f"configurazione={_repo_relative_path(config.path)}")
     print(f"pazienti={total}")
     print(f"abilitati={enabled}")
     print("stato=ok")
@@ -520,7 +567,10 @@ def run_scan_documents(args: argparse.Namespace) -> int:
                 output_format=args.format or "text",
             )
         except OSError as exc:
-            print(f"ERRORE: impossibile scrivere l'output della scansione: {exc}")
+            print(
+                "ERRORE: impossibile scrivere l'output della scansione "
+                f"{_repo_relative_path(args.output)}: {_repo_relative_text(str(exc))}"
+            )
             return 1
     return 0
 
@@ -562,8 +612,9 @@ def run_document_integrity(args: argparse.Namespace) -> int:
             continue
         print(
             f"paziente={result.patient_id} azione={args.action} "
-            f"stato={result.status} sha256={result.sha256_path} "
-            f"mtime={result.mtime_path}"
+            f"stato={result.status} "
+            f"sha256={_repo_relative_path(result.sha256_path)} "
+            f"mtime={_repo_relative_path(result.mtime_path)}"
         )
         if result.status != "ok" and args.action == "check":
             status = 1
@@ -841,6 +892,27 @@ def _repo_relative_path(path: Path, *, repo_root: Path | None = None) -> str:
         return str(path)
 
 
+def _repo_relative_text(value: str, *, repo_root: Path | None = None) -> str:
+    """Abbreviate repository paths embedded in a diagnostic message.
+
+    Parameters
+    ----------
+    value : str
+        Diagnostic text that can contain one or more absolute paths.
+    repo_root : pathlib.Path | None, optional
+        Repository root. When omitted, the current working directory is used.
+
+    Returns
+    -------
+    str
+        Diagnostic text with paths below the repository rendered relatively.
+    """
+
+    selected_root = Path.cwd() if repo_root is None else repo_root
+    root_text = f"{selected_root.resolve(strict=False)}/"
+    return value.replace(root_text, "")
+
+
 def _format_extract_text_result(
     person: PersonConfig,
     document: DocumentRecord,
@@ -1047,7 +1119,11 @@ def _print_process_dicom_human(
                 continue
             print(
                 "\t".join(
-                    (patient_id, "staging", f"problema: {_single_line_text(warning)}")
+                    (
+                        patient_id,
+                        "staging",
+                        f"problema: {_single_line_text(_repo_relative_text(warning))}",
+                    )
                 )
             )
 
@@ -1075,7 +1151,9 @@ def _format_process_dicom_human_result(
     """
 
     if warnings:
-        return f"problema: {'; '.join(_single_line_text(item) for item in warnings)}"
+        return "problema: " + "; ".join(
+            _single_line_text(_repo_relative_text(item)) for item in warnings
+        )
     if study_count == 0:
         return "nessuno studio DICOM"
     if study_count == 1:
@@ -1305,7 +1383,7 @@ def _print_process_dicom_verbose(
             print(f"AVVISO: {path}: {warning}")
     if staging is not None:
         for warning in staging.warning_messages:
-            print(f"AVVISO: {warning}")
+            print(f"AVVISO: {_repo_relative_text(warning)}")
 
 
 def run_build_database(args: argparse.Namespace) -> int:
@@ -1333,7 +1411,7 @@ def run_build_database(args: argparse.Namespace) -> int:
         dicom_studies = catalog_dicom_studies(person, documents)
         result = build_database(person, documents, metadata, dicom_studies)
         print(
-            f"paziente={person.id} database={result.path} "
+            f"paziente={person.id} database={_repo_relative_path(result.path)} "
             f"documenti={result.documents} studi_dicom={result.dicom_studies}"
         )
     return 0
@@ -1530,6 +1608,138 @@ def run_review_proposal(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_resolve_medication_leaflets(args: argparse.Namespace) -> int:
+    """Find and persist explicitly confirmed AIFA medication references.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(_config_path(args))
+        people = _selected_people(config, args.patient)
+        if len(people) != 1:
+            print(f"ERRORE: paziente non trovato o disabilitato: {args.patient}")
+            return 1
+        selected = _parse_leaflet_selections(args.select)
+        metadata = load_curated_metadata(people[0].metadata_directory)
+        references = {
+            reference.medication_id: reference
+            for reference in metadata.medication_leaflets
+        }
+        unresolved = 0
+        for medication in metadata.medications:
+            candidates = lookup_aifa_candidates(medication)
+            current = references.get(medication.id)
+            if candidates is None:
+                if current is not None:
+                    print(
+                        f"farmaco={medication.id} riferimento AIFA conservato "
+                        "(verifica AIFA non disponibile)"
+                    )
+                else:
+                    print(
+                        f"farmaco={medication.id} ricerca AIFA non disponibile; "
+                        "nessun riferimento creato"
+                    )
+                    unresolved += 1
+                continue
+            current_index = next(
+                (
+                    index
+                    for index, candidate in enumerate(candidates, start=1)
+                    if current is not None
+                    and candidate.codice_sis == current.codice_sis
+                    and candidate.aic6 == current.aic6
+                ),
+                None,
+            )
+            if current is not None and current_index is not None:
+                references[medication.id] = MedicationLeaflet(
+                    medication.id,
+                    current.codice_sis,
+                    current.aic6,
+                    current.downloaded_at,
+                    medication_fingerprint(medication),
+                )
+                print(f"farmaco={medication.id} riferimento AIFA verificato")
+                continue
+            print(
+                f"farmaco={medication.id} nome={medication.name} candidati={len(candidates)}"
+            )
+            for index, candidate in enumerate(candidates, start=1):
+                print(
+                    f"  {index}. {candidate.title} AIFA={candidate.codice_sis}/{candidate.aic6}"
+                )
+            choice = selected.get(medication.id)
+            if choice is None and len(candidates) == 1:
+                choice = 1
+                print(
+                    f"farmaco={medication.id} riferimento AIFA confermato automaticamente"
+                )
+            if choice is None:
+                unresolved += 1
+                continue
+            if choice < 1 or choice > len(candidates):
+                print(f"ERRORE: selezione non valida per {medication.id}: {choice}")
+                return 1
+            candidate = candidates[choice - 1]
+            references[medication.id] = MedicationLeaflet(
+                medication.id,
+                candidate.codice_sis,
+                candidate.aic6,
+                source_fingerprint=medication_fingerprint(medication),
+            )
+        if references:
+            target = write_confirmed_references(
+                people[0].metadata_directory, tuple(references.values())
+            )
+            print(
+                f"paziente={people[0].id} riferimenti_confermati={len(references)} "
+                f"da_confermare={unresolved} {_repo_relative_path(target)}"
+            )
+    except SaniKeyError as exc:
+        print(f"ERRORE: {exc}")
+        return 1
+    return 0
+
+
+def _parse_leaflet_selections(values: list[str]) -> dict[str, int]:
+    """Parse ``medication_id=number`` confirmation arguments.
+
+    Parameters
+    ----------
+    values : list[str]
+        Raw command-line selections.
+
+    Returns
+    -------
+    dict[str, int]
+        Candidate index keyed by medication id.
+
+    Raises
+    ------
+    SaniKeyError
+        If a selection is malformed.
+    """
+
+    selected = {}
+    for value in values:
+        medication_id, separator, number = value.partition("=")
+        if not medication_id or separator != "=" or not number.isdigit():
+            message = f"selezione foglio illustrativo non valida: {value}"
+            raise SaniKeyError(message)  # noqa: TRY003
+        selected[medication_id] = int(number)
+    return selected
+
+
 def run_generate_exports(args: argparse.Namespace) -> int:
     """Generate static JSON exports.
 
@@ -1549,7 +1759,7 @@ def run_generate_exports(args: argparse.Namespace) -> int:
         for person in _selected_people(config, args.patient):
             metadata = load_curated_metadata(person.metadata_directory)
             result = generate_exports(person, scan_documents(person), metadata)
-            print(f"paziente={person.id} dati={result.data_dir}")
+            print(f"paziente={person.id} dati={_repo_relative_path(result.data_dir)}")
     except SaniKeyError as exc:
         print(f"ERRORE: {exc}")
         return 1
@@ -1574,7 +1784,7 @@ def run_build_web(args: argparse.Namespace) -> int:
         config = load_accounts(_config_path(args))
         for person in _selected_people(config, args.patient):
             result = build_frontend(person)
-            print(f"paziente={person.id} web={result.web_dir}")
+            print(f"paziente={person.id} web={_repo_relative_path(result.web_dir)}")
     except SaniKeyError as exc:
         print(f"ERRORE: {exc}")
         return 1
@@ -1598,7 +1808,10 @@ def run_export_usb(args: argparse.Namespace) -> int:
     try:
         config = load_accounts(_config_path(args))
         result = export_usb(config, args.target, progress=_progress_from_args(args))
-        print(f"usb={result.root} pazienti={result.patients} file={result.files}")
+        print(
+            f"usb={_repo_relative_path(result.root)} "
+            f"pazienti={result.patients} file={result.files}"
+        )
     except SaniKeyError as exc:
         print(f"ERRORE: {exc}")
         return 1
@@ -1683,14 +1896,14 @@ def _print_build_result(result: PatientBuildResult) -> None:
         f"documenti_estratti={result.extracted_documents} "
         f"documenti_cached={result.cached_documents}"
     )
-    print(f"build_root={result.build_root}")
-    print(f"database={result.database}")
-    print(f"manifest={result.manifest}")
-    print(f"checksums={result.checksums}")
-    print(f"report={result.report}")
+    print(f"build_root={_repo_relative_path(result.build_root)}")
+    print(f"database={_repo_relative_path(result.database)}")
+    print(f"manifest={_repo_relative_path(result.manifest)}")
+    print(f"checksums={_repo_relative_path(result.checksums)}")
+    print(f"report={_repo_relative_path(result.report)}")
     for warning in result.warning_messages:
         if _should_print_build_warning(warning):
-            print(f"AVVISO: {warning}")
+            print(f"AVVISO: {_repo_relative_text(warning)}")
     if result.warnings:
         print("Avvisi=vedi report")
 

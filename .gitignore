@@ -12,8 +12,14 @@ generated/
 exports/
 logs/
 local-data/
-scripts/reload.sh
 immagini/*.png
+
+# -------------------------------
+# Local Scripts
+# -------------------------------
+scripts/reload.sh
+scripts/test-comandi.sh
+output.log
 
 # -------------------------------
 # Virtual environments

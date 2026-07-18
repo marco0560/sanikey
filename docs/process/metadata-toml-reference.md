@@ -132,6 +132,26 @@ form = "compresse rivestite"
 strength_per_unit = "100 mg"
 ```
 
+## `medication_leaflets.toml`
+
+Questo file e' generato da `resolve-medication-leaflets`; non compilare a mano
+gli identificativi AIFA. Associa un farmaco già presente in `medications.toml`
+alla sua fonte AIFA, dopo conferma automatica univoca o scelta dell'operatore
+nei soli casi ambigui. `source_fingerprint` è gestito da SaniKey e consente di
+riconoscere modifiche ai dati curati del farmaco.
+
+```toml
+[[leaflet]]
+medication_id = "atenololo"
+codice_sis = "123456"
+aic6 = "012345"
+source_fingerprint = "..."
+```
+
+`downloaded_at`, se presente, descrive una precedente copia locale. La data
+mostrata nell'export proviene invece dal manifesto generato durante la build e
+corrisponde all'ultimo download FI riuscito.
+
 ## `therapies.toml`
 
 Contiene episodi o terapie in corso che fanno riferimento a `medications.toml`.
