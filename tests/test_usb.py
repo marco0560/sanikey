@@ -6,12 +6,17 @@ import json
 import os
 import zipfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from sanikey.build import build_patient
 from sanikey.config import AccountsConfig, IngestionConfig, PersonConfig
+from sanikey.rendering import ConsultationRenderResult
 from sanikey.usb import export_usb, usb_image_root, validate_usb
+
+if TYPE_CHECKING:
+    from sanikey.models import DocumentRecord
 
 
 def _person(tmp_path: Path, patient_id: str, display_name: str) -> PersonConfig:
@@ -431,13 +436,16 @@ def test_validate_usb_rejects_tampered_checksum(tmp_path: Path) -> None:
 
 def test_export_usb_prefers_rendered_office_documents(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify Office documents use local rendered PDFs before their originals.
+    """Verify Office documents use locally rendered PDFs before their originals.
 
     Parameters
     ----------
     tmp_path : pathlib.Path
         Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
 
     Returns
     -------
@@ -448,6 +456,40 @@ def test_export_usb_prefers_rendered_office_documents(
     person.source_documents.mkdir(parents=True)
     (person.source_documents / "20260102 Workbook.xlsx").write_bytes(b"xlsx")
     (person.source_documents / "20260103 Letter.doc").write_bytes(b"doc")
+
+    def render_office_documents(
+        rendered_person: PersonConfig,
+        documents: tuple[DocumentRecord, ...],
+    ) -> ConsultationRenderResult:
+        """Create deterministic synthetic PDFs for each Office document.
+
+        Parameters
+        ----------
+        rendered_person : sanikey.config.PersonConfig
+            Patient configuration passed to the build renderer.
+        documents : tuple[sanikey.models.DocumentRecord, ...]
+            Documents presented to the build renderer.
+
+        Returns
+        -------
+        sanikey.rendering.ConsultationRenderResult
+            Rendered office identifiers without warnings.
+        """
+
+        root = rendered_person.local_build / "rendered-documents"
+        rendered_ids = []
+        for document in documents:
+            if document.kind != "office":
+                continue
+            target = root / document.document_id / "document.pdf"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"%PDF-synthetic")
+            rendered_ids.append(document.document_id)
+        return ConsultationRenderResult(tuple(rendered_ids))
+
+    monkeypatch.setattr(
+        "sanikey.build.prepare_consultation_documents", render_office_documents
+    )
     build_patient(person, mode="full")
     config = AccountsConfig(
         config_version=1, people=(person,), path=tmp_path / "accounts.toml"
