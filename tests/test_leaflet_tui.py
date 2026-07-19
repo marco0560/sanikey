@@ -95,6 +95,8 @@ class _Screen:
         ----------
         keys : list[int]
             Key codes returned by ``getch`` in order.
+        query : bytes, optional
+            Pending text returned by ``getstr``.
 
         Returns
         -------
@@ -136,6 +138,10 @@ class _Screen:
     def erase(self) -> None:
         """Accept screen clearing.
 
+        Parameters
+        ----------
+        None
+
         Returns
         -------
         None
@@ -143,6 +149,10 @@ class _Screen:
 
     def getmaxyx(self) -> tuple[int, int]:
         """Return a realistic terminal size.
+
+        Parameters
+        ----------
+        None
 
         Returns
         -------
@@ -176,6 +186,10 @@ class _Screen:
     def refresh(self) -> None:
         """Accept a screen refresh.
 
+        Parameters
+        ----------
+        None
+
         Returns
         -------
         None
@@ -183,6 +197,10 @@ class _Screen:
 
     def getch(self) -> int:
         """Return the next synthetic key.
+
+        Parameters
+        ----------
+        None
 
         Returns
         -------
@@ -215,6 +233,10 @@ class _Screen:
 
 def _candidates() -> tuple[AifaCandidate, ...]:
     """Build two synthetic candidates for ncurses interaction tests.
+
+    Parameters
+    ----------
+    None
 
     Returns
     -------

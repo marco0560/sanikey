@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import subprocess
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sanikey import rendering
 from sanikey.config import PersonConfig
 from sanikey.documents import DocumentRecordOrigin, document_record_for_path
 from sanikey.exports import generate_exports
@@ -12,7 +15,7 @@ from sanikey.metadata import load_curated_metadata
 from sanikey.rendering import prepare_consultation_documents
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    import pytest
 
 
 def _person(tmp_path: Path) -> PersonConfig:
@@ -124,3 +127,162 @@ def test_generate_exports_lists_non_openable_documents_by_extension(
     assert technical.index('".bin"') < technical.index('".zip"')
     assert "legacy.bin" in technical
     assert "archive.zip" in technical
+
+
+def test_render_office_document_covers_converter_outcomes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify Office conversion handles missing, failing, and working tools.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "letter.docx"
+    source.write_text("synthetic", encoding="utf-8")
+    target = tmp_path / "letter.pdf"
+    monkeypatch.setattr(rendering.shutil, "which", lambda _name: None)
+    assert "Pandoc non installato" in rendering._render_office_document(
+        source, target, ".docx"
+    )
+    assert "LibreOffice non installato" in rendering._render_office_document(
+        source, target, ".doc"
+    )
+    assert rendering._render_office_document(source, target, ".bin") == (
+        "formato Office non supportato per la conversione PDF"
+    )
+
+    monkeypatch.setattr(rendering.shutil, "which", lambda _name: "/usr/bin/pandoc")
+    monkeypatch.setattr(
+        rendering.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess((), 1, stderr="errore"),
+    )
+    assert (
+        rendering._render_office_document(source, target, ".docx")
+        == "conversione PDF Pandoc non riuscita: errore"
+    )
+
+    def successful_pandoc(arguments: list[str], **_kwargs: object) -> object:
+        """Write the requested synthetic Pandoc PDF.
+
+        Parameters
+        ----------
+        arguments : list[str]
+            Pandoc command arguments.
+        _kwargs : object
+            Ignored subprocess keyword arguments.
+
+        Returns
+        -------
+        object
+            Successful process result.
+        """
+
+        Path(arguments[arguments.index("--output") + 1]).write_bytes(b"%PDF-test")
+        return subprocess.CompletedProcess(arguments, 0)
+
+    monkeypatch.setattr(rendering.subprocess, "run", successful_pandoc)
+    assert rendering._render_office_document(source, target, ".docx") is None
+    assert target.read_bytes() == b"%PDF-test"
+
+    def successful_libreoffice(arguments: list[str], **_kwargs: object) -> object:
+        """Write the synthetic PDF emitted by LibreOffice.
+
+        Parameters
+        ----------
+        arguments : list[str]
+            LibreOffice command arguments.
+        _kwargs : object
+            Ignored subprocess keyword arguments.
+
+        Returns
+        -------
+        object
+            Successful process result.
+        """
+
+        output_directory = Path(arguments[arguments.index("--outdir") + 1])
+        (output_directory / f"{source.stem}.pdf").write_bytes(b"%PDF-office")
+        return subprocess.CompletedProcess(arguments, 0)
+
+    monkeypatch.setattr(rendering.subprocess, "run", successful_libreoffice)
+    assert rendering._render_office_document(source, target, ".doc") is None
+    assert target.read_bytes() == b"%PDF-office"
+
+
+def test_prepare_documents_renders_office_and_resolves_source_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify Office render results and safe native-document fallback links.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir()
+    office = person.source_documents / "letter.docx"
+    text = person.source_documents / "note.txt"
+    foreign = tmp_path / "foreign.txt"
+    office.write_text("synthetic office", encoding="utf-8")
+    text.write_text("synthetic text", encoding="utf-8")
+    foreign.write_text("synthetic foreign", encoding="utf-8")
+    office_record = document_record_for_path(
+        office, root=person.source_documents, patient_id=person.id
+    )
+    text_record = document_record_for_path(
+        text, root=person.source_documents, patient_id=person.id
+    )
+    foreign_record = document_record_for_path(
+        foreign, root=tmp_path, patient_id=person.id
+    )
+
+    def render_office(_source: Path, target: Path, _suffix: str) -> None:
+        """Write a synthetic rendered PDF.
+
+        Parameters
+        ----------
+        _source : pathlib.Path
+            Ignored Office source document.
+        target : pathlib.Path
+            Rendered PDF destination.
+        _suffix : str
+            Ignored source suffix.
+
+        Returns
+        -------
+        None
+        """
+
+        target.write_bytes(b"%PDF-rendered")
+
+    monkeypatch.setattr(rendering, "_render_office_document", render_office)
+    result = prepare_consultation_documents(person, (office_record, text_record))
+
+    assert result.rendered_document_ids == (office_record.document_id,)
+    assert rendering.rendered_document_href(person, office_record).endswith(
+        "document.pdf"
+    )
+    assert (
+        rendering.rendered_document_href(person, text_record) == "../documents/note.txt"
+    )
+    assert rendering.rendered_document_href(person, foreign_record) is None

@@ -87,7 +87,9 @@ def test_validate_repo_render_run_and_main(
     commands = (("python", "tool.py", "ok"), ("python", "tool.py", "fail"))
     calls: list[tuple[str, ...]] = []
 
-    def fake_run(command: tuple[str, ...], *, cwd: Path, check: bool) -> object:
+    def fake_run(
+        command: tuple[str, ...], *, cwd: Path, check: bool, **_kwargs: object
+    ) -> object:
         calls.append(command)
         return subprocess.CompletedProcess(command, 1 if command[-1] == "fail" else 0)
 
@@ -111,6 +113,72 @@ def test_validate_repo_render_run_and_main(
     assert validate_repo.main([]) == 1
 
 
+def test_validate_repo_rejects_codira_audit_findings(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    """Verify Codira audit output is a failing validation result.
+
+    Parameters
+    ----------
+    monkeypatch : object
+        Pytest monkeypatch fixture.
+    capsys : object
+        Pytest capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    validate_repo = _load_script_module("validate_repo.py", "validate_repo")
+    commands = (("python", "scripts/run_repo_tool.py", "codira", "audit"),)
+    monkeypatch.setattr(
+        validate_repo.subprocess,
+        "run",
+        lambda command, **_kwargs: subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="missing_section: Function test: Missing section: Returns\n",
+            stderr="",
+        ),
+    )
+
+    assert validate_repo.run_validation(commands) == 1
+    assert "missing_section" in capsys.readouterr().out
+
+
+def test_validate_repo_accepts_clean_codira_audit(
+    monkeypatch: object,
+) -> None:
+    """Verify Codira's explicit clean-audit message remains successful.
+
+    Parameters
+    ----------
+    monkeypatch : object
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    validate_repo = _load_script_module("validate_repo.py", "validate_repo")
+    commands = (("python", "scripts/run_repo_tool.py", "codira", "audit"),)
+    monkeypatch.setattr(
+        validate_repo.subprocess,
+        "run",
+        lambda command, **_kwargs: subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="No docstring issues found\n",
+            stderr="",
+        ),
+    )
+
+    assert validate_repo.run_validation(commands) == 0
+
+
 def test_validate_repo_run_validation_defaults(monkeypatch: object) -> None:
     """Verify ``run_validation`` builds default commands when omitted.
 
@@ -129,7 +197,9 @@ def test_validate_repo_run_validation_defaults(monkeypatch: object) -> None:
     monkeypatch.setattr(
         validate_repo.subprocess,
         "run",
-        lambda command, *, cwd, check: subprocess.CompletedProcess(command, 0),
+        lambda command, *, cwd, check, **_kwargs: subprocess.CompletedProcess(
+            command, 0
+        ),
     )
 
     assert validate_repo.run_validation() == 0

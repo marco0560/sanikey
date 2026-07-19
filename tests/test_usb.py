@@ -10,8 +10,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from sanikey import usb
 from sanikey.build import build_patient
 from sanikey.config import AccountsConfig, IngestionConfig, PersonConfig
+from sanikey.errors import UsbError
 from sanikey.rendering import ConsultationRenderResult
 from sanikey.usb import export_usb, usb_image_root, validate_usb
 
@@ -681,3 +683,91 @@ def test_export_usb_optional_real_filesystem_target(tmp_path: Path) -> None:
     result = export_usb(config, target)
 
     assert validate_usb(result.root)
+
+
+def test_usb_helpers_reject_invalid_links_and_copy_without_rsync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify helper validation rejects unsafe links and retains a copy fallback.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    web = tmp_path / "patient" / "web"
+    web.mkdir(parents=True)
+    assert not usb._validate_frontend_links(web)
+    (web / "data.js").write_text("not JSON", encoding="utf-8")
+    assert not usb._validate_frontend_links(web)
+    assert not usb._validate_relative_href(web, "/host-local/document.pdf")
+    assert not usb._validate_relative_href(web, "../../outside.pdf")
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "report.txt").write_text("synthetic", encoding="utf-8")
+    target = tmp_path / "target"
+    target.write_text("replace me", encoding="utf-8")
+    usb._replace_tree(source, target)
+    assert (target / "report.txt").read_text(encoding="utf-8") == "synthetic"
+
+    copied = tmp_path / "copied"
+    copied.mkdir()
+    monkeypatch.setattr(usb.shutil, "which", lambda _name: None)
+    usb._rsync_directory_contents(source, copied)
+    assert (copied / "report.txt").read_text(encoding="utf-8") == "synthetic"
+
+
+def test_usb_helpers_validate_physical_target_and_viewer_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify physical-target checks and malformed viewer entries fail safely.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path, "patient-a", "Patient A")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "config" / "accounts.toml"
+    )
+    image = tmp_path / "image"
+    image.mkdir()
+    (image / "payload.txt").write_text("synthetic", encoding="utf-8")
+    target = tmp_path / "usb"
+    monkeypatch.setattr(
+        usb,
+        "_find_mount_info",
+        lambda _target: {"uuid": "wrong", "fstype": "ext4", "target": "/media/usb"},
+    )
+    monkeypatch.setattr(usb, "_is_likely_physical_target", lambda _target: True)
+    with pytest.raises(UsbError, match="UUID filesystem USB non corrispondente"):
+        usb._validate_physical_target(config, image, target)
+
+    local_build = tmp_path / "generated"
+    manifest = local_build / "manifests" / "dicom_html_viewers.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        json.dumps({"viewers": ["invalid", {"study_id": "missing-fields"}]}),
+        encoding="utf-8",
+    )
+    viewer_target = tmp_path / "viewers"
+    usb._copy_dicom_html_viewers(local_build, viewer_target)
+    assert not viewer_target.exists()

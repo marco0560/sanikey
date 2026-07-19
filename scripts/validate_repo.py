@@ -6,6 +6,7 @@ Responsibilities
 - Provide one obvious command for local validation.
 - Delegate all cache and temporary directory handling to
   ``scripts/run_repo_tool.py``.
+- Treat Codira docstring findings as validation failures.
 - Stop at the first failing validation step and return its exit status.
 
 Design principles
@@ -131,17 +132,31 @@ def run_validation(commands: tuple[tuple[str, ...], ...] | None = None) -> int:
     Returns
     -------
     int
-        Zero when all validation steps pass, otherwise the first non-zero child
-        exit status.
+        Zero when all validation steps pass, otherwise the first failing child
+        exit status or ``1`` for Codira audit findings.
     """
 
     selected_commands = (
         commands if commands is not None else build_validation_commands()
     )
     for command in selected_commands:
-        completed = subprocess.run(command, cwd=REPO_ROOT, check=False)
+        is_codira_audit = command[2:4] == ("codira", "audit")
+        completed = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=is_codira_audit,
+            text=is_codira_audit,
+        )
+        if is_codira_audit:
+            sys.stdout.write(completed.stdout)
+            sys.stderr.write(completed.stderr)
         if completed.returncode != 0:
             return completed.returncode
+        if is_codira_audit:
+            audit_output = completed.stdout.strip()
+            if audit_output not in {"", "No docstring issues found"}:
+                return 1
     return 0
 
 
