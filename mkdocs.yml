@@ -55,6 +55,7 @@ nav:
       - Immagini sorgente senza OCR diretto: decisions/adr-source-image-ocr-policy.md
       - Compatibilita' del PC di consultazione: decisions/adr-consultation-host-compatibility.md
       - Esito spike DWV offline: decisions/adr-dwv-offline-spike.md
+      - Esito spike Cornerstone3D offline: decisions/adr-cornerstone3d-offline-spike.md
       - Fogli illustrativi locali con verifica AIFA: decisions/adr-medication-leaflets.md
   - Rilascio:
       - Lista di controllo: release/checklist.md
