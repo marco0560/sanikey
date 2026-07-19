@@ -152,6 +152,19 @@ source_fingerprint = "..."
 mostrata nell'export proviene invece dal manifesto generato durante la build e
 corrisponde all'ultimo download FI riuscito.
 
+Per integratori o altri prodotti senza foglio illustrativo AIFA applicabile, il
+comando può registrare una scelta esplicita e persistente. Non deve coesistere
+con un blocco `[[leaflet]]` dello stesso `medication_id`:
+
+```toml
+[[unavailable]]
+medication_id = "integratore"
+reason = "non_aifa"
+```
+
+Creare questi blocchi tramite `resolve-medication-leaflets --mark-non-aifa` o
+con il tasto `n` nella schermata di revisione; non inserire codici AIFA a mano.
+
 ## `therapies.toml`
 
 Contiene episodi o terapie in corso che fanno riferimento a `medications.toml`.

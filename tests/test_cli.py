@@ -18,8 +18,8 @@ from sanikey.config import AccountsConfig, PersonConfig, default_accounts_path
 from sanikey.dicom import DicomStudy
 from sanikey.documents import ExtractedText
 from sanikey.errors import ConfigError
-from sanikey.leaflets import AifaCandidate
-from sanikey.models import DocumentRecord
+from sanikey.leaflets import AifaCandidate, AifaCandidateSearch
+from sanikey.models import DocumentRecord, Medication
 
 MODULE = "sanikey"
 
@@ -3237,8 +3237,12 @@ aic6 = "456"
     monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
     monkeypatch.setattr(
         cli,
-        "lookup_aifa_candidates",
-        lambda _medication: (AifaCandidate("Drug A", "123", "456"),),
+        "lookup_aifa_candidate_search",
+        lambda _medication, **_kwargs: AifaCandidateSearch(
+            (AifaCandidate("Drug A", "123", "456"),),
+            (),
+            (AifaCandidate("Drug A", "123", "456"),),
+        ),
     )
 
     result = cli.run_resolve_medication_leaflets(
@@ -3253,3 +3257,277 @@ aic6 = "456"
         encoding="utf-8"
     )
     assert "source_fingerprint" in saved
+
+
+def test_leaflet_menu_choice_uses_ncurses_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the interactive resolver delegates to the ncurses review.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    class Terminal:
+        """Represent a synthetic interactive terminal."""
+
+        def isatty(self) -> bool:
+            """Report an interactive terminal."""
+
+            return True
+
+    monkeypatch.setattr(cli.sys, "stdin", Terminal())
+    monkeypatch.setattr(cli.sys, "stdout", Terminal())
+    monkeypatch.setitem(
+        sys.modules,
+        "sanikey.leaflet_tui",
+        SimpleNamespace(
+            choose_aifa_candidate=lambda *_args: SimpleNamespace(
+                candidate_index=2,
+                exit_requested=False,
+            )
+        ),
+    )
+
+    result = cli._leaflet_menu_choice(
+        Medication("drug-a", "Drug A"),
+        (),
+        (
+            AifaCandidate("Drug A 10 mg", "123", "456"),
+            AifaCandidate("Drug A 20 mg", "123", "457"),
+        ),
+    )
+
+    assert result is not None
+    assert result.candidate_index == 2
+
+
+def test_leaflet_menu_choice_skips_non_interactive_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify a pipe never opens an interactive menu.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    class Terminal:
+        """Represent a synthetic non-interactive terminal."""
+
+        def isatty(self) -> bool:
+            """Report a non-interactive stream."""
+
+            return False
+
+    monkeypatch.setattr(cli.sys, "stdin", Terminal())
+
+    assert cli._leaflet_menu_choice(Medication("drug-a", "Drug A"), (), ()) is None
+
+
+def test_resolve_medication_leaflets_exits_without_saving_on_tui_quit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify an immediate TUI exit leaves references untouched.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.metadata_directory.mkdir(parents=True)
+    (person.metadata_directory / "medications.toml").write_text(
+        '[[medication]]\nid = "drug-a"\nname = "Drug A"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+    monkeypatch.setattr(
+        cli,
+        "lookup_aifa_candidate_search",
+        lambda _medication, **_kwargs: AifaCandidateSearch(
+            (),
+            (
+                AifaCandidate("Drug A 10 mg", "123", "456"),
+                AifaCandidate("Drug A 20 mg", "123", "457"),
+            ),
+            (
+                AifaCandidate("Drug A 10 mg", "123", "456"),
+                AifaCandidate("Drug A 20 mg", "123", "457"),
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_leaflet_menu_choice",
+        lambda *_args: SimpleNamespace(candidate_index=None, exit_requested=True),
+    )
+
+    result = cli.run_resolve_medication_leaflets(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml", patient="patient-a", select=[]
+        )
+    )
+
+    assert result == 0
+    assert "operazione interrotta dall'operatore" in capsys.readouterr().out
+    assert not (person.metadata_directory / "medication_leaflets.toml").exists()
+
+
+def test_resolve_medication_leaflets_handles_no_aifa_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify an empty AIFA result is reported without opening the TUI.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.metadata_directory.mkdir(parents=True)
+    (person.metadata_directory / "medications.toml").write_text(
+        '[[medication]]\nid = "drug-a"\nname = "Drug A"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+    monkeypatch.setattr(
+        cli,
+        "lookup_aifa_candidate_search",
+        lambda _medication, **_kwargs: AifaCandidateSearch(),
+    )
+
+    result = cli.run_resolve_medication_leaflets(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml", patient="patient-a", select=[]
+        )
+    )
+
+    assert result == 0
+    assert "candidati=0" in capsys.readouterr().out
+
+
+def test_resolve_medication_leaflets_persists_non_aifa_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify explicit non-AIFA state is persisted without an API lookup.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.metadata_directory.mkdir(parents=True)
+    (person.metadata_directory / "medications.toml").write_text(
+        '[[medication]]\nid = "supplement"\nname = "Supplemento"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+    monkeypatch.setattr(
+        cli,
+        "lookup_aifa_candidate_search",
+        lambda *_args, **_kwargs: pytest.fail("nessuna ricerca AIFA prevista"),
+    )
+
+    result = cli.run_resolve_medication_leaflets(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml",
+            patient="patient-a",
+            select=[],
+            mark_non_aifa=["supplement"],
+            query=[],
+        )
+    )
+
+    assert result == 0
+    assert "stato=non_aifa confermato" in capsys.readouterr().out
+    saved = (person.metadata_directory / "medication_leaflets.toml").read_text(
+        encoding="utf-8"
+    )
+    assert '[[unavailable]]\nmedication_id = "supplement"' in saved
+
+
+def test_resolve_medication_leaflets_rejects_unknown_non_aifa_medication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify a misspelled non-AIFA id cannot create invalid metadata.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.metadata_directory.mkdir(parents=True)
+    (person.metadata_directory / "medications.toml").write_text(
+        '[[medication]]\nid = "drug-a"\nname = "Drug A"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+
+    result = cli.run_resolve_medication_leaflets(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml",
+            patient="patient-a",
+            select=[],
+            mark_non_aifa=["typo"],
+            query=[],
+        )
+    )
+
+    assert result == 1
+    assert "farmaco non presente nei metadati curati: typo" in capsys.readouterr().out
+    assert not (person.metadata_directory / "medication_leaflets.toml").exists()

@@ -153,6 +153,8 @@ def validate_usb(target: Path) -> bool:
             return False
         if not _validate_frontend_links(patient_root / "web"):
             return False
+        if not _validate_therapy_leaflets(patient_root / "web"):
+            return False
     checksums = payload.get("checksums", {})
     for relative, expected in checksums.items():
         path = target / relative
@@ -186,6 +188,10 @@ def _export_patient(person: PersonConfig, target: Path) -> None:
         person.local_build / "medication-leaflets", patient_root / "medication-leaflets"
     )
     _copy_source_documents(person, patient_root / "documents")
+    _copy_tree(
+        person.local_build / "rendered-documents", patient_root / "rendered-documents"
+    )
+    _copy_tree(person.local_build / "technical", patient_root / "technical")
     _copy_dicom_html_viewers(person.local_build, patient_root / "dicom-viewers")
     _copy_tree(person.local_build / "dicom-media", patient_root / "dicom-media")
     _copy_tree(person.local_build / "dicom-previews", patient_root / "dicom-previews")
@@ -673,6 +679,48 @@ def _validate_frontend_links(web_dir: Path) -> bool:
     except json.JSONDecodeError:
         return False
     return all(_validate_relative_href(web_dir, href) for href in _frontend_hrefs(data))
+
+
+def _validate_therapy_leaflets(web_dir: Path) -> bool:
+    """Validate local FI and RCP links for every therapy in frontend data.
+
+    Parameters
+    ----------
+    web_dir : pathlib.Path
+        Patient web directory in a USB export.
+
+    Returns
+    -------
+    bool
+        ``True`` when every therapy has complete local AIFA documents or an
+        explicit ``non_aifa`` marker.
+    """
+
+    data_script = web_dir / "data.js"
+    prefix = "window.SANIKEY_DATA = "
+    try:
+        payload = data_script.read_text(encoding="utf-8")
+        data = json.loads(payload.removeprefix(prefix).removesuffix(";\n"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    clinical = data.get("clinical") if isinstance(data, dict) else None
+    therapies = clinical.get("therapies", []) if isinstance(clinical, dict) else []
+    if not isinstance(therapies, list):
+        return False
+    for therapy in therapies:
+        if not isinstance(therapy, dict):
+            return False
+        if therapy.get("non_aifa") is True:
+            continue
+        leaflet = therapy.get("leaflet_href")
+        rcp = therapy.get("rcp_href")
+        if not isinstance(leaflet, str) or not isinstance(rcp, str):
+            return False
+        if not _validate_relative_href(web_dir, leaflet):
+            return False
+        if not _validate_relative_href(web_dir, rcp):
+            return False
+    return True
 
 
 def _validate_usb_index_links(target: Path) -> bool:

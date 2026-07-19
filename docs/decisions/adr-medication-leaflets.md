@@ -25,12 +25,14 @@ La scheda Terapia mostra il collegamento locale, la data di download e un
 collegamento esterno ad AIFA per verificare una versione piu' recente.
 
 L'associazione salvata usa gli identificativi AIFA verificati, ma questi non
-sono campi da compilare dal paziente. Se non esiste una corrispondenza
-confermata, SaniKey non mostra un foglio illustrativo per quel medicinale.
+sono campi da compilare dal paziente. Ogni farmaco presente in una terapia deve
+avere un riferimento confermato oppure uno stato esplicito `non_aifa`.
+L'export USB viene bloccato se FI o RCP locali non sono disponibili per un
+riferimento AIFA confermato.
 
 ## Conseguenze
 
-La consultazione resta possibile offline, mentre l'operatore puo' aggiornare i
-documenti durante una successiva generazione. Il PDF locale e' una fotografia
-datata, non una garanzia di aggiornamento corrente; l'interfaccia deve renderlo
+La consultazione resta possibile offline e non puo' essere distribuita con
+terapie AIFA prive dei due PDF locali. Il PDF locale e' una fotografia datata,
+non una garanzia di aggiornamento corrente; l'interfaccia deve renderlo
 esplicito.

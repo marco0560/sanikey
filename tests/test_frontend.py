@@ -101,7 +101,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "item.href" in script
     assert "item.viewer_href" in script
     assert "apri studio dicom" in script
-    assert script.count('target="_blank" rel="noopener">apri originale') == 3
+    assert script.count('target="_blank" rel="noopener">apri documento') == 2
+    assert 'target="_blank" rel="noopener">scarica originale' in script
     assert "scarica supporto originale" not in script
     assert "renderdicomstudies" in script
     assert "configuredicomnavigation" in script
@@ -111,7 +112,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "sortdicomstudies" in script
     assert "renderdicomstudycard" in script
     assert "isdicomtechnicaldocument" in script
-    assert "anomalia: viewer dicom html non rilevato" in script
+    assert "anomalia: nessun viewer, anteprima o dicomdir disponibile" in script
     assert "supporto originale per verifica tecnica" in script
     assert "renderclinicaldashboard" in script
     assert "renderquicksearch" in script

@@ -8,14 +8,15 @@ import sqlite3
 import zipfile
 from typing import TYPE_CHECKING
 
+import pytest
+
 from sanikey.build import build_all, build_patient
 from sanikey.config import AccountsConfig, PersonConfig
 from sanikey.documents import ExtractedText
+from sanikey.errors import ConfigError
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 def _person(tmp_path: Path) -> PersonConfig:
@@ -373,6 +374,47 @@ def test_build_all_skips_disabled_patients_and_isolates_outputs(
     assert (patient_a.local_build / "web" / "index.html").is_file()
     assert (patient_b.local_build / "web" / "index.html").is_file()
     assert not disabled.local_build.exists()
+
+
+def test_build_patient_requires_local_leaflets_for_therapy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify a therapy cannot be exported without complete local AIFA documents.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary test directory.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    person.metadata_directory.mkdir()
+    (person.metadata_directory / "medications.toml").write_text(
+        """[[medication]]
+id = "drug-a"
+name = "Drug A"
+""",
+        encoding="utf-8",
+    )
+    (person.metadata_directory / "therapies.toml").write_text(
+        """[[therapy]]
+id = "therapy-a"
+medication_id = "drug-a"
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("sanikey.build.download_confirmed_leaflets", lambda *_: {})
+
+    with pytest.raises(ConfigError, match="senza riferimento AIFA"):
+        build_patient(person)
 
 
 def test_build_patient_preserves_original_document_bytes_and_mtime(

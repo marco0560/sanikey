@@ -150,6 +150,22 @@ class MedicationLeaflet:
 
 
 @dataclass(frozen=True)
+class MedicationLeafletExclusion:
+    """Represent a curated medication for which AIFA has no applicable leaflet.
+
+    Parameters
+    ----------
+    medication_id : str
+        Curated medication identifier.
+    reason : str
+        Curated reason for excluding the medication from AIFA lookup.
+    """
+
+    medication_id: str
+    reason: str = "non_aifa"
+
+
+@dataclass(frozen=True)
 class TherapyEpisode:
     """Represent one medication therapy interval.
 
@@ -338,6 +354,8 @@ class CuratedMetadata:
         Curated medication identities.
     medication_leaflets : tuple[MedicationLeaflet, ...]
         Confirmed AIFA references for local medication documents.
+    medication_leaflet_exclusions : tuple[MedicationLeafletExclusion, ...]
+        Medications for which an AIFA leaflet is not applicable.
     therapies : tuple[TherapyEpisode, ...]
         Curated therapy episodes.
     procedures : tuple[Procedure, ...]
@@ -359,6 +377,7 @@ class CuratedMetadata:
     problems: tuple[ClinicalProblem, ...] = ()
     medications: tuple[Medication, ...] = ()
     medication_leaflets: tuple[MedicationLeaflet, ...] = ()
+    medication_leaflet_exclusions: tuple[MedicationLeafletExclusion, ...] = ()
     therapies: tuple[TherapyEpisode, ...] = ()
     procedures: tuple[Procedure, ...] = ()
     observations: tuple[Observation, ...] = ()

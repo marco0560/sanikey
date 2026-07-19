@@ -43,6 +43,10 @@ name = "Drug A"
 active_ingredient = "Ingredient A"
 form = "compresse"
 strength_per_unit = "100 mg"
+
+[[medication]]
+id = "supplement-a"
+name = "Supplement A"
 """,
         encoding="utf-8",
     )
@@ -65,6 +69,10 @@ medication_id = "drug-a"
 codice_sis = "123"
 aic6 = "456"
 source_fingerprint = "a"
+
+[[unavailable]]
+medication_id = "supplement-a"
+reason = "non_aifa"
 """,
         encoding="utf-8",
     )
@@ -118,6 +126,7 @@ links = ["procedure-a"]
     assert metadata.medications[0].strength_per_unit == "100 mg"
     assert metadata.medication_leaflets[0].aic6 == "456"
     assert metadata.medication_leaflets[0].source_fingerprint == "a"
+    assert metadata.medication_leaflet_exclusions[0].medication_id == "supplement-a"
     assert metadata.therapies[0].medication_id == "drug-a"
     assert metadata.therapies[0].role is None
     assert metadata.therapies[0].schedule == ("risveglio", "cena")
@@ -303,4 +312,39 @@ medication_id = "missing"
     )
 
     with pytest.raises(ConfigError, match="medication_id sconosciuto missing"):
+        load_curated_metadata(tmp_path)
+
+
+def test_load_curated_metadata_rejects_aifa_reference_and_non_aifa_overlap(
+    tmp_path: Path,
+) -> None:
+    """Verify one medication cannot be both AIFA-linked and non-AIFA.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    (tmp_path / "medications.toml").write_text(
+        '[[medication]]\nid = "drug-a"\nname = "Drug A"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "medication_leaflets.toml").write_text(
+        """[[leaflet]]
+medication_id = "drug-a"
+codice_sis = "123"
+aic6 = "456"
+
+[[unavailable]]
+medication_id = "drug-a"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="riferimento AIFA e stato non_aifa"):
         load_curated_metadata(tmp_path)

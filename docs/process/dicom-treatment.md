@@ -47,9 +47,13 @@ dell'autorun o del viewer nativo del CD.
 - I viewer HTML DICOM sono rilevati soltanto nei path non esclusi dai pattern
   configurati di ingestione e sono copiati separatamente mediante il manifesto
   dei viewer.
-- L'interfaccia corrente mostra `Apri studio DICOM` quando esiste `viewer_href`,
-  omette i record di supporto DICOM non consultabili dal pannello dei documenti
-  ordinari e segnala come anomalie gli studi catalogati senza viewer HTML.
+- L'interfaccia mostra solo studi clinici; il supporto originale e i dettagli
+  tecnici restano richiudibili nella scheda dello studio e non compaiono come
+  documenti o risultati di ricerca ordinari.
+- Quando esiste `viewer_href`, l'azione primaria apre il viewer nativo oppure
+  il visualizzatore integrato non diagnostico. Il link `DICOMDIR per viewer
+  professionale` resta disponibile ogni volta che il media e' stato creato.
+- Uno studio e' anomalo solo senza viewer, anteprima e `DICOMDIR`.
 - Per ogni supporto espanso con istanze leggibili viene creato un media DICOM
   condiviso con `DICOMDIR`; non viene duplicato una volta per ciascuno studio.
 - Quando le istanze di uno studio sono aggregate dai membri estratti di un

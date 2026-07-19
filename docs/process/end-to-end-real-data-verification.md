@@ -579,14 +579,6 @@ nell'archivio generato e segnala il file saltato insieme al file trattenuto. In
 presenza di duplicati inattesi, fermarsi e decidere manualmente se rimuovere,
 rinominare o archiviare separatamente una delle copie prima di proseguire.
 
-### Build completa
-
-Eseguire la build completa per tutti i pazienti abilitati:
-
-```bash
-uv run sanikey build-all --mode full
-```
-
 ### Verifica FI e RCP
 
 Con una connessione Internet disponibile sul PC dell'operatore, risolvere i
@@ -599,10 +591,34 @@ uv run sanikey resolve-medication-leaflets patient-a
 uv run sanikey resolve-medication-leaflets patient-b
 ```
 
-Per ogni riga che mostra più candidati, rieseguire con la scelta verificata:
+Per ogni caso ambiguo o `da verificare`, confrontare la scheda AIFA nel pannello sinistro con il
+farmaco e la terapia curati nel pannello destro, quindi approvare con Invio o
+`a`. `s` cerca manualmente AIFA e `n` registra che un integratore o altro
+prodotto non ha un FI AIFA applicabile. `r` rifiuta e lascia il caso da
+risolvere, mentre `q`, `Esc` o `x` escono subito senza salvare modifiche. In una sessione non interattiva
+il comando stampa la lista; rieseguirlo con la scelta verificata:
 
 ```bash
 uv run sanikey resolve-medication-leaflets patient-a --select FARMACO=NUMERO
+```
+
+Per ripetere una ricerca con un termine verificato o memorizzare un caso non
+AIFA senza TUI:
+
+```bash
+uv run sanikey resolve-medication-leaflets patient-a --query FARMACO=TESTO
+uv run sanikey resolve-medication-leaflets patient-a --mark-non-aifa FARMACO
+```
+
+La build rifiuta di proseguire se una terapia non ha un riferimento AIFA
+confermato o `non_aifa`, oppure se non riesce a conservare localmente FI e RCP.
+
+### Build completa
+
+Eseguire la build completa solo dopo la risoluzione dei riferimenti:
+
+```bash
+uv run sanikey build-all --mode full
 ```
 
 Eseguire quindi la build. Verificare che in
@@ -938,13 +954,19 @@ Verificare anche il comportamento della UI di consultazione:
   inizialmente a destra;
 - su schermo stretto o riducendo la finestra header, ricerca e controlli
   restano utilizzabili;
-- i link `Apri originale` puntano a file sotto la chiavetta e non a percorsi
-  assoluti del computer di build.
+- l'azione primaria `Apri documento` punta a un file apribile sotto la
+  chiavetta e non a un percorso assoluto del computer di build; gli originali
+  Office sono download secondari.
+- `technical/documenti-non-apribili.html` e `.csv` esistono per ogni paziente,
+  sono ordinati per estensione e non sono inclusi nella ricerca clinica.
 - gli studi DICOM appaiono come schede aggregate e non come migliaia di file
   interni non cliccabili.
 - se uno studio DICOM contiene un viewer HTML, la scheda mostra `Apri studio
   DICOM` e il link si apre in un nuovo tab da un path relativo sotto
   `patients/<id>/dicom-viewers/`.
+- per gli studi senza viewer nativo, verificare il visualizzatore integrato
+  non diagnostico e il link `DICOMDIR per viewer professionale` quando il
+  media esiste.
 
 Controllare automaticamente che il payload frontend della chiavetta non contenga
 path sorgente assoluti:
@@ -1238,7 +1260,10 @@ Controllare:
 - la ricerca client-side filtra i documenti;
 - non compare il messaggio `Failed to fetch` aprendo la pagina direttamente dal
   file manager o con URL `file://`;
-- i link ai documenti originali puntano a file presenti nel target;
+- ogni azione primaria ai documenti e ai FI/RCP punta a un file presente nel
+  target;
+- la lista tecnica dei documenti non apribili e' disponibile ma non compare
+  fra i documenti clinici o nei risultati di ricerca;
 - la pagina resta consultabile scollegando la rete.
 
 Non usare screenshot con dati reali come evidenza persistente nel repository.

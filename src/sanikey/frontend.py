@@ -389,12 +389,15 @@ function renderDocuments(documents, query = "") {
 
 function renderDocumentActions(item) {
   if (item.viewer_href) {
-    const label = item.native_viewer_href ? "Apri studio DICOM" : "Apri anteprima non diagnostica";
+    const label = item.native_viewer_href ? "Apri studio DICOM" : "Apri visualizzatore integrato (non diagnostico)";
     const media = item.dicomdir_href ? ` <a href="${attr(item.dicomdir_href)}">DICOMDIR per viewer professionale</a>` : "";
     return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">${label}</a>${media}</p>`;
   }
   if (item.href) {
-    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri originale</a></p>`;
+    const original = item.source_href && item.source_href !== item.href
+      ? ` <a href="${attr(item.source_href)}" target="_blank" rel="noopener">Scarica originale</a>`
+      : "";
+    return `<p class="actions"><a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri documento</a>${original}</p>`;
   }
   return `<span class="muted">Origine nel contenitore</span>`;
 }
@@ -505,10 +508,13 @@ function sortDicomStudies(studies) {
 }
 
 function renderDicomStudyCard(item) {
-  const anomaly = item.viewer_href
+  const anomaly = item.viewer_href || item.dicomdir_href
     ? ""
-    : '<p class="warning">Anomalia: viewer DICOM HTML non rilevato; studio catalogato ma non apribile dal frontend.</p>';
-  return renderEntityCard(item, "dicom").replace("</article>", `${anomaly}</article>`);
+    : '<p class="warning">Anomalia: nessun viewer, anteprima o DICOMDIR disponibile per lo studio.</p>';
+  return `<article id="entity-${attr(item.id)}"><h4>${escapeHtml(item.title)}</h4>
+    ${item.date ? `<p>${escapeHtml(formatDate(item.date))}</p>` : ""}
+    <details><summary>Dettagli tecnici</summary>${renderFields(item.fields || [])}</details>
+    ${renderEntityActions(item, "dicom")}${anomaly}</article>`;
 }
 
 function recordKind(item) {
@@ -534,8 +540,14 @@ function renderEntityCard(item, section) {
 }
 
 function renderEntityActions(item, section) {
-  if (section === "dicom" && item.viewer_href) {
-    return `<p class="actions"><a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a></p>`;
+  if (section === "dicom") {
+    const viewer = item.viewer_href
+      ? `<a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">${item.native_viewer_href ? "Apri studio DICOM" : "Apri visualizzatore integrato (non diagnostico)"}</a>`
+      : "";
+    const media = item.dicomdir_href
+      ? ` <a href="${attr(item.dicomdir_href)}" target="_blank" rel="noopener">DICOMDIR per viewer professionale</a>`
+      : "";
+    return viewer || media ? `<p class="actions">${viewer}${media}</p>` : "";
   }
   if (section !== "dicom" && item.href) {
     return `<p class="actions"><a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri originale</a></p>`;
@@ -546,6 +558,9 @@ function renderEntityActions(item, section) {
   if (section === "therapies" && item.leaflet_href) {
     const downloaded = item.leaflet_downloaded_at ? ` scaricato il ${escapeHtml(formatDate(item.leaflet_downloaded_at))}` : "";
     return `<p class="actions"><a href="${attr(item.leaflet_href)}" target="_blank" rel="noopener">Foglio illustrativo${downloaded}</a>${item.rcp_href ? ` <a href="${attr(item.rcp_href)}" target="_blank" rel="noopener">RCP</a>` : ""} <a href="${attr(item.aifa_fi_url)}" target="_blank" rel="noopener">Verifica su AIFA</a></p>`;
+  }
+  if (section === "therapies" && item.non_aifa) {
+    return '<p class="muted">Nessun foglio illustrativo AIFA applicabile.</p>';
   }
   return "";
 }
@@ -588,10 +603,13 @@ function renderResultCard(item, section) {
 
 function renderResultAction(item) {
   if (item.viewer_href) {
-    return `<a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">Apri studio DICOM</a>`;
+    return `<a class="primary-action" href="${attr(item.viewer_href)}" target="_blank" rel="noopener">${item.native_viewer_href ? "Apri studio DICOM" : "Apri visualizzatore integrato (non diagnostico)"}</a>`;
+  }
+  if (item.type === "dicom_study" && item.dicomdir_href) {
+    return `<a class="primary-action" href="${attr(item.dicomdir_href)}" target="_blank" rel="noopener">DICOMDIR per viewer professionale</a>`;
   }
   if (item.type === "document" && item.href) {
-    return `<a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri originale</a>`;
+    return `<a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri documento</a>`;
   }
   return `<a href="#entity-${attr(item.id)}">Vai alla scheda</a>`;
 }
@@ -1176,7 +1194,7 @@ def _material_web_js() -> str:
 
 ["md-filled-button", "md-filled-tonal-button", "md-outlined-button", "md-text-button", "md-icon-button"].forEach((name) => {
   if (!customElements.get(name)) {
-    customElements.define(name, SaniKeyMaterialButton);
+    customElements.define(name, class extends SaniKeyMaterialButton {});
   }
 });
 """

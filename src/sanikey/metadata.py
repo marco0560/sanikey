@@ -11,6 +11,7 @@ from .models import (
     CuratedMetadata,
     Medication,
     MedicationLeaflet,
+    MedicationLeafletExclusion,
     Observation,
     ObservationPoint,
     ObservationSeries,
@@ -63,6 +64,11 @@ def load_curated_metadata(metadata_dir: Path) -> CuratedMetadata:
             metadata_dir / "medication_leaflets.toml",
             "leaflet",
             _medication_leaflet_from_table,
+        ),
+        medication_leaflet_exclusions=_load_items(
+            metadata_dir / "medication_leaflets.toml",
+            "unavailable",
+            _medication_leaflet_exclusion_from_table,
         ),
         therapies=_load_items(
             metadata_dir / "therapies.toml",
@@ -240,6 +246,35 @@ def _medication_leaflet_from_table(
         aic6=_required_string(item, "aic6", path, index),
         downloaded_at=_optional_string(item, "downloaded_at"),
         source_fingerprint=_optional_string(item, "source_fingerprint"),
+    )
+
+
+def _medication_leaflet_exclusion_from_table(
+    item: dict[str, Any], path: Path, index: int
+) -> MedicationLeafletExclusion:
+    """Parse one curated non-AIFA medication marker.
+
+    Parameters
+    ----------
+    item : dict[str, Any]
+        Raw item table.
+    path : pathlib.Path
+        Source file path.
+    index : int
+        Item index.
+
+    Returns
+    -------
+    MedicationLeafletExclusion
+        Parsed non-AIFA marker.
+    """
+
+    reason = _optional_string(item, "reason") or "non_aifa"
+    if reason != "non_aifa":
+        _fail(f"{path}: elemento {index} reason non supportato: {reason}")
+    return MedicationLeafletExclusion(
+        medication_id=_required_string(item, "medication_id", path, index),
+        reason=reason,
     )
 
 
@@ -550,6 +585,20 @@ def _validate_curated_metadata(metadata: CuratedMetadata, metadata_dir: Path) ->
         (item.id for item in metadata.problems),
         metadata_dir / "problems.toml",
     )
+    excluded_medication_ids = _validate_unique_ids(
+        "medication_leaflet_unavailable",
+        (item.medication_id for item in metadata.medication_leaflet_exclusions),
+        metadata_dir / "medication_leaflets.toml",
+    )
+    referenced_medication_ids = {
+        item.medication_id for item in metadata.medication_leaflets
+    }
+    overlap = sorted(referenced_medication_ids & excluded_medication_ids)
+    if overlap:
+        _fail(
+            f"{metadata_dir / 'medication_leaflets.toml'}: medication_id con "
+            f"riferimento AIFA e stato non_aifa: {overlap[0]}",
+        )
     medication_ids = _validate_unique_ids(
         "medication",
         (item.id for item in metadata.medications),
@@ -607,6 +656,12 @@ def _validate_curated_metadata(metadata: CuratedMetadata, metadata_dir: Path) ->
             _fail(
                 f"{metadata_dir / 'medication_leaflets.toml'}: riferimento AIFA "
                 f"per medication_id sconosciuto {leaflet.medication_id}",
+            )
+    for exclusion in metadata.medication_leaflet_exclusions:
+        if exclusion.medication_id not in medication_ids:
+            _fail(
+                f"{metadata_dir / 'medication_leaflets.toml'}: stato non_aifa "
+                f"per medication_id sconosciuto {exclusion.medication_id}",
             )
 
 

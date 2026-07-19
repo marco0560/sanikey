@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from .leaflets import leaflet_download_dates, leaflet_urls
 from .markdown import render_markdown
 from .models import TimelineEvent
+from .rendering import rendered_document_href
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -92,13 +93,14 @@ def generate_exports(
 
     data_dir = person.local_build / "web" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    consultation_documents = _consultation_documents(documents)
+    consultation_documents = _consultation_documents(person, documents, dicom_studies)
     ordered_documents = _ordered_documents(consultation_documents)
     dicom_viewers = _dicom_viewers_by_support(dicom_studies)
     documents_payload = [
         _document_payload(person, document, metadata, dicom_viewers)
         for document in ordered_documents
     ]
+    technical_documents = _technical_documents(person, documents, dicom_studies)
     clinical_payload = _clinical_payload(
         person,
         metadata,
@@ -179,6 +181,7 @@ def generate_exports(
         person.local_build / "timeline" / "timeline.json",
         json.loads(timeline_path.read_text(encoding="utf-8")),
     )
+    _write_technical_document_list(person, technical_documents)
     _write_dicom_html_viewer_manifest(person, dicom_studies)
     return ExportResult(
         data_dir=data_dir,
@@ -456,7 +459,8 @@ def _document_payload(
         JSON-serializable payload.
     """
 
-    href = _document_href(person, document)
+    href = rendered_document_href(person, document)
+    source_href = _document_href_from_path(person, document.path)
     viewer = dicom_viewers.get(document.path)
     payload = {
         "id": document.document_id,
@@ -466,6 +470,7 @@ def _document_payload(
         "kind": document.kind,
         "path": _document_display_path(person, document),
         "href": href,
+        "source_href": source_href,
         "origin": document.origin,
         "container_id": document.container_id,
         "internal_path": document.internal_path,
@@ -486,14 +491,20 @@ def _document_payload(
 
 
 def _consultation_documents(
+    person: PersonConfig,
     documents: tuple[DocumentRecord, ...],
+    dicom_studies: tuple[DicomStudy, ...],
 ) -> tuple[DocumentRecord, ...]:
     """Return document records suitable for human consultation lists.
 
     Parameters
     ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration used to resolve consultation links.
     documents : tuple[DocumentRecord, ...]
         Source and derived document records.
+    dicom_studies : tuple[sanikey.dicom.DicomStudy, ...]
+        Catalog records used to identify DICOM support internals.
 
     Returns
     -------
@@ -501,8 +512,182 @@ def _consultation_documents(
         Records excluding technical DICOM instance files.
     """
 
+    technical_container_ids = _dicom_technical_container_ids(documents, dicom_studies)
     return tuple(
-        document for document in documents if not document.kind.startswith("dicom_")
+        document
+        for document in documents
+        if not document.kind.startswith("dicom_")
+        and document.container_id not in technical_container_ids
+        and rendered_document_href(person, document) is not None
+    )
+
+
+def _technical_documents(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+    dicom_studies: tuple[DicomStudy, ...],
+) -> tuple[DocumentRecord, ...]:
+    """Return non-DICOM records excluded from consultation views.
+
+    Parameters
+    ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration used to resolve consultation links.
+    documents : tuple[sanikey.models.DocumentRecord, ...]
+        Source and container-derived document records.
+    dicom_studies : tuple[sanikey.dicom.DicomStudy, ...]
+        Catalog records used to identify DICOM support internals.
+
+    Returns
+    -------
+    tuple[sanikey.models.DocumentRecord, ...]
+        Non-openable records ordered by extension and display path.
+    """
+
+    technical_container_ids = _dicom_technical_container_ids(documents, dicom_studies)
+    return tuple(
+        sorted(
+            (
+                document
+                for document in documents
+                if not document.kind.startswith("dicom_")
+                and (
+                    document.container_id in technical_container_ids
+                    or rendered_document_href(person, document) is None
+                )
+            ),
+            key=lambda item: (
+                item.path.suffix.casefold(),
+                _document_display_path(person, item).casefold(),
+            ),
+        )
+    )
+
+
+def _dicom_technical_container_ids(
+    documents: tuple[DocumentRecord, ...],
+    studies: tuple[DicomStudy, ...],
+) -> frozenset[str]:
+    """Return source archive ids that own DICOM viewer/support internals.
+
+    Parameters
+    ----------
+    documents : tuple[sanikey.models.DocumentRecord, ...]
+        Source and derived records.
+    studies : tuple[sanikey.dicom.DicomStudy, ...]
+        Cataloged DICOM studies with their original support paths.
+
+    Returns
+    -------
+    frozenset[str]
+        Source document identifiers whose extracted children are technical.
+    """
+
+    support_paths = {study.support_path for study in studies}
+    return frozenset(
+        document.document_id
+        for document in documents
+        if document.origin == "source" and document.path in support_paths
+    )
+
+
+def _write_technical_document_list(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+) -> tuple[Path, Path]:
+    """Write technical listings for non-openable document records.
+
+    Parameters
+    ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration that owns the build directory.
+    documents : tuple[sanikey.models.DocumentRecord, ...]
+        Excluded non-DICOM document records.
+
+    Returns
+    -------
+    tuple[pathlib.Path, pathlib.Path]
+        Written HTML and CSV report paths.
+    """
+
+    technical = person.local_build / "technical"
+    technical.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {
+            "estensione": document.path.suffix.lower() or "(nessuna)",
+            "nome": document.path.name,
+            "origine": document.origin,
+            "contenitore": document.internal_path or "",
+            "percorso": _document_display_path(person, document),
+            "motivo": "nessuna rappresentazione apribile disponibile",
+        }
+        for document in documents
+    ]
+    csv_path = technical / "documenti-non-apribili.csv"
+    headers = ("estensione", "nome", "origine", "contenitore", "percorso", "motivo")
+    csv_path.write_text(
+        "\n".join(
+            ";".join(_csv_cell(row[key]) for key in headers)
+            for row in (dict(zip(headers, headers)), *rows)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    html_path = technical / "documenti-non-apribili.html"
+    table = "".join(
+        "<tr>"
+        + "".join(f"<td>{_html_escape(row[key])}</td>" for key in headers)
+        + "</tr>"
+        for row in rows
+    )
+    html_path.write_text(
+        '<!doctype html><meta charset="utf-8"><title>Documenti non apribili</title>'
+        "<h1>Documenti non apribili</h1><table><thead><tr>"
+        + "".join(f"<th>{_html_escape(header)}</th>" for header in headers)
+        + "</tr></thead><tbody>"
+        + table
+        + "</tbody></table>",
+        encoding="utf-8",
+    )
+    return html_path, csv_path
+
+
+def _csv_cell(value: str) -> str:
+    """Quote one CSV cell for the technical semicolon-delimited report.
+
+    Parameters
+    ----------
+    value : str
+        Raw cell value.
+
+    Returns
+    -------
+    str
+        Escaped CSV cell.
+    """
+
+    return '"' + value.replace('"', '""') + '"'
+
+
+def _html_escape(value: str) -> str:
+    """Escape one technical HTML report cell.
+
+    Parameters
+    ----------
+    value : str
+        Raw cell value.
+
+    Returns
+    -------
+    str
+        Escaped HTML text.
+    """
+
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
     )
 
 
@@ -764,12 +949,14 @@ def _clinical_payload(
     """
 
     leaflets = {item.medication_id: item for item in metadata.medication_leaflets}
+    non_aifa = {item.medication_id for item in metadata.medication_leaflet_exclusions}
     medications = {
         medication.id: _medication_payload(
             person,
             medication,
             leaflets.get(medication.id),
             leaflet_dates.get(medication.id),
+            medication.id in non_aifa,
         )
         for medication in metadata.medications
     }
@@ -795,9 +982,36 @@ def _clinical_payload(
             for point in metadata.observation_points
         ],
         "dicom_studies": [
-            _dicom_study_payload(person, study) for study in dicom_studies
+            _dicom_study_payload(person, study)
+            for study in _clinical_dicom_studies(dicom_studies)
         ],
     }
+
+
+def _clinical_dicom_studies(
+    studies: tuple[DicomStudy, ...],
+) -> tuple[DicomStudy, ...]:
+    """Return catalog records that represent an actual diagnostic study.
+
+    Parameters
+    ----------
+    studies : tuple[sanikey.dicom.DicomStudy, ...]
+        All catalog records, including support-container records.
+
+    Returns
+    -------
+    tuple[sanikey.dicom.DicomStudy, ...]
+        Records backed by a DICOM Study Instance UID or explicit grouped-study
+        support kind.
+    """
+
+    return tuple(
+        study
+        for study in studies
+        if study.study_instance_uid is not None
+        or study.support_kind in {"dicom_study", "dicomdir_study"}
+        or study.html_viewer_path is not None
+    )
 
 
 def _problem_payload(problem: ClinicalProblem) -> dict[str, Any]:
@@ -829,6 +1043,7 @@ def _medication_payload(
     medication: Medication,
     leaflet: MedicationLeaflet | None,
     downloaded_at: str | None,
+    non_aifa: bool,
 ) -> dict[str, Any]:
     """Build one medication frontend payload.
 
@@ -842,6 +1057,8 @@ def _medication_payload(
         Confirmed AIFA reference, when available.
     downloaded_at : str | None
         Actual date of the local FI download, when present.
+    non_aifa : bool
+        Whether this medication has an explicit non-AIFA decision.
 
     Returns
     -------
@@ -872,6 +1089,7 @@ def _medication_payload(
             if item
         ).strip(),
         "fields": [field for field in fields if field["value"]],
+        "non_aifa": non_aifa,
     }
     if leaflet is not None:
         local = person.local_build / "medication-leaflets" / medication.id
@@ -959,6 +1177,7 @@ def _therapy_payload(
         "leaflet_downloaded_at": medication.get("leaflet_downloaded_at"),
         "aifa_fi_url": medication.get("aifa_fi_url"),
         "aifa_rcp_url": medication.get("aifa_rcp_url"),
+        "non_aifa": bool(medication.get("non_aifa")),
     }
 
 
@@ -1461,7 +1680,13 @@ def _entity_search_payload(
         "tags": [],
         "fields": item.get("fields", []),
     }
-    for key in ("href", "viewer_href", "primary_href", "primary_action"):
+    for key in (
+        "href",
+        "viewer_href",
+        "dicomdir_href",
+        "primary_href",
+        "primary_action",
+    ):
         if item.get(key):
             payload[key] = item[key]
     return payload

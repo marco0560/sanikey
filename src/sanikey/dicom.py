@@ -139,13 +139,17 @@ def generate_dicom_previews(
     root.mkdir(parents=True, exist_ok=True)
     results: dict[str, tuple[int, tuple[str, ...]]] = {}
     for study in studies:
-        if study.extracted_path is None or not study.extracted_path.is_dir():
+        if study.support_paths:
+            instance_paths = study.support_paths
+        elif study.extracted_path is not None and study.extracted_path.is_dir():
+            instance_paths = tuple(study.extracted_path.rglob("*"))
+        else:
             continue
         images: list[str] = []
         warnings_for_study: list[str] = []
         target = root / study.study_id
         target.mkdir(parents=True)
-        for index, path in enumerate(sorted(study.extracted_path.rglob("*")), start=1):
+        for index, path in enumerate(sorted(instance_paths), start=1):
             if not path.is_file() or not _is_dicom_instance_path(path):
                 continue
             try:

@@ -39,11 +39,12 @@ La pipeline implementata è:
 4. Caricare i metadati curati.
 5. Aggiornare localmente FI e RCP AIFA per i riferimenti confermati.
 6. Catalogare supporti DICOM e directory di espansione manuale.
-7. Estrarre il testo supportato.
-8. Costruire un archivio SQLite per paziente.
-9. Generare export JSON.
-10. Generare i file statici del frontend.
-11. Esportare la build in una struttura USB e scrivere i checksum.
+7. Estrarre il testo supportato e preparare rappresentazioni consultabili.
+8. Verificare FI/RCP locali per ogni terapia AIFA.
+9. Costruire un archivio SQLite per paziente.
+10. Generare export JSON e la lista tecnica dei documenti non apribili.
+11. Generare i file statici del frontend.
+12. Esportare la build in una struttura USB e scrivere i checksum.
 
 Il comando `deploy-usb` esegue la build dei pazienti abilitati e poi esporta la
 struttura USB.
@@ -120,6 +121,8 @@ patients/
   patient-a/
     dicom-viewers/
     documents/
+    rendered-documents/
+    technical/
     medical_archive.db
     web/
       index.html
@@ -127,9 +130,11 @@ patients/
 
 `web` è il frontend statico generato sulla chiavetta USB. Nel repository
 corrisponde agli artefatti frontend generati da `frontend.py`.
-I link ai documenti originali sono relativi a `patients/<id>/web/index.html` e
-puntano a `../documents/...`; `validate-usb` rifiuta payload con path assoluti,
-URL `file://` o link rotti.
+Le azioni primarie ai documenti sono relative a `patients/<id>/web/index.html`
+e puntano a un originale apribile o a `../rendered-documents/...`. Gli
+originali Office restano download secondari sotto `../documents/...`.
+`validate-usb` rifiuta payload con path assoluti, URL `file://`, link rotti o
+terapie AIFA prive di FI/RCP locali.
 I FI e gli RCP confermati sono copiati separatamente in
 `patients/<id>/medication-leaflets/`; l'export clinico usa quei PDF locali e
 conserva anche i link AIFA per la verifica online.
@@ -157,10 +162,10 @@ La UI e' progettata per PC non noti in anticipo:
   sorgente del computer di build.
 
 I file DICOM sono artefatti tecnici. Il database può conservarli come record,
-ma il frontend mostra schede aggregate per studio DICOM invece delle singole
-istanze. Quando un supporto contiene un viewer HTML statico, per esempio IHE
-PDI, l'export copia la subtree necessaria al viewer e la scheda dello studio
-espone `Apri studio DICOM` come azione primaria in un tab separato.
+ma il frontend mostra solo schede aggregate per studio DICOM; ISO, archivi e
+supporti restano nei dettagli tecnici. Quando un supporto contiene un viewer
+HTML statico, per esempio IHE PDI, l'export copia la subtree necessaria al
+viewer e la scheda dello studio espone `Apri studio DICOM` in un tab separato.
 
 Il PC di consultazione non richiede installazioni, applicazioni esterne o
 servizi locali. Un viewer nativo del CD non viene avviato dal browser. Gli
@@ -192,3 +197,5 @@ funzionalità:
 - import/export diretto dal Fascicolo Sanitario
 
 Questi elementi sono tracciati come issue GitHub.
+- `rendering.py`: copia o converte in PDF le rappresentazioni apribili dal
+  browser per la consultazione offline.

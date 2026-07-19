@@ -331,13 +331,10 @@ def test_export_usb_copies_dicom_html_viewer_and_validates_link(
         data_script.removeprefix("window.SANIKEY_DATA = ").removesuffix(";\n")
     )
     viewer_href = payload["clinical"]["dicom_studies"][0]["viewer_href"]
-    document = payload["documents"][0]
 
     assert "../dicom-viewers/" in data_script
     assert "IHE_PDI/PAGES/STUDIES/STUDY1.HTM" in data_script
-    assert document["viewer_href"] == viewer_href
-    assert document["primary_action"] == "Apri studio DICOM"
-    assert document["support_href"] == "../documents/20260102 TAC.zip"
+    assert not payload["documents"]
     assert (result.root / "patients" / "patient-a" / "web" / viewer_href).is_file()
     assert "/home/" not in data_script
     assert "file://" not in data_script
@@ -432,10 +429,10 @@ def test_validate_usb_rejects_tampered_checksum(tmp_path: Path) -> None:
     assert not validate_usb(result.root)
 
 
-def test_export_usb_keeps_office_hrefs_relative_and_resolvable(
+def test_export_usb_prefers_rendered_office_documents(
     tmp_path: Path,
 ) -> None:
-    """Verify Office original links point to exported USB files.
+    """Verify Office documents use local rendered PDFs before their originals.
 
     Parameters
     ----------
@@ -461,8 +458,9 @@ def test_export_usb_keeps_office_hrefs_relative_and_resolvable(
         result.root / "patients" / "patient-a" / "web" / "data.js"
     ).read_text(encoding="utf-8")
 
-    assert '"href": "../documents/20260102 Workbook.xlsx"' in data_script
-    assert '"href": "../documents/20260103 Letter.doc"' in data_script
+    assert '"href": "../rendered-documents/' in data_script
+    assert '"source_href": "../documents/20260102 Workbook.xlsx"' in data_script
+    assert '"source_href": "../documents/20260103 Letter.doc"' in data_script
     assert (
         result.root / "patients" / "patient-a" / "documents" / "20260102 Workbook.xlsx"
     ).is_file()
@@ -501,6 +499,42 @@ def test_validate_usb_rejects_absolute_frontend_hrefs(tmp_path: Path) -> None:
             "/private-host/20260102 Report.txt",
         ),
         encoding="utf-8",
+    )
+
+    assert not validate_usb(result.root)
+
+
+def test_validate_usb_rejects_therapy_without_local_leaflet(
+    tmp_path: Path,
+) -> None:
+    """Verify USB validation rejects unresolved therapy leaflet links.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary test directory.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path, "patient-a", "Patient A")
+    person.source_documents.mkdir(parents=True)
+    build_patient(person, mode="full")
+    config = AccountsConfig(
+        config_version=1, people=(person,), path=tmp_path / "accounts.toml"
+    )
+    result = export_usb(config, tmp_path / "usb")
+    data_path = result.root / "patients" / "patient-a" / "web" / "data.js"
+    payload = json.loads(
+        data_path.read_text(encoding="utf-8")
+        .removeprefix("window.SANIKEY_DATA = ")
+        .removesuffix(";\n")
+    )
+    payload["clinical"]["therapies"] = [{"id": "therapy-a", "non_aifa": False}]
+    data_path.write_text(
+        f"window.SANIKEY_DATA = {json.dumps(payload)};\n", encoding="utf-8"
     )
 
     assert not validate_usb(result.root)

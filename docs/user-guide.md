@@ -409,8 +409,10 @@ Nel frontend non vengono mostrati i singoli file DICOM: la consultazione mostra
 schede aggregate per studio, con numero istanze, UID quando disponibile e link
 di apertura del viewer HTML quando rilevato. I supporti e i file tecnici non
 vengono presentati come documenti clinici ordinari. Se uno studio DICOM viene
-catalogato senza viewer HTML, resta nella sezione `Studi DICOM` come anomalia
-da verificare.
+catalogato senza viewer HTML, SaniKey usa il visualizzatore integrato basato su
+anteprime JPEG non diagnostiche e mostra `DICOMDIR per viewer professionale`
+quando disponibile. Resta un'anomalia solo quando non esiste nessuna azione
+utile.
 Per le immagini disco SaniKey prova prima il comando `7z`; se il file è un ISO
 valido ma `7z` non riesce ad aprirlo, ritenta con `bsdtar` quando disponibile.
 Quando le istanze DICOM sono leggibili, SaniKey usa `pydicom` per raggrupparle
@@ -539,14 +541,39 @@ build, su Linux con Internet, eseguire per ciascun paziente:
 uv run sanikey resolve-medication-leaflets PATIENT
 ```
 
-Il comando cerca il nome, il principio attivo, la forma e il dosaggio curati.
+Il comando cerca sia il nome commerciale sia il principio attivo e confronta,
+quando presenti, principio attivo, forma e dosaggio curati. Per esempio una
+terapia `Atenololo 100 mg compresse` non conferma formulazioni da 25 o 50 mg.
+I candidati compatibili in ogni campo sono confermabili automaticamente; quelli
+che coincidono nel nome o nei principi attivi ma differiscono in forma o
+dosaggio restano esplicitamente `da verificare`. I risultati senza alcuna
+corrispondenza commerciale o di principio attivo non vengono mostrati.
 Se trova un solo candidato, lo conferma e scrive
-`metadata/medication_leaflets.toml`. Se ne trova più di uno, stampa la lista e
-attende una scelta esplicita dell'operatore:
+`metadata/medication_leaflets.toml`. Se ne trova più di uno, su un terminale
+interattivo ncurses mostra due pannelli: a sinistra le schede dei candidati AIFA
+con forma, dosaggio, principi attivi, titolare e confezioni; a destra il
+farmaco e le terapie così come risultano dai TOML curati. Usare frecce o
+`j`/`k` per scegliere, Invio o `a` per approvare, `r` per rifiutare e passare al
+farmaco successivo. `s` avvia una ricerca manuale AIFA nella stessa schermata;
+`n` registra che il farmaco non ha un foglio illustrativo AIFA applicabile
+(per esempio un integratore); `q`, `Esc` o `x` escono immediatamente senza
+modificare il file. In una pipe, in CI o in uno script stampa
+la lista e attende una scelta esplicita:
 
 ```bash
 uv run sanikey resolve-medication-leaflets PATIENT --select FARMACO=NUMERO
 ```
+
+Per la ricerca manuale non interattiva e per registrare lo stato `non_aifa`:
+
+```bash
+uv run sanikey resolve-medication-leaflets PATIENT --query FARMACO=TESTO
+uv run sanikey resolve-medication-leaflets PATIENT --mark-non-aifa FARMACO
+```
+
+Le scelte `non_aifa` sono conservate in `medication_leaflets.toml` e non sono
+interrogate di nuovo; rimuovere il relativo blocco solo quando il dato curato
+o la disponibilità AIFA cambia.
 
 Alle esecuzioni successive verifica ogni riferimento già confermato nella banca
 dati AIFA e lo conserva senza chiedere alcun intervento quando è ancora
@@ -555,7 +582,9 @@ verifica non è stata possibile. Se il riferimento non è più presente o resta
 ambigua una nuova associazione, non sostituisce mai la scelta da solo.
 
 Durante `build-patient` o `build-all`, SaniKey riscarica FI e RCP dei
-riferimenti confermati. La scheda `Terapia` preferisce i PDF locali offline,
+riferimenti confermati. La build si interrompe se un farmaco in terapia non ha
+un riferimento AIFA o uno stato `non_aifa`, oppure se FI e RCP locali non sono
+disponibili. La scheda `Terapia` preferisce i PDF locali offline,
 indica la data dell'ultimo download riuscito e offre anche il collegamento AIFA
 per il controllo online. Le informazioni dei medicinali possono cambiare anche
 con lo stesso AIC; la copia locale resta quindi una fotografia alla data

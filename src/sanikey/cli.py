@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Never, cast
 
@@ -26,12 +27,13 @@ from .frontend import build_frontend
 from .inspection import inspect_patient_documents
 from .integrity import check_source_snapshots, write_source_snapshot
 from .leaflets import (
-    lookup_aifa_candidates,
+    AifaCandidate,
+    lookup_aifa_candidate_search,
     medication_fingerprint,
     write_confirmed_references,
 )
 from .metadata import load_curated_metadata
-from .models import MedicationLeaflet
+from .models import MedicationLeaflet, MedicationLeafletExclusion
 from .observation_imports import import_observations
 from .privacy import validate_privacy
 from .progress import ProgressDots
@@ -42,7 +44,8 @@ if TYPE_CHECKING:
     from .config import AccountsConfig, PersonConfig
     from .containers import ContainerStagingResult
     from .dicom import DicomStudy
-    from .models import DocumentRecord
+    from .leaflet_tui import LeafletReviewDecision
+    from .models import DocumentRecord, Medication, TherapyEpisode
 
 
 class ItalianArgumentParser(argparse.ArgumentParser):
@@ -361,6 +364,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="FARMACO=NUMERO",
         help="Conferma un candidato numerato, per esempio metformina=1",
+    )
+    leaflet_parser.add_argument(
+        "-q",
+        "--query",
+        action="append",
+        default=[],
+        metavar="FARMACO=TESTO",
+        help="Cerca manualmente AIFA per un farmaco, per esempio metformina=Glucophage",
+    )
+    leaflet_parser.add_argument(
+        "-n",
+        "--mark-non-aifa",
+        action="append",
+        default=[],
+        metavar="FARMACO",
+        help="Segna un farmaco senza foglio illustrativo AIFA applicabile",
     )
     leaflet_parser.set_defaults(func=run_resolve_medication_leaflets)
 
@@ -1608,7 +1627,9 @@ def run_review_proposal(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_resolve_medication_leaflets(args: argparse.Namespace) -> int:
+def run_resolve_medication_leaflets(  # noqa: C901, PLR0912
+    args: argparse.Namespace,
+) -> int:
     """Find and persist explicitly confirmed AIFA medication references.
 
     Parameters
@@ -1629,16 +1650,38 @@ def run_resolve_medication_leaflets(args: argparse.Namespace) -> int:
             print(f"ERRORE: paziente non trovato o disabilitato: {args.patient}")
             return 1
         selected = _parse_leaflet_selections(args.select)
+        queries = _parse_leaflet_queries(getattr(args, "query", []))
+        marked_non_aifa = set(getattr(args, "mark_non_aifa", []))
         metadata = load_curated_metadata(people[0].metadata_directory)
+        _validate_leaflet_option_ids(
+            {medication.id for medication in metadata.medications},
+            selected,
+            queries,
+            marked_non_aifa,
+        )
         references = {
             reference.medication_id: reference
             for reference in metadata.medication_leaflets
         }
+        exclusions = {
+            exclusion.medication_id: exclusion
+            for exclusion in metadata.medication_leaflet_exclusions
+        }
         unresolved = 0
         for medication in metadata.medications:
-            candidates = lookup_aifa_candidates(medication)
+            if medication.id in marked_non_aifa:
+                references.pop(medication.id, None)
+                exclusions[medication.id] = MedicationLeafletExclusion(medication.id)
+                print(f"farmaco={medication.id} stato=non_aifa confermato")
+                continue
+            if medication.id in exclusions:
+                print(f"farmaco={medication.id} stato=non_aifa conservato")
+                continue
+            search = lookup_aifa_candidate_search(
+                medication, query=queries.get(medication.id)
+            )
             current = references.get(medication.id)
-            if candidates is None:
+            if search is None:
                 if current is not None:
                     print(
                         f"farmaco={medication.id} riferimento AIFA conservato "
@@ -1651,10 +1694,11 @@ def run_resolve_medication_leaflets(args: argparse.Namespace) -> int:
                     )
                     unresolved += 1
                 continue
+            candidates = search.exact or search.review
             current_index = next(
                 (
                     index
-                    for index, candidate in enumerate(candidates, start=1)
+                    for index, candidate in enumerate(search.all_candidates, start=1)
                     if current is not None
                     and candidate.codice_sis == current.codice_sis
                     and candidate.aic6 == current.aic6
@@ -1671,20 +1715,52 @@ def run_resolve_medication_leaflets(args: argparse.Namespace) -> int:
                 )
                 print(f"farmaco={medication.id} riferimento AIFA verificato")
                 continue
-            print(
-                f"farmaco={medication.id} nome={medication.name} candidati={len(candidates)}"
-            )
-            for index, candidate in enumerate(candidates, start=1):
-                print(
-                    f"  {index}. {candidate.title} AIFA={candidate.codice_sis}/{candidate.aic6}"
-                )
             choice = selected.get(medication.id)
-            if choice is None and len(candidates) == 1:
+            if choice is None and len(search.exact) == 1:
                 choice = 1
                 print(
                     f"farmaco={medication.id} riferimento AIFA confermato automaticamente"
                 )
+            while choice is None:
+                therapies = tuple(
+                    therapy
+                    for therapy in metadata.therapies
+                    if therapy.medication_id == medication.id
+                )
+                decision = _leaflet_menu_choice(medication, therapies, candidates)
+                if decision is not None:
+                    if decision.exit_requested:
+                        print(
+                            "operazione interrotta dall'operatore; nessuna modifica salvata"
+                        )
+                        return 0
+                    if getattr(decision, "mark_non_aifa", False):
+                        references.pop(medication.id, None)
+                        exclusions[medication.id] = MedicationLeafletExclusion(
+                            medication.id
+                        )
+                        print(f"farmaco={medication.id} stato=non_aifa confermato")
+                        break
+                    manual_query = getattr(decision, "manual_query", None)
+                    if manual_query:
+                        search = lookup_aifa_candidate_search(
+                            medication, query=manual_query
+                        )
+                        if search is None:
+                            print(
+                                f"farmaco={medication.id} ricerca AIFA non disponibile; "
+                                "nessun riferimento creato"
+                            )
+                            unresolved += 1
+                            break
+                        candidates = search.all_candidates
+                        continue
+                    choice = decision.candidate_index
+                break
+            if medication.id in exclusions:
+                continue
             if choice is None:
+                _print_leaflet_candidates(medication.id, medication.name, candidates)
                 unresolved += 1
                 continue
             if choice < 1 or choice > len(candidates):
@@ -1697,18 +1773,88 @@ def run_resolve_medication_leaflets(args: argparse.Namespace) -> int:
                 candidate.aic6,
                 source_fingerprint=medication_fingerprint(medication),
             )
-        if references:
+        if references or exclusions:
             target = write_confirmed_references(
-                people[0].metadata_directory, tuple(references.values())
+                people[0].metadata_directory,
+                tuple(references.values()),
+                tuple(exclusions.values()),
             )
             print(
                 f"paziente={people[0].id} riferimenti_confermati={len(references)} "
-                f"da_confermare={unresolved} {_repo_relative_path(target)}"
+                f"non_aifa={len(exclusions)} da_confermare={unresolved} "
+                f"{_repo_relative_path(target)}"
             )
     except SaniKeyError as exc:
         print(f"ERRORE: {exc}")
         return 1
     return 0
+
+
+def _leaflet_menu_choice(
+    medication: Medication,
+    therapies: tuple[TherapyEpisode, ...],
+    candidates: tuple[AifaCandidate, ...],
+) -> LeafletReviewDecision | None:
+    """Open the ncurses review screen on an interactive terminal.
+
+    Parameters
+    ----------
+    medication : sanikey.models.Medication
+        Curated medication identity displayed in the right pane.
+    therapies : tuple[sanikey.models.TherapyEpisode, ...]
+        Curated therapy episodes linked to the medication.
+    candidates : tuple[sanikey.leaflets.AifaCandidate, ...]
+        AIFA candidates in their stable display order.
+
+    Returns
+    -------
+    sanikey.leaflet_tui.LeafletReviewDecision | None
+        Review decision, or ``None`` when no interactive terminal is available.
+    """
+
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return None
+    from .leaflet_tui import choose_aifa_candidate
+
+    return choose_aifa_candidate(medication, therapies, candidates)
+
+
+def _print_leaflet_candidates(
+    medication_id: str,
+    medication_name: str,
+    candidates: tuple[AifaCandidate, ...],
+) -> None:
+    """Print an ambiguity report suitable for a non-interactive terminal.
+
+    Parameters
+    ----------
+    medication_id : str
+        Curated medication identifier.
+    medication_name : str
+        Curated medication name.
+    candidates : tuple[sanikey.leaflets.AifaCandidate, ...]
+        AIFA candidates in their stable display order.
+
+    Returns
+    -------
+    None
+    """
+
+    print(f"farmaco={medication_id} nome={medication_name} candidati={len(candidates)}")
+    for index, candidate in enumerate(candidates, start=1):
+        mismatch = (
+            f" da verificare: {', '.join(candidate.mismatches)}"
+            if candidate.mismatches
+            else ""
+        )
+        print(
+            f"  {index}. {candidate.title} AIFA={candidate.codice_sis}/{candidate.aic6}"
+            f"{mismatch}"
+        )
+    if candidates:
+        print("  usare --select FARMACO=NUMERO per confermare")
+    print("  usare --query FARMACO=TESTO per una ricerca manuale")
+    print("  usare --mark-non-aifa FARMACO se il farmaco non ha un FI AIFA applicabile")
 
 
 def _parse_leaflet_selections(values: list[str]) -> dict[str, int]:
@@ -1738,6 +1884,75 @@ def _parse_leaflet_selections(values: list[str]) -> dict[str, int]:
             raise SaniKeyError(message)  # noqa: TRY003
         selected[medication_id] = int(number)
     return selected
+
+
+def _parse_leaflet_queries(values: list[str]) -> dict[str, str]:
+    """Parse ``medication_id=text`` manual AIFA search arguments.
+
+    Parameters
+    ----------
+    values : list[str]
+        Raw command-line manual searches.
+
+    Returns
+    -------
+    dict[str, str]
+        Search text keyed by medication id.
+
+    Raises
+    ------
+    SaniKeyError
+        If a manual search is malformed.
+    """
+
+    queries: dict[str, str] = {}
+    for value in values:
+        medication_id, separator, query = value.partition("=")
+        if not medication_id or separator != "=" or not query.strip():
+            message = f"ricerca manuale foglio illustrativo non valida: {value}"
+            raise SaniKeyError(message)  # noqa: TRY003
+        queries[medication_id] = query.strip()
+    return queries
+
+
+def _validate_leaflet_option_ids(
+    medication_ids: set[str],
+    selected: dict[str, int],
+    queries: dict[str, str],
+    marked_non_aifa: set[str],
+) -> None:
+    """Validate medication ids and mutually exclusive leaflet CLI actions.
+
+    Parameters
+    ----------
+    medication_ids : set[str]
+        Curated medication identifiers.
+    selected : dict[str, int]
+        Explicit candidate choices.
+    queries : dict[str, str]
+        Explicit manual AIFA searches.
+    marked_non_aifa : set[str]
+        Medications explicitly excluded from AIFA.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    SaniKeyError
+        If an option names an unknown medication or incompatible actions.
+    """
+
+    requested = set(selected) | set(queries) | marked_non_aifa
+    unknown = sorted(requested - medication_ids)
+    if unknown:
+        message = f"farmaco non presente nei metadati curati: {unknown[0]}"
+        raise SaniKeyError(message)  # noqa: TRY003
+    conflicting = sorted(marked_non_aifa & (set(selected) | set(queries)))
+    if conflicting:
+        message = f"azioni AIFA incompatibili per il farmaco: {conflicting[0]}"
+        raise SaniKeyError(message)  # noqa: TRY003
 
 
 def run_generate_exports(args: argparse.Namespace) -> int:

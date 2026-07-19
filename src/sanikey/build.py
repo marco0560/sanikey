@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, cast
 from .database import build_database
 from .dicom import generate_dicom_previews, prepare_dicom_media
 from .documents import ExtractedText, extract_text
+from .errors import ConfigError
 from .exports import generate_exports
 from .frontend import build_frontend
 from .inspection import (
@@ -21,12 +22,13 @@ from .inspection import (
 from .leaflets import download_confirmed_leaflets
 from .metadata import load_curated_metadata
 from .observation_imports import ensure_observation_imports_current
+from .rendering import prepare_consultation_documents
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from .config import AccountsConfig, PersonConfig
-    from .models import DocumentRecord
+    from .models import CuratedMetadata, DocumentRecord
     from .progress import ProgressReporter
 
 
@@ -181,6 +183,7 @@ def build_patient(
     ensure_observation_imports_current(person)
     metadata = load_curated_metadata(person.metadata_directory)
     download_confirmed_leaflets(build_root, metadata.medication_leaflets)
+    _ensure_therapy_leaflets_complete(person, metadata)
     extraction_documents = tuple(
         document for document in documents if not document.kind.startswith("dicom_")
     )
@@ -191,6 +194,7 @@ def build_patient(
         progress=progress,
     )
     extracted = extracted_result.items
+    render_result = prepare_consultation_documents(person, documents)
     inspection_warnings = tuple(
         warning
         for warning in inspection.warning_messages
@@ -218,6 +222,7 @@ def build_patient(
         *inspection_warnings,
         *static_document_warning_messages(staging.documents),
         *extraction_warning_messages(extraction_documents, extracted),
+        *render_result.warning_messages,
         *export_result.warning_messages,
         *(warning for media in dicom_media for warning in media.warnings),
         *(warning for _, warnings in dicom_previews.values() for warning in warnings),
@@ -256,6 +261,58 @@ def build_patient(
         checksums=checksums_path,
         report=report_path,
     )
+
+
+def _ensure_therapy_leaflets_complete(
+    person: PersonConfig,
+    metadata: CuratedMetadata,
+) -> None:
+    """Require local FI and RCP files for every therapy medication.
+
+    Parameters
+    ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration that owns the generated leaflet directory.
+    metadata : sanikey.models.CuratedMetadata
+        Curated medications, therapy episodes, and AIFA decisions.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    sanikey.errors.ConfigError
+        If a therapy lacks an explicit AIFA or ``non_aifa`` decision, or its
+        required local documents are unavailable.
+    """
+
+    medication_ids = {therapy.medication_id for therapy in metadata.therapies}
+    references = {item.medication_id: item for item in metadata.medication_leaflets}
+    exclusions = {item.medication_id for item in metadata.medication_leaflet_exclusions}
+    unresolved = sorted(medication_ids - set(references) - exclusions)
+    if unresolved:
+        message = (
+            f"{person.metadata_directory / 'medication_leaflets.toml'}: "
+            "farmaci in terapia senza riferimento AIFA o stato non_aifa: "
+            + ", ".join(unresolved)
+        )
+        raise ConfigError(message)
+    incomplete = []
+    for medication_id in sorted(medication_ids & set(references)):
+        directory = person.local_build / "medication-leaflets" / medication_id
+        missing = [
+            filename
+            for filename in ("foglio-illustrativo.pdf", "rcp.pdf")
+            if not (directory / filename).is_file()
+        ]
+        if missing:
+            incomplete.append(f"{medication_id} ({', '.join(missing)})")
+    if incomplete:
+        message = "documenti AIFA locali mancanti dopo il download: " + ", ".join(
+            incomplete
+        )
+        raise ConfigError(message)
 
 
 def build_all(

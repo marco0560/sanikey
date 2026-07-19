@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any
@@ -13,7 +14,7 @@ from urllib.request import urlopen
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from .models import Medication, MedicationLeaflet
+    from .models import Medication, MedicationLeaflet, MedicationLeafletExclusion
 
 API_ROOT = "https://api.aifa.gov.it/aifa-bdf-eif-be/1.0.0/"
 PORTAL_ROOT = "https://medicinali.aifa.gov.it/#/it"
@@ -32,11 +33,54 @@ class AifaCandidate:
         AIFA organisation identifier.
     aic6 : str
         AIFA medicine identifier.
+    active_ingredients : tuple[str, ...], optional
+        Active ingredients declared by AIFA.
+    form : str | None, optional
+        Pharmaceutical form declared by AIFA.
+    strength : str | None, optional
+        Dosage and pharmaceutical form declared by AIFA.
+    company : str | None, optional
+        Marketing authorisation holder declared by AIFA.
+    atc : tuple[str, ...], optional
+        AIFA ATC descriptions.
+    routes : tuple[str, ...], optional
+        Routes of administration declared by AIFA.
+    packages : tuple[str, ...], optional
+        Available package descriptions declared by AIFA.
+    mismatches : tuple[str, ...], optional
+        Curated fields that require operator verification before confirmation.
     """
 
     title: str
     codice_sis: str
     aic6: str
+    active_ingredients: tuple[str, ...] = ()
+    form: str | None = None
+    strength: str | None = None
+    company: str | None = None
+    atc: tuple[str, ...] = ()
+    routes: tuple[str, ...] = ()
+    packages: tuple[str, ...] = ()
+    mismatches: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AifaCandidateSearch:
+    """Represent the deterministic result of a multi-query AIFA search.
+
+    Parameters
+    ----------
+    exact : tuple[AifaCandidate, ...]
+        Candidates compatible with every populated curated field.
+    review : tuple[AifaCandidate, ...]
+        Plausible candidates requiring operator review.
+    all_candidates : tuple[AifaCandidate, ...]
+        All candidates returned by successful AIFA searches.
+    """
+
+    exact: tuple[AifaCandidate, ...] = ()
+    review: tuple[AifaCandidate, ...] = ()
+    all_candidates: tuple[AifaCandidate, ...] = ()
 
 
 def find_aifa_candidates(medication: Medication) -> tuple[AifaCandidate, ...]:
@@ -72,24 +116,391 @@ def lookup_aifa_candidates(medication: Medication) -> tuple[AifaCandidate, ...] 
         ``None`` when the service cannot be reached.
     """
 
-    query = medication.name or medication.active_ingredient or ""
-    if not query:
-        return ()
-    payload = _aifa_json(
-        f"formadosaggio/ricerca?{urlencode({'query': query, 'page': 0})}"
-    )
-    if payload is None:
+    search = lookup_aifa_candidate_search(medication)
+    return None if search is None else search.exact
+
+
+def lookup_aifa_candidate_search(
+    medication: Medication,
+    *,
+    query: str | None = None,
+) -> AifaCandidateSearch | None:
+    """Search AIFA by commercial and active names, separating review results.
+
+    Parameters
+    ----------
+    medication : sanikey.models.Medication
+        Medication supplied by curated metadata.
+    query : str | None, optional
+        Explicit operator search text. It replaces the automatic queries.
+
+    Returns
+    -------
+    AifaCandidateSearch | None
+        Classified candidates, or ``None`` when every AIFA request failed.
+    """
+
+    queries = _lookup_queries(medication, query)
+    if not queries:
+        return AifaCandidateSearch()
+    raw_candidates: list[AifaCandidate] = []
+    available = False
+    for lookup_query in queries:
+        payload = _aifa_json(
+            f"formadosaggio/ricerca?{urlencode({'query': lookup_query, 'page': 0})}"
+        )
+        if payload is None:
+            continue
+        available = True
+        raw_candidates.extend(_candidates_from_payload(payload))
+    if not available:
         return None
+    ordered = _ordered_candidates(raw_candidates)
+    classified = tuple(
+        replace(candidate, mismatches=_candidate_mismatches(candidate, medication))
+        for candidate in ordered
+    )
+    exact = tuple(candidate for candidate in classified if not candidate.mismatches)
+    review = tuple(
+        candidate
+        for candidate in classified
+        if candidate.mismatches and _candidate_is_plausible(candidate, medication)
+    )
+    return AifaCandidateSearch(exact, review, classified)
+
+
+def _lookup_queries(medication: Medication, query: str | None) -> tuple[str, ...]:
+    """Return normalized, de-duplicated AIFA search terms.
+
+    Parameters
+    ----------
+    medication : sanikey.models.Medication
+        Curated medication identity.
+    query : str | None
+        Explicit operator search text, when supplied.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Search terms in deterministic priority order.
+    """
+
+    values = (
+        (query,)
+        if query is not None
+        else (medication.name, medication.active_ingredient)
+    )
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if not value or not value.strip():
+            continue
+        normalized = _normalized_text(value)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            result.append(value.strip())
+    return tuple(result)
+
+
+def _candidates_from_payload(payload: dict[str, Any]) -> tuple[AifaCandidate, ...]:
+    """Extract AIFA candidates from one successful API response.
+
+    Parameters
+    ----------
+    payload : dict[str, typing.Any]
+        Decoded AIFA response.
+
+    Returns
+    -------
+    tuple[AifaCandidate, ...]
+        Unordered parsed candidates.
+    """
+
     content = payload.get("data", {}).get("content", [])
     candidates = []
     for item in content if isinstance(content, list) else []:
-        medicine = item.get("medicinale", {}) if isinstance(item, dict) else {}
+        if not isinstance(item, dict):
+            continue
+        medicine = item.get("medicinale", {})
+        medicine = medicine if isinstance(medicine, dict) else {}
         code_sis = medicine.get("codiceSis")
         aic6 = medicine.get("aic6")
         title = medicine.get("denominazioneMedicinale")
         if all(isinstance(value, (str, int)) for value in (code_sis, aic6, title)):
-            candidates.append(AifaCandidate(str(title), str(code_sis), str(aic6)))
-    return tuple(sorted(set(candidates), key=lambda item: item.title.casefold()))
+            packages = item.get("confezioni", [])
+            candidates.append(
+                AifaCandidate(
+                    str(title),
+                    str(code_sis),
+                    str(aic6),
+                    _string_tuple(item.get("principiAttiviIt")),
+                    _optional_aifa_string(item.get("formaFarmaceutica")),
+                    _optional_aifa_string(item.get("descrizioneFormaDosaggio")),
+                    _optional_aifa_string(medicine.get("aziendaTitolare")),
+                    _string_tuple(item.get("descrizioneAtc")),
+                    _string_tuple(item.get("vieSomministrazione")),
+                    tuple(
+                        package_name
+                        for package in packages
+                        if isinstance(package, dict)
+                        and (
+                            package_name := _optional_aifa_string(
+                                package.get("denominazionePackage")
+                            )
+                        )
+                    ),
+                )
+            )
+    return tuple(candidates)
+
+
+def _ordered_candidates(candidates: list[AifaCandidate]) -> tuple[AifaCandidate, ...]:
+    """De-duplicate and sort AIFA candidates for reproducible review.
+
+    Parameters
+    ----------
+    candidates : list[AifaCandidate]
+        Candidates returned by one or more AIFA requests.
+
+    Returns
+    -------
+    tuple[AifaCandidate, ...]
+        Sorted unique candidates.
+    """
+
+    return tuple(
+        sorted(
+            set(candidates),
+            key=lambda item: (
+                item.title.casefold(),
+                item.strength or "",
+                item.form or "",
+            ),
+        )
+    )
+
+
+def _candidate_matches_medication(
+    candidate: AifaCandidate,
+    medication: Medication,
+) -> bool:
+    """Check whether populated AIFA fields match the curated medication.
+
+    Parameters
+    ----------
+    candidate : AifaCandidate
+        AIFA formulation candidate.
+    medication : sanikey.models.Medication
+        Curated medication identity.
+
+    Returns
+    -------
+    bool
+        ``True`` when every populated curated field is also present and
+        compatible in AIFA. Incomplete AIFA data is treated as no match so it
+        cannot crowd the operator review with unrelated formulations.
+    """
+
+    return not _candidate_mismatches(candidate, medication)
+
+
+def _candidate_mismatches(
+    candidate: AifaCandidate,
+    medication: Medication,
+) -> tuple[str, ...]:
+    """Return populated curated fields not confirmed by the AIFA candidate.
+
+    Parameters
+    ----------
+    candidate : AifaCandidate
+        AIFA formulation candidate.
+    medication : sanikey.models.Medication
+        Curated medication identity.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Italian labels for fields requiring operator verification.
+    """
+
+    mismatches: list[str] = []
+    if medication.active_ingredient and not _active_ingredients_match(
+        candidate, medication
+    ):
+        mismatches.append("principio attivo")
+    if medication.form and not (
+        candidate.form
+        and bool(_form_stems(candidate.form) & _form_stems(medication.form))
+    ):
+        mismatches.append("forma")
+    if medication.strength_per_unit and not (
+        candidate.strength
+        and _dose_signatures(medication.strength_per_unit).issubset(
+            _dose_signatures(candidate.strength)
+        )
+    ):
+        mismatches.append("dosaggio")
+    return tuple(mismatches)
+
+
+def _active_ingredients_match(candidate: AifaCandidate, medication: Medication) -> bool:
+    """Check component-wise compatibility of curated and AIFA active ingredients.
+
+    Parameters
+    ----------
+    candidate : AifaCandidate
+        AIFA formulation candidate.
+    medication : sanikey.models.Medication
+        Curated medication identity.
+
+    Returns
+    -------
+    bool
+        Whether every named curated component occurs in AIFA active ingredients.
+    """
+
+    components = _active_ingredient_components(medication.active_ingredient or "")
+    haystack = " ".join(_normalized_text(item) for item in candidate.active_ingredients)
+    return bool(components and haystack) and all(
+        component in haystack for component in components
+    )
+
+
+def _active_ingredient_components(value: str) -> tuple[str, ...]:
+    """Split curated active-ingredient text into normalized components.
+
+    Parameters
+    ----------
+    value : str
+        Curated active-ingredient text.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Meaningful component names, including combinations joined by ``e``.
+    """
+
+    return tuple(
+        component
+        for item in re.split(r"\s*(?:,|\+|/|\be\b)\s*", value, flags=re.IGNORECASE)
+        if (component := _normalized_text(item))
+    )
+
+
+def _candidate_is_plausible(candidate: AifaCandidate, medication: Medication) -> bool:
+    """Return whether a non-exact candidate is relevant enough for review.
+
+    Parameters
+    ----------
+    candidate : AifaCandidate
+        Classified AIFA candidate.
+    medication : sanikey.models.Medication
+        Curated medication identity.
+
+    Returns
+    -------
+    bool
+        ``True`` for a matching active component or commercial medicine name.
+    """
+
+    return _active_ingredients_match(candidate, medication) or _commercial_names_match(
+        candidate.title, medication.name
+    )
+
+
+def _commercial_names_match(candidate_name: str, medication_name: str) -> bool:
+    """Compare commercial names without accepting short numeric fragments.
+
+    Parameters
+    ----------
+    candidate_name : str
+        AIFA medicine title.
+    medication_name : str
+        Curated medicine name.
+
+    Returns
+    -------
+    bool
+        Whether either normalized commercial name contains the other.
+    """
+
+    candidate = _normalized_text(candidate_name)
+    medication = _normalized_text(medication_name)
+    return (
+        len(candidate) >= 4
+        and bool(medication)
+        and (candidate in medication or medication in candidate)
+    )
+
+
+def _normalized_text(value: str) -> str:
+    """Normalize a medicine field for case-insensitive comparison.
+
+    Parameters
+    ----------
+    value : str
+        Source field value.
+
+    Returns
+    -------
+    str
+        Lowercase alphanumeric text with collapsed spacing.
+    """
+
+    return " ".join(re.findall(r"[a-z0-9]+", value.casefold()))
+
+
+def _form_stems(value: str) -> set[str]:
+    """Extract conservative form-name stems from a pharmaceutical form.
+
+    Parameters
+    ----------
+    value : str
+        Pharmaceutical form text.
+
+    Returns
+    -------
+    set[str]
+        Stems long enough to distinguish forms such as tablets and capsules.
+    """
+
+    tokens = _normalized_text(value).split()
+    return {
+        token.rstrip("aeiop")[:8] for token in tokens if len(token.rstrip("aeiop")) >= 4
+    }
+
+
+def _dose_signatures(value: str) -> set[tuple[str, str]]:
+    """Extract normalized numeric dose-and-unit signatures from text.
+
+    Parameters
+    ----------
+    value : str
+        Dosage text from curated metadata or AIFA.
+
+    Returns
+    -------
+    set[tuple[str, str]]
+        Numeric value and unit pairs, preserving all stated quantities.
+    """
+
+    units = {
+        "microgrammi": "mcg",
+        "microgrammo": "mcg",
+        "mcg": "mcg",
+        "mg": "mg",
+        "g": "g",
+        "ml": "ml",
+        "ui": "ui",
+    }
+    matches = re.findall(
+        r"(\d+(?:[.,]\d+)?)\s*(microgrammi|microgrammo|mcg|mg|ml|ui|g)\b",
+        value.casefold(),
+    )
+    return {
+        (number.replace(",", ".").lstrip("0") or "0", units[unit])
+        for number, unit in matches
+    }
 
 
 def medication_fingerprint(medication: Medication) -> str:
@@ -118,6 +529,44 @@ def medication_fingerprint(medication: Medication) -> str:
     return sha256(identity.encode("utf-8")).hexdigest()
 
 
+def _string_tuple(value: object) -> tuple[str, ...]:
+    """Convert an AIFA array of strings to a normalized tuple.
+
+    Parameters
+    ----------
+    value : object
+        JSON value returned by AIFA.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Non-empty strings in their source order.
+    """
+
+    if not isinstance(value, list):
+        return ()
+    return tuple(
+        item.strip() for item in value if isinstance(item, str) and item.strip()
+    )
+
+
+def _optional_aifa_string(value: object) -> str | None:
+    """Return a stripped AIFA string when present.
+
+    Parameters
+    ----------
+    value : object
+        JSON value returned by AIFA.
+
+    Returns
+    -------
+    str | None
+        Non-empty string, otherwise ``None``.
+    """
+
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
 def download_confirmed_leaflets(
     build_root: Path,
     references: tuple[MedicationLeaflet, ...],
@@ -142,7 +591,7 @@ def download_confirmed_leaflets(
     for reference in references:
         target = build_root / "medication-leaflets" / reference.medication_id
         target.mkdir(parents=True, exist_ok=True)
-        fi_updated = False
+        downloaded: set[str] = set()
         for kind, filename in (("FI", "foglio-illustrativo.pdf"), ("RCP", "rcp.pdf")):
             url = f"{API_ROOT}organizzazione/{reference.codice_sis}/farmaci/{reference.aic6}/stampati/{kind}"
             try:
@@ -153,8 +602,8 @@ def download_confirmed_leaflets(
             if content:
                 target.joinpath(filename).write_bytes(content)
                 changed = True
-                fi_updated = fi_updated or kind == "FI"
-        if fi_updated:
+                downloaded.add(kind)
+        if downloaded == {"FI", "RCP"}:
             result[reference.medication_id] = datetime.now(UTC).date().isoformat()
     if changed:
         _write_download_dates(build_root, result)
@@ -209,7 +658,9 @@ def leaflet_urls(reference: MedicationLeaflet) -> dict[str, str]:
 
 
 def write_confirmed_references(
-    metadata_directory: Path, references: tuple[MedicationLeaflet, ...]
+    metadata_directory: Path,
+    references: tuple[MedicationLeaflet, ...],
+    exclusions: tuple[MedicationLeafletExclusion, ...] = (),
 ) -> Path:
     """Persist confirmed AIFA references for future local downloads.
 
@@ -219,6 +670,8 @@ def write_confirmed_references(
         Patient metadata directory.
     references : tuple[sanikey.models.MedicationLeaflet, ...]
         Confirmed references to persist.
+    exclusions : tuple[sanikey.models.MedicationLeafletExclusion, ...], optional
+        Curated markers for medications with no applicable AIFA leaflet.
 
     Returns
     -------
@@ -241,6 +694,15 @@ def write_confirmed_references(
                     if reference.source_fingerprint
                     else ()
                 ),
+                "",
+            )
+        )
+    for exclusion in sorted(exclusions, key=lambda item: item.medication_id):
+        lines.extend(
+            (
+                "[[unavailable]]",
+                f'medication_id = "{exclusion.medication_id}"',
+                f'reason = "{exclusion.reason}"',
                 "",
             )
         )
