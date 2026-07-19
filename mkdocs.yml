@@ -54,6 +54,7 @@ nav:
       - Lingua italiana per errori e interfaccia: decisions/adr-italian-interface-language.md
       - Immagini sorgente senza OCR diretto: decisions/adr-source-image-ocr-policy.md
       - Compatibilita' del PC di consultazione: decisions/adr-consultation-host-compatibility.md
+      - Esito spike DWV offline: decisions/adr-dwv-offline-spike.md
       - Fogli illustrativi locali con verifica AIFA: decisions/adr-medication-leaflets.md
   - Rilascio:
       - Lista di controllo: release/checklist.md
