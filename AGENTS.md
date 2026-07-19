@@ -39,6 +39,8 @@ At task start, check available Codex skills and use applicable ones. Required:
 - `planning-refinement-gate` for any plan before implementation;
 - `numpy-docstring-enforcer` when modifying Python symbols;
 - `commit-block-generator` for commits.
+- `sanikey-usb-browser-audit` for mounted USB export audits with a headless
+  browser; it is read-only unless the user separately requests a fix.
 
 Codira is available. For non-trivial code work, orient before broad search or
 edits:
