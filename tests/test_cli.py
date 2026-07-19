@@ -18,7 +18,11 @@ from sanikey.config import AccountsConfig, PersonConfig, default_accounts_path
 from sanikey.dicom import DicomStudy
 from sanikey.documents import ExtractedText
 from sanikey.errors import ConfigError
-from sanikey.leaflets import AifaCandidate, AifaCandidateSearch
+from sanikey.leaflets import (
+    AifaCandidate,
+    AifaCandidateSearch,
+    LeafletDownloadFailure,
+)
 from sanikey.models import DocumentRecord, Medication
 
 MODULE = "sanikey"
@@ -3244,6 +3248,7 @@ aic6 = "456"
             (AifaCandidate("Drug A", "123", "456"),),
         ),
     )
+    monkeypatch.setattr(cli, "probe_leaflet_documents", lambda _reference: ())
 
     result = cli.run_resolve_medication_leaflets(
         argparse.Namespace(
@@ -3257,6 +3262,88 @@ aic6 = "456"
         encoding="utf-8"
     )
     assert "source_fingerprint" in saved
+
+
+def test_resolve_medication_leaflets_replaces_reference_without_documents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify a cataloged reference without FI/RCP is not preserved.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.metadata_directory.mkdir(parents=True)
+    (person.metadata_directory / "medications.toml").write_text(
+        '[[medication]]\nid = "drug-a"\nname = "Drug A"\n', encoding="utf-8"
+    )
+    (person.metadata_directory / "medication_leaflets.toml").write_text(
+        """[[leaflet]]
+medication_id = "drug-a"
+codice_sis = "123"
+aic6 = "456"
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+    monkeypatch.setattr(
+        cli,
+        "lookup_aifa_candidate_search",
+        lambda _medication, **_kwargs: AifaCandidateSearch(
+            (AifaCandidate("Drug A", "124", "457"),),
+            (),
+            (
+                AifaCandidate("Drug A", "123", "456"),
+                AifaCandidate("Drug A", "124", "457"),
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "probe_leaflet_documents",
+        lambda reference: (
+            (
+                LeafletDownloadFailure(
+                    reference.medication_id,
+                    "FI",
+                    "https://aifa.example.test/old",
+                    "HTTP 404: Stampato RCP/FI non disponibile",
+                ),
+            )
+            if reference.aic6 == "456"
+            else ()
+        ),
+    )
+
+    result = cli.run_resolve_medication_leaflets(
+        argparse.Namespace(
+            config=tmp_path / "accounts.toml",
+            patient="patient-a",
+            select=["drug-a=1"],
+        )
+    )
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert "riferimento AIFA senza FI/RCP" in output
+    saved = (person.metadata_directory / "medication_leaflets.toml").read_text(
+        encoding="utf-8"
+    )
+    assert 'codice_sis = "124"' in saved
+    assert 'aic6 = "457"' in saved
 
 
 def test_leaflet_menu_choice_uses_ncurses_review(

@@ -167,6 +167,14 @@ def build_patient(
         raise ValueError(msg)
     build_root = person.local_build
     build_root.mkdir(parents=True, exist_ok=True)
+    metadata = load_curated_metadata(person.metadata_directory)
+    leaflet_downloads = download_confirmed_leaflets(
+        build_root,
+        metadata.medication_leaflets,
+    )
+    _ensure_leaflet_downloads_succeeded(leaflet_downloads)
+    _ensure_therapy_leaflets_complete(person, metadata)
+    ensure_observation_imports_current(person)
     inspection = inspect_patient_documents(
         person,
         stage_containers=True,
@@ -180,14 +188,6 @@ def build_patient(
     dicom_studies = inspection.dicom_studies
     dicom_media = prepare_dicom_media(person, dicom_studies)
     dicom_previews = generate_dicom_previews(person, dicom_studies)
-    ensure_observation_imports_current(person)
-    metadata = load_curated_metadata(person.metadata_directory)
-    leaflet_downloads = download_confirmed_leaflets(
-        build_root,
-        metadata.medication_leaflets,
-    )
-    _ensure_leaflet_downloads_succeeded(leaflet_downloads)
-    _ensure_therapy_leaflets_complete(person, metadata)
     extraction_documents = tuple(
         document for document in documents if not document.kind.startswith("dicom_")
     )

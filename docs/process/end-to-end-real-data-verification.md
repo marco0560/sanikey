@@ -612,6 +612,9 @@ uv run sanikey resolve-medication-leaflets patient-a --mark-non-aifa FARMACO
 
 La build rifiuta di proseguire se una terapia non ha un riferimento AIFA
 confermato o `non_aifa`, oppure se non riesce a conservare localmente FI e RCP.
+Il controllo e il download AIFA avvengono prima dello staging di archivi e
+studi DICOM, evitando elaborazioni lunghe quando un riferimento richiede una
+nuova selezione.
 
 ### Build completa
 

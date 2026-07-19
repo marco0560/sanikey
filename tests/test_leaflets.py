@@ -14,6 +14,7 @@ from sanikey.leaflets import (
     lookup_aifa_candidate_search,
     lookup_aifa_candidates,
     medication_fingerprint,
+    probe_leaflet_documents,
     write_confirmed_references,
 )
 from sanikey.models import Medication, MedicationLeaflet, MedicationLeafletExclusion
@@ -429,6 +430,62 @@ def test_download_confirmed_leaflets_rejects_non_pdf_response(
         for failure in result.failures
     )
     assert not (tmp_path / "medication-leaflets" / "drug-a").exists()
+
+
+def test_probe_leaflet_documents_uses_aifa_error_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify AIFA's detailed error list is retained in the failure message.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    def unavailable(request: object, **_kwargs: object) -> BytesIO:
+        """Raise an AIFA HTTP error containing an ``errors`` list.
+
+        Parameters
+        ----------
+        request : object
+            AIFA request object.
+        _kwargs : object
+            Ignored urlopen keyword arguments.
+
+        Returns
+        -------
+        io.BytesIO
+            This function always raises before returning.
+
+        Raises
+        ------
+        urllib.error.HTTPError
+            A synthetic AIFA unavailable-document response.
+        """
+
+        url = request.full_url  # type: ignore[attr-defined]
+        raise HTTPError(
+            url,
+            404,
+            "Not Found",
+            None,
+            BytesIO(b'{"errors":["Stampato RCP/FI non disponibile"]}'),
+        )
+
+    monkeypatch.setattr("sanikey.leaflets.urlopen", unavailable)
+
+    failures = probe_leaflet_documents(MedicationLeaflet("drug-a", "123", "456"))
+
+    assert [failure.kind for failure in failures] == ["FI", "RCP"]
+    assert all(
+        failure.reason == "HTTP 404: Stampato RCP/FI non disponibile"
+        for failure in failures
+    )
 
 
 def test_leaflet_urls_use_aifa_printed_document_query() -> None:

@@ -454,6 +454,44 @@ def test_leaflet_download_error_names_document_and_aifa_url() -> None:
     assert "https://api.example.test/stampati?ts=FI" in message
 
 
+def test_build_patient_checks_leaflets_before_document_staging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify failed leaflet download stops before expensive container staging.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    failure = LeafletDownloadFailure(
+        "drug-a",
+        "FI",
+        "https://api.example.test/stampati?ts=FI",
+        "HTTP 404: Stampato RCP/FI non disponibile",
+    )
+    monkeypatch.setattr(
+        "sanikey.build.download_confirmed_leaflets",
+        lambda *_args: LeafletDownloadResult({}, (failure,)),
+    )
+    monkeypatch.setattr(
+        "sanikey.build.inspect_patient_documents",
+        lambda *_args, **_kwargs: pytest.fail("staging non deve essere avviato"),
+    )
+
+    with pytest.raises(ConfigError, match="download documenti AIFA non riuscito"):
+        build_patient(person)
+
+
 def test_build_patient_preserves_original_document_bytes_and_mtime(
     tmp_path: Path,
 ) -> None:

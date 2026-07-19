@@ -30,6 +30,7 @@ from .leaflets import (
     AifaCandidate,
     lookup_aifa_candidate_search,
     medication_fingerprint,
+    probe_leaflet_documents,
     write_confirmed_references,
 )
 from .metadata import load_curated_metadata
@@ -1669,6 +1670,7 @@ def run_resolve_medication_leaflets(  # noqa: C901, PLR0912
         }
         unresolved = 0
         for medication in metadata.medications:
+            requires_reconfirmation = False
             if medication.id in marked_non_aifa:
                 references.pop(medication.id, None)
                 exclusions[medication.id] = MedicationLeafletExclusion(medication.id)
@@ -1705,18 +1707,49 @@ def run_resolve_medication_leaflets(  # noqa: C901, PLR0912
                 ),
                 None,
             )
-            if current is not None and current_index is not None:
-                references[medication.id] = MedicationLeaflet(
-                    medication.id,
-                    current.codice_sis,
-                    current.aic6,
-                    current.downloaded_at,
-                    medication_fingerprint(medication),
-                )
-                print(f"farmaco={medication.id} riferimento AIFA verificato")
-                continue
+            if (
+                current is not None
+                and current_index is not None
+                and medication.id not in queries
+            ):
+                failures = probe_leaflet_documents(current)
+                if failures:
+                    if not any(
+                        failure.reason.startswith("HTTP 404") for failure in failures
+                    ):
+                        print(
+                            f"farmaco={medication.id} riferimento AIFA conservato "
+                            "(verifica FI/RCP non disponibile)"
+                        )
+                        continue
+                    references.pop(medication.id, None)
+                    requires_reconfirmation = True
+                    print(
+                        f"farmaco={medication.id} riferimento AIFA senza FI/RCP: "
+                        + "; ".join(
+                            f"{failure.kind} {failure.reason}" for failure in failures
+                        )
+                    )
+                    current = None
+                else:
+                    references[medication.id] = MedicationLeaflet(
+                        medication.id,
+                        current.codice_sis,
+                        current.aic6,
+                        current.downloaded_at,
+                        medication_fingerprint(medication),
+                    )
+                    print(f"farmaco={medication.id} riferimento AIFA verificato")
+                    continue
+            if current is not None and medication.id in queries:
+                references.pop(medication.id, None)
+                current = None
             choice = selected.get(medication.id)
-            if choice is None and len(search.exact) == 1:
+            if (
+                choice is None
+                and len(search.exact) == 1
+                and not requires_reconfirmation
+            ):
                 choice = 1
                 print(
                     f"farmaco={medication.id} riferimento AIFA confermato automaticamente"
@@ -1767,12 +1800,23 @@ def run_resolve_medication_leaflets(  # noqa: C901, PLR0912
                 print(f"ERRORE: selezione non valida per {medication.id}: {choice}")
                 return 1
             candidate = candidates[choice - 1]
-            references[medication.id] = MedicationLeaflet(
+            reference = MedicationLeaflet(
                 medication.id,
                 candidate.codice_sis,
                 candidate.aic6,
                 source_fingerprint=medication_fingerprint(medication),
             )
+            failures = probe_leaflet_documents(reference)
+            if failures:
+                print(
+                    f"farmaco={medication.id} candidato AIFA senza FI/RCP: "
+                    + "; ".join(
+                        f"{failure.kind} {failure.reason}" for failure in failures
+                    )
+                )
+                unresolved += 1
+                continue
+            references[medication.id] = reference
         if references or exclusions:
             target = write_confirmed_references(
                 people[0].metadata_directory,

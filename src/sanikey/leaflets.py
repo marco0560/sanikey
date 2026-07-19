@@ -638,44 +638,8 @@ def download_confirmed_leaflets(
     failures: list[LeafletDownloadFailure] = []
     for reference in references:
         target = build_root / "medication-leaflets" / reference.medication_id
-        downloaded: dict[str, bytes] = {}
-        for kind, filename in (("FI", "foglio-illustrativo.pdf"), ("RCP", "rcp.pdf")):
-            url = _aifa_printed_url(reference, kind)
-            try:
-                request = Request(url, headers={"Accept": "application/pdf"})
-                with urlopen(request, timeout=30) as response:
-                    content = response.read()
-            except HTTPError as error:
-                failures.append(
-                    LeafletDownloadFailure(
-                        reference.medication_id,
-                        kind,
-                        url,
-                        _aifa_http_error_reason(error),
-                    )
-                )
-                continue
-            except OSError as error:
-                failures.append(
-                    LeafletDownloadFailure(
-                        reference.medication_id,
-                        kind,
-                        url,
-                        f"errore di rete: {error}",
-                    )
-                )
-                continue
-            if not content.startswith(b"%PDF-"):
-                failures.append(
-                    LeafletDownloadFailure(
-                        reference.medication_id,
-                        kind,
-                        url,
-                        "risposta AIFA non in formato PDF",
-                    )
-                )
-                continue
-            downloaded[filename] = content
+        downloaded, document_failures = _fetch_leaflet_documents(reference)
+        failures.extend(document_failures)
         if len(downloaded) == 2:
             target.mkdir(parents=True, exist_ok=True)
             for filename, content in downloaded.items():
@@ -687,6 +651,85 @@ def download_confirmed_leaflets(
     if changed:
         _write_download_dates(build_root, result)
     return LeafletDownloadResult(result, tuple(failures))
+
+
+def probe_leaflet_documents(
+    reference: MedicationLeaflet,
+) -> tuple[LeafletDownloadFailure, ...]:
+    """Check whether AIFA exposes valid FI and RCP PDFs for one reference.
+
+    Parameters
+    ----------
+    reference : sanikey.models.MedicationLeaflet
+        Confirmed or candidate AIFA medicine reference.
+
+    Returns
+    -------
+    tuple[LeafletDownloadFailure, ...]
+        Empty when both documents are valid PDFs, otherwise one failure for
+        each unavailable or invalid document. Downloaded bytes are discarded.
+    """
+
+    _, failures = _fetch_leaflet_documents(reference)
+    return failures
+
+
+def _fetch_leaflet_documents(
+    reference: MedicationLeaflet,
+) -> tuple[dict[str, bytes], tuple[LeafletDownloadFailure, ...]]:
+    """Retrieve and validate the FI/RCP pair for one AIFA reference.
+
+    Parameters
+    ----------
+    reference : sanikey.models.MedicationLeaflet
+        Confirmed or candidate AIFA medicine reference.
+
+    Returns
+    -------
+    tuple[dict[str, bytes], tuple[LeafletDownloadFailure, ...]]
+        PDF bytes keyed by local filename and any per-document failures.
+    """
+
+    downloaded: dict[str, bytes] = {}
+    failures: list[LeafletDownloadFailure] = []
+    for kind, filename in (("FI", "foglio-illustrativo.pdf"), ("RCP", "rcp.pdf")):
+        url = _aifa_printed_url(reference, kind)
+        try:
+            request = Request(url, headers={"Accept": "application/pdf"})
+            with urlopen(request, timeout=30) as response:
+                content = response.read()
+        except HTTPError as error:
+            failures.append(
+                LeafletDownloadFailure(
+                    reference.medication_id,
+                    kind,
+                    url,
+                    _aifa_http_error_reason(error),
+                )
+            )
+            continue
+        except OSError as error:
+            failures.append(
+                LeafletDownloadFailure(
+                    reference.medication_id,
+                    kind,
+                    url,
+                    f"errore di rete: {error}",
+                )
+            )
+            continue
+        if not content.startswith(b"%PDF-"):
+            failures.append(
+                LeafletDownloadFailure(
+                    reference.medication_id,
+                    kind,
+                    url,
+                    "risposta AIFA non in formato PDF",
+                )
+            )
+            continue
+        downloaded[filename] = content
+    return downloaded, tuple(failures)
 
 
 def _aifa_printed_url(reference: MedicationLeaflet, kind: str) -> str:
@@ -740,8 +783,16 @@ def _aifa_http_error_reason(error: HTTPError) -> str:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         payload = None
     if isinstance(payload, dict):
+        errors = payload.get("errors")
+        if isinstance(errors, list):
+            error_messages = [
+                item.strip()
+                for item in errors
+                if isinstance(item, str) and item.strip()
+            ]
+            detail = "; ".join(error_messages)[:240]
         description = payload.get("description") or payload.get("message")
-        if isinstance(description, str):
+        if not detail and isinstance(description, str):
             detail = description.strip().replace("\n", " ")[:240]
     return f"HTTP {error.code}" + (f": {detail}" if detail else "")
 

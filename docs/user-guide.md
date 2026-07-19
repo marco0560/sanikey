@@ -576,13 +576,17 @@ interrogate di nuovo; rimuovere il relativo blocco solo quando il dato curato
 o la disponibilità AIFA cambia.
 
 Alle esecuzioni successive verifica ogni riferimento già confermato nella banca
-dati AIFA e lo conserva senza chiedere alcun intervento quando è ancora
-presente. Se AIFA non è raggiungibile, conserva il riferimento e segnala che la
-verifica non è stata possibile. Se il riferimento non è più presente o resta
-ambigua una nuova associazione, non sostituisce mai la scelta da solo.
+dati AIFA e la disponibilita' di entrambi FI e RCP. Lo conserva senza chiedere
+intervento quando il riferimento e i documenti sono ancora disponibili. Se FI
+o RCP non sono disponibili, il riferimento non viene conservato e la selezione
+torna da confermare; non viene mai sostituito automaticamente con un altro
+medicinale commerciale. Usare `--query FARMACO=TESTO` per cercare e sostituire
+esplicitamente anche un riferimento gia' salvato. Se AIFA non è raggiungibile,
+conserva il riferimento e segnala che la verifica non è stata possibile.
 
 Durante `build-patient` o `build-all`, SaniKey riscarica FI e RCP dei
-riferimenti confermati. La build si interrompe se un farmaco in terapia non ha
+riferimenti confermati prima di ispezionare documenti e contenitori, così un
+problema AIFA viene segnalato subito. La build si interrompe se un farmaco in terapia non ha
 un riferimento AIFA o uno stato `non_aifa`, oppure se FI e RCP locali non sono
 disponibili. La scheda `Terapia` preferisce i PDF locali offline,
 indica la data dell'ultimo download riuscito e offre anche il collegamento AIFA
