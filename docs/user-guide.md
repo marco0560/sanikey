@@ -590,6 +590,12 @@ per il controllo online. Le informazioni dei medicinali possono cambiare anche
 con lo stesso AIC; la copia locale resta quindi una fotografia alla data
 mostrata.
 
+FI e RCP vengono accettati solo se AIFA restituisce entrambi come PDF validi;
+un aggiornamento incompleto non sostituisce la coppia locale precedente. In
+caso di errore la build indica farmaco, tipo di documento, stato o dettaglio
+restituito da AIFA e URL richiesto, così da distinguere un riferimento non più
+disponibile da un'indisponibilita' temporanea del servizio.
+
 La sezione `Sintesi Clinica` mostra una dashboard clinica sempre consultabile.
 Include, quando presenti, problemi, terapie, farmaci, osservazioni e procedure.
 Le terapie sono arricchite con nome commerciale, principio attivo, dosaggio,

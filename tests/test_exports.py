@@ -498,7 +498,7 @@ date = "2026-01-05"
     )
     assert therapy["rcp_href"] == "../medication-leaflets/drug-a/rcp.pdf"
     assert therapy["leaflet_downloaded_at"] == "2026-07-18"
-    assert therapy["aifa_fi_url"].endswith("/123/farmaci/456/stampati/FI")
+    assert therapy["aifa_fi_url"].endswith("/123/farmaci/456/stampati?ts=FI")
     assert {"label": "Schedula", "value": "risveglio, cena"} in therapy["fields"]
     assert therapy_event["id"] == "therapy-therapy-a"
     assert therapy_event["title"] == "Terapia: Drug A"

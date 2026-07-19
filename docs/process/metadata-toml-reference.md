@@ -150,7 +150,7 @@ source_fingerprint = "..."
 
 `downloaded_at`, se presente, descrive una precedente copia locale. La data
 mostrata nell'export proviene invece dal manifesto generato durante la build e
-corrisponde all'ultimo download FI riuscito.
+corrisponde all'ultimo aggiornamento riuscito della coppia FI/RCP.
 
 Per integratori o altri prodotti senza foglio illustrativo AIFA applicabile, il
 comando può registrare una scelta esplicita e persistente. Non deve coesistere

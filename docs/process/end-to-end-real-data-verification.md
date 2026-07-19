@@ -625,8 +625,9 @@ Eseguire quindi la build. Verificare che in
 `local-data/generated/patient-a/medication-leaflets/` e nella copia USB siano
 presenti `foglio-illustrativo.pdf` e `rcp.pdf` per i farmaci confermati, e che
 la scheda `Terapia` indichi la data del download locale. Se AIFA non e'
-raggiungibile, il comando conserva le associazioni esistenti ma la build non
-puo' aggiornare la copia locale.
+raggiungibile, o restituisce un documento non PDF, il comando conserva la
+coppia locale precedente e termina indicando farmaco, FI/RCP, dettaglio AIFA e
+URL richiesto; la build non puo' aggiornare la copia locale.
 
 In alternativa, per isolare un problema, eseguire un paziente alla volta:
 

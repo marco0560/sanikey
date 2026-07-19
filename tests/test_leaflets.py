@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from typing import TYPE_CHECKING
+from urllib.error import HTTPError
 
 from sanikey.leaflets import (
     download_confirmed_leaflets,
     leaflet_download_dates,
+    leaflet_urls,
     lookup_aifa_candidate_search,
     lookup_aifa_candidates,
     medication_fingerprint,
@@ -254,11 +257,11 @@ def test_aifa_search_keeps_only_plausible_review_candidates(
     assert search.review[0].mismatches == ("forma",)
 
 
-def test_download_confirmed_leaflets_records_only_successful_fi_updates(
+def test_download_confirmed_leaflets_records_complete_pdf_pair(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify the displayed date denotes a newly downloaded local FI.
+    """Verify the displayed date denotes one complete local AIFA update.
 
     Parameters
     ----------
@@ -293,16 +296,157 @@ def test_download_confirmed_leaflets_records_only_successful_fi_updates(
     )
     reference = MedicationLeaflet("drug-a", "123", "456")
 
-    dates = download_confirmed_leaflets(tmp_path, (reference,))
+    result = download_confirmed_leaflets(tmp_path, (reference,))
 
-    assert dates["drug-a"]
-    assert leaflet_download_dates(tmp_path) == dates
+    assert result.downloaded_at["drug-a"]
+    assert result.failures == ()
+    assert leaflet_download_dates(tmp_path) == result.downloaded_at
     manifest = json.loads(
         (tmp_path / "manifests" / "medication-leaflets.json").read_text(
             encoding="utf-8"
         )
     )
-    assert manifest["downloaded_at"] == dates
+    assert manifest["downloaded_at"] == result.downloaded_at
+
+
+def test_download_confirmed_leaflets_reports_failure_without_partial_update(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify one failed document retains the previous complete local pair.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    class Response:
+        """Provide a minimal successful PDF response."""
+
+        def __enter__(self) -> Response:
+            """Enter the response context."""
+
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            """Exit the response context."""
+
+        def read(self) -> bytes:
+            """Return a synthetic PDF payload."""
+
+            return b"%PDF-new"
+
+    reference = MedicationLeaflet("drug-a", "123", "456")
+    target = tmp_path / "medication-leaflets" / "drug-a"
+    target.mkdir(parents=True)
+    (target / "foglio-illustrativo.pdf").write_bytes(b"%PDF-old-fi")
+    (target / "rcp.pdf").write_bytes(b"%PDF-old-rcp")
+
+    def failing_rcp(request: object, **_kwargs: object) -> Response:
+        """Return FI and fail RCP with an AIFA JSON diagnostic.
+
+        Parameters
+        ----------
+        request : object
+            AIFA request object.
+        _kwargs : object
+            Ignored urlopen keyword arguments.
+
+        Returns
+        -------
+        Response
+            Successful FI response.
+
+        Raises
+        ------
+        urllib.error.HTTPError
+            For the RCP request.
+        """
+
+        url = request.full_url  # type: ignore[attr-defined]
+        if url.endswith("ts=RCP"):
+            raise HTTPError(
+                url,
+                503,
+                "Servizio non disponibile",
+                None,
+                BytesIO(b'{"description":"servizio sospeso"}'),
+            )
+        return Response()
+
+    monkeypatch.setattr("sanikey.leaflets.urlopen", failing_rcp)
+
+    result = download_confirmed_leaflets(tmp_path, (reference,))
+
+    assert result.downloaded_at == {}
+    assert len(result.failures) == 1
+    assert result.failures[0].kind == "RCP"
+    assert result.failures[0].reason == "HTTP 503: servizio sospeso"
+    assert result.failures[0].url.endswith("stampati?ts=RCP")
+    assert (target / "foglio-illustrativo.pdf").read_bytes() == b"%PDF-old-fi"
+    assert (target / "rcp.pdf").read_bytes() == b"%PDF-old-rcp"
+
+
+def test_download_confirmed_leaflets_rejects_non_pdf_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify an AIFA error body cannot be stored as a leaflet PDF.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    monkeypatch.setattr(
+        "sanikey.leaflets.urlopen",
+        lambda *_args, **_kwargs: BytesIO(b'{"message":"non disponibile"}'),
+    )
+
+    result = download_confirmed_leaflets(
+        tmp_path,
+        (MedicationLeaflet("drug-a", "123", "456"),),
+    )
+
+    assert result.downloaded_at == {}
+    assert [failure.kind for failure in result.failures] == ["FI", "RCP"]
+    assert all(
+        failure.reason == "risposta AIFA non in formato PDF"
+        for failure in result.failures
+    )
+    assert not (tmp_path / "medication-leaflets" / "drug-a").exists()
+
+
+def test_leaflet_urls_use_aifa_printed_document_query() -> None:
+    """Verify public FI and RCP links use the AIFA document query parameter.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    urls = leaflet_urls(MedicationLeaflet("drug-a", "123", "456"))
+
+    assert urls["aifa_fi_url"].endswith("/123/farmaci/456/stampati?ts=FI")
+    assert urls["aifa_rcp_url"].endswith("/123/farmaci/456/stampati?ts=RCP")
 
 
 def test_write_confirmed_references_persists_lookup_fingerprint(tmp_path: Path) -> None:

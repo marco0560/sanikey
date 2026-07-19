@@ -10,10 +10,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from sanikey.build import build_all, build_patient
+from sanikey.build import _ensure_leaflet_downloads_succeeded, build_all, build_patient
 from sanikey.config import AccountsConfig, PersonConfig
 from sanikey.documents import ExtractedText
 from sanikey.errors import ConfigError
+from sanikey.leaflets import LeafletDownloadFailure, LeafletDownloadResult
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -411,10 +412,46 @@ medication_id = "drug-a"
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr("sanikey.build.download_confirmed_leaflets", lambda *_: {})
+    monkeypatch.setattr(
+        "sanikey.build.download_confirmed_leaflets",
+        lambda *_: LeafletDownloadResult({}),
+    )
 
     with pytest.raises(ConfigError, match="senza riferimento AIFA"):
         build_patient(person)
+
+
+def test_leaflet_download_error_names_document_and_aifa_url() -> None:
+    """Verify failed AIFA downloads retain their actionable context.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    downloads = LeafletDownloadResult(
+        {},
+        (
+            LeafletDownloadFailure(
+                "drug-a",
+                "FI",
+                "https://api.example.test/stampati?ts=FI",
+                "HTTP 503: servizio sospeso",
+            ),
+        ),
+    )
+
+    with pytest.raises(ConfigError) as raised:
+        _ensure_leaflet_downloads_succeeded(downloads)
+
+    message = str(raised.value)
+    assert "farmaco=drug-a documento=FI" in message
+    assert "HTTP 503: servizio sospeso" in message
+    assert "https://api.example.test/stampati?ts=FI" in message
 
 
 def test_build_patient_preserves_original_document_bytes_and_mtime(

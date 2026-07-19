@@ -19,7 +19,7 @@ from .inspection import (
     inspect_patient_documents,
     static_document_warning_messages,
 )
-from .leaflets import download_confirmed_leaflets
+from .leaflets import LeafletDownloadResult, download_confirmed_leaflets
 from .metadata import load_curated_metadata
 from .observation_imports import ensure_observation_imports_current
 from .rendering import prepare_consultation_documents
@@ -182,7 +182,11 @@ def build_patient(
     dicom_previews = generate_dicom_previews(person, dicom_studies)
     ensure_observation_imports_current(person)
     metadata = load_curated_metadata(person.metadata_directory)
-    download_confirmed_leaflets(build_root, metadata.medication_leaflets)
+    leaflet_downloads = download_confirmed_leaflets(
+        build_root,
+        metadata.medication_leaflets,
+    )
+    _ensure_leaflet_downloads_succeeded(leaflet_downloads)
     _ensure_therapy_leaflets_complete(person, metadata)
     extraction_documents = tuple(
         document for document in documents if not document.kind.startswith("dicom_")
@@ -313,6 +317,38 @@ def _ensure_therapy_leaflets_complete(
             incomplete
         )
         raise ConfigError(message)
+
+
+def _ensure_leaflet_downloads_succeeded(
+    downloads: LeafletDownloadResult,
+) -> None:
+    """Raise a precise configuration error for failed AIFA downloads.
+
+    Parameters
+    ----------
+    downloads : sanikey.leaflets.LeafletDownloadResult
+        Download outcome for all confirmed medication references.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    sanikey.errors.ConfigError
+        If any requested FI or RCP document could not be downloaded and
+        validated as a PDF.
+    """
+
+    if not downloads.failures:
+        return
+    details = "; ".join(
+        f"farmaco={failure.medication_id} documento={failure.kind} "
+        f"{failure.reason} {failure.url}"
+        for failure in downloads.failures
+    )
+    message = f"download documenti AIFA non riuscito: {details}"
+    raise ConfigError(message)
 
 
 def build_all(

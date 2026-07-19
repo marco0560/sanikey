@@ -8,8 +8,9 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any
+from urllib.error import HTTPError
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -17,7 +18,6 @@ if TYPE_CHECKING:
     from .models import Medication, MedicationLeaflet, MedicationLeafletExclusion
 
 API_ROOT = "https://api.aifa.gov.it/aifa-bdf-eif-be/1.0.0/"
-PORTAL_ROOT = "https://medicinali.aifa.gov.it/#/it"
 DOWNLOAD_MANIFEST = "medication-leaflets.json"
 
 
@@ -81,6 +81,52 @@ class AifaCandidateSearch:
     exact: tuple[AifaCandidate, ...] = ()
     review: tuple[AifaCandidate, ...] = ()
     all_candidates: tuple[AifaCandidate, ...] = ()
+
+
+@dataclass(frozen=True)
+class LeafletDownloadFailure:
+    """Describe one failed AIFA FI or RCP download.
+
+    Parameters
+    ----------
+    medication_id : str
+        Curated medication identifier.
+    kind : str
+        AIFA document kind, either ``FI`` or ``RCP``.
+    url : str
+        Requested public AIFA URL.
+    reason : str
+        Short diagnostic returned or derived from the failed response.
+
+    Returns
+    -------
+    None
+    """
+
+    medication_id: str
+    kind: str
+    url: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class LeafletDownloadResult:
+    """Collect local AIFA download dates and failures for one build.
+
+    Parameters
+    ----------
+    downloaded_at : dict[str, str]
+        Successful local FI/RCP dates keyed by medication identifier.
+    failures : tuple[LeafletDownloadFailure, ...]
+        Failed FI or RCP downloads.
+
+    Returns
+    -------
+    None
+    """
+
+    downloaded_at: dict[str, str]
+    failures: tuple[LeafletDownloadFailure, ...] = ()
 
 
 def find_aifa_candidates(medication: Medication) -> tuple[AifaCandidate, ...]:
@@ -570,7 +616,7 @@ def _optional_aifa_string(value: object) -> str | None:
 def download_confirmed_leaflets(
     build_root: Path,
     references: tuple[MedicationLeaflet, ...],
-) -> dict[str, str]:
+) -> LeafletDownloadResult:
     """Download FI and RCP documents for confirmed AIFA references.
 
     Parameters
@@ -582,32 +628,122 @@ def download_confirmed_leaflets(
 
     Returns
     -------
-    dict[str, str]
-        ISO download date keyed by medication id for successful downloads.
+    LeafletDownloadResult
+        Successful local FI/RCP dates and per-document failures. A medicine's
+        existing local pair is retained unless both replacement PDFs validate.
     """
 
     result = leaflet_download_dates(build_root)
     changed = False
+    failures: list[LeafletDownloadFailure] = []
     for reference in references:
         target = build_root / "medication-leaflets" / reference.medication_id
-        target.mkdir(parents=True, exist_ok=True)
-        downloaded: set[str] = set()
+        downloaded: dict[str, bytes] = {}
         for kind, filename in (("FI", "foglio-illustrativo.pdf"), ("RCP", "rcp.pdf")):
-            url = f"{API_ROOT}organizzazione/{reference.codice_sis}/farmaci/{reference.aic6}/stampati/{kind}"
+            url = _aifa_printed_url(reference, kind)
             try:
-                with urlopen(url, timeout=30) as response:
+                request = Request(url, headers={"Accept": "application/pdf"})
+                with urlopen(request, timeout=30) as response:
                     content = response.read()
-            except OSError:
+            except HTTPError as error:
+                failures.append(
+                    LeafletDownloadFailure(
+                        reference.medication_id,
+                        kind,
+                        url,
+                        _aifa_http_error_reason(error),
+                    )
+                )
                 continue
-            if content:
-                target.joinpath(filename).write_bytes(content)
-                changed = True
-                downloaded.add(kind)
-        if downloaded == {"FI", "RCP"}:
+            except OSError as error:
+                failures.append(
+                    LeafletDownloadFailure(
+                        reference.medication_id,
+                        kind,
+                        url,
+                        f"errore di rete: {error}",
+                    )
+                )
+                continue
+            if not content.startswith(b"%PDF-"):
+                failures.append(
+                    LeafletDownloadFailure(
+                        reference.medication_id,
+                        kind,
+                        url,
+                        "risposta AIFA non in formato PDF",
+                    )
+                )
+                continue
+            downloaded[filename] = content
+        if len(downloaded) == 2:
+            target.mkdir(parents=True, exist_ok=True)
+            for filename, content in downloaded.items():
+                temporary = target / f".{filename}.tmp"
+                temporary.write_bytes(content)
+                temporary.replace(target / filename)
+            changed = True
             result[reference.medication_id] = datetime.now(UTC).date().isoformat()
     if changed:
         _write_download_dates(build_root, result)
-    return result
+    return LeafletDownloadResult(result, tuple(failures))
+
+
+def _aifa_printed_url(reference: MedicationLeaflet, kind: str) -> str:
+    """Build the direct public AIFA URL for one FI or RCP PDF.
+
+    Parameters
+    ----------
+    reference : sanikey.models.MedicationLeaflet
+        Confirmed AIFA medicine reference.
+    kind : str
+        AIFA document kind, either ``FI`` or ``RCP``.
+
+    Returns
+    -------
+    str
+        Direct AIFA document URL.
+
+    Raises
+    ------
+    ValueError
+        If ``kind`` is not a supported AIFA document kind.
+    """
+
+    if kind not in {"FI", "RCP"}:
+        msg = f"tipo documento AIFA non supportato: {kind}"
+        raise ValueError(msg)
+    query = urlencode({"ts": kind})
+    return (
+        f"{API_ROOT}organizzazione/{reference.codice_sis}/farmaci/"
+        f"{reference.aic6}/stampati?{query}"
+    )
+
+
+def _aifa_http_error_reason(error: HTTPError) -> str:
+    """Return a short AIFA diagnostic from one failed HTTP response.
+
+    Parameters
+    ----------
+    error : urllib.error.HTTPError
+        HTTP failure raised while retrieving an AIFA document.
+
+    Returns
+    -------
+    str
+        Status and concise AIFA response detail when available.
+    """
+
+    detail = ""
+    try:
+        payload = json.loads(error.read().decode("utf-8", errors="replace"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        payload = None
+    if isinstance(payload, dict):
+        description = payload.get("description") or payload.get("message")
+        if isinstance(description, str):
+            detail = description.strip().replace("\n", " ")[:240]
+    return f"HTTP {error.code}" + (f": {detail}" if detail else "")
 
 
 def leaflet_download_dates(build_root: Path) -> dict[str, str]:
@@ -653,8 +789,10 @@ def leaflet_urls(reference: MedicationLeaflet) -> dict[str, str]:
         URLs keyed by document kind.
     """
 
-    base = f"{PORTAL_ROOT}/organizzazione/{reference.codice_sis}/farmaci/{reference.aic6}/stampati"
-    return {"aifa_fi_url": f"{base}/FI", "aifa_rcp_url": f"{base}/RCP"}
+    return {
+        "aifa_fi_url": _aifa_printed_url(reference, "FI"),
+        "aifa_rcp_url": _aifa_printed_url(reference, "RCP"),
+    }
 
 
 def write_confirmed_references(
