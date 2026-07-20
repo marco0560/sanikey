@@ -31,6 +31,14 @@ The project is uv-backed:
 - Python target is 3.13;
 - the CLI entry point is `sanikey = sanikey.__main__:main`.
 
+## Documentation
+
+For current third-party library, framework, SDK, or tool documentation, use the
+Context7 MCP server before relying on model memory. Use it especially for
+version-sensitive APIs, configuration syntax, setup steps, or package behavior.
+For OpenAI products, Codex behavior, OpenAI APIs, Apps SDK, or OpenAI
+documentation, use the OpenAI developer documentation MCP server instead.
+
 ## Skills And Tooling
 
 At task start, check available Codex skills and use applicable ones. Required:
