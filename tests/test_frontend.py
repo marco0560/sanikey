@@ -90,6 +90,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "matchmedia" in helper
     assert "data-detail-link" in script
     assert "setuptimelinedetaillinks" in script
+    assert "setupresultdetaillinks" in script
+    assert "data-result-detail-link" in script
     assert "custom-elements" not in material
     assert "customElements.define".lower() in material
     assert "function formatdate(value)" in script
@@ -146,6 +148,10 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     )[0]
     assert ".tabs" not in desktop_css
     assert "[data-section-panel].is-active" in stylesheet
+    assert '[data-pane-role="left"]' in desktop_css
+    assert '[data-pane-role="right"]' in desktop_css
+    assert "height: calc(100vh - 8rem)" in desktop_css
+    assert "min-height: 0" in desktop_css
     mobile_css = stylesheet.split("@media (max-width: 44rem)", 1)[1].split(
         "@media print", 1
     )[0]

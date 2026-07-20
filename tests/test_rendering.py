@@ -88,6 +88,73 @@ def test_prepare_consultation_documents_copies_container_pdf(tmp_path: Path) -> 
     assert (person.local_build / documents[0]["href"][3:]).is_file()
 
 
+def test_prepare_consultation_documents_excludes_container_html(
+    tmp_path: Path,
+) -> None:
+    """Verify container HTML stays out of clinical consultation documents.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir()
+    container = person.source_documents / "support.zip"
+    container.write_bytes(b"archive")
+    staged_root = tmp_path / "staging"
+    staged_root.mkdir()
+    page = staged_root / "INDEX.HTM"
+    page.write_text("<html>viewer</html>", encoding="utf-8")
+    container_record = document_record_for_path(
+        container, root=person.source_documents, patient_id=person.id
+    )
+    record = document_record_for_path(
+        page,
+        root=staged_root,
+        patient_id=person.id,
+        provenance=DocumentRecordOrigin(
+            origin="container",
+            container_id=container_record.document_id,
+            internal_path="INDEX.HTM",
+        ),
+    )
+
+    result = prepare_consultation_documents(person, (record,))
+    exported = generate_exports(
+        person, (record,), load_curated_metadata(person.metadata_directory)
+    )
+
+    assert result.rendered_document_ids == ()
+    assert json.loads(exported.documents.read_text(encoding="utf-8")) == []
+    assert not (person.local_build / "rendered-documents" / record.document_id).exists()
+
+
+def test_rendered_name_preserves_browser_openable_suffix(tmp_path: Path) -> None:
+    """Verify browser-openable files cannot be renamed as converted PDFs.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    page = tmp_path / "viewer.html"
+    page.write_text("<html>viewer</html>", encoding="utf-8")
+    record = document_record_for_path(page, root=tmp_path, patient_id="patient-a")
+
+    assert rendering._rendered_name(record, ".html") == "original.html"
+
+
 def test_generate_exports_lists_non_openable_documents_by_extension(
     tmp_path: Path,
 ) -> None:

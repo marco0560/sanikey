@@ -371,6 +371,24 @@ function setupTimelineDetailLinks(documents) {
   });
 }
 
+function setupResultDetailLinks() {
+  const results = document.querySelector("#documents");
+  results.addEventListener("click", (event) => {
+    const link = event.target.closest("[data-result-detail-link]");
+    if (!link) {
+      return;
+    }
+    const detail = document.getElementById(`entity-${text(link.dataset.resultDetailLink)}`);
+    const panel = detail && detail.closest("[data-section-panel]");
+    if (!panel) {
+      return;
+    }
+    event.preventDefault();
+    window.SaniKeyUi.showSection(panel.dataset.sectionPanel, "left");
+    requestAnimationFrame(() => detail.scrollIntoView({block: "start"}));
+  });
+}
+
 function renderDocuments(documents, query = "") {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   const selected = documents.filter((item) => !isDicomTechnicalDocument(item)).filter((item) =>
@@ -611,7 +629,7 @@ function renderResultAction(item) {
   if (item.type === "document" && item.href) {
     return `<a class="primary-action" href="${attr(item.href)}" target="_blank" rel="noopener">Apri documento</a>`;
   }
-  return `<a href="#entity-${attr(item.id)}">Vai alla scheda</a>`;
+  return `<a href="#entity-${attr(item.id)}" data-result-detail-link="${attr(item.id)}">Vai alla scheda</a>`;
 }
 
 function groupBySection(records) {
@@ -1011,6 +1029,7 @@ function main() {
   renderObservationSections(data.clinical || {});
   renderDocuments(documents);
   setupTimelineDetailLinks(documents);
+  setupResultDetailLinks();
   const advancedInput = document.querySelector("#advanced-search");
   const advancedResults = document.querySelector("#advanced-results");
   advancedResults.innerHTML = '<p class="muted">La ricerca avanzata carica il testo estratto al primo uso.</p>';
@@ -1630,16 +1649,10 @@ body[data-density="compact"] md-text-button {
     padding-left: 1rem;
   }
 
-  body[data-layout="dual"] #timeline,
-  body[data-layout="dual"] #summary,
-  body[data-layout="dual"] #therapies,
-  body[data-layout="dual"] #weight,
-  body[data-layout="dual"] #pressure,
-  body[data-layout="dual"] #glucose,
-  body[data-layout="dual"] #inr,
-  body[data-layout="dual"] #parameters,
-  body[data-layout="dual"] #dicom {
-    max-height: calc(100vh - 8rem);
+  body[data-layout="dual"] [data-pane-role="left"],
+  body[data-layout="dual"] [data-pane-role="right"] {
+    height: calc(100vh - 8rem);
+    min-height: 0;
     overflow: auto;
   }
 }

@@ -61,6 +61,11 @@ def prepare_consultation_documents(
     -------
     ConsultationRenderResult
         Rendered identifiers and user-actionable warnings.
+
+    Notes
+    -----
+    HTML members extracted from containers are viewer assets rather than
+    independent clinical documents and are not rendered for consultation.
     """
 
     root = person.local_build / "rendered-documents"
@@ -71,6 +76,11 @@ def prepare_consultation_documents(
     warnings: list[str] = []
     for document in documents:
         if document.kind.startswith("dicom_") or document.kind in {"archive", "binary"}:
+            continue
+        if document.origin == "container" and _known_suffix(document.path) in {
+            ".htm",
+            ".html",
+        }:
             continue
         suffix = _known_suffix(document.path)
         target = root / document.document_id / _rendered_name(document, suffix)
@@ -138,8 +148,15 @@ def _rendered_name(document: DocumentRecord, suffix: str) -> str:
     -------
     str
         Output file name.
+
+    Notes
+    -----
+    Files that are already browser-openable retain their normalized suffix.
+    The ``document.pdf`` name is reserved for a successful Office conversion.
     """
 
+    if suffix in _BROWSER_SUFFIXES:
+        return f"original{suffix}"
     if document.kind == "office":
         return "document.pdf"
     return f"original{suffix or '.bin'}"
