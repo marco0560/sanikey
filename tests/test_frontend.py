@@ -146,6 +146,11 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     )[0]
     assert ".tabs" not in desktop_css
     assert "[data-section-panel].is-active" in stylesheet
+    mobile_css = stylesheet.split("@media (max-width: 44rem)", 1)[1].split(
+        "@media print", 1
+    )[0]
+    assert ".nav-control md-icon-button" in mobile_css
+    assert "display: none" in mobile_css
 
 
 def test_build_frontend_copies_configured_background_image(tmp_path: Path) -> None:

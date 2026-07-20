@@ -526,6 +526,11 @@ clinici della ricerca rapida. Gli aiuti di ricerca base e avanzata sono
 separati, restano accanto al rispettivo bottone e si aprono in finestre modali
 locali richiudibili.
 
+Sugli schermi larghi l'archivio usa due pannelli: il nome della sezione la apre
+a sinistra e la freccia associata la apre a destra. Su schermi stretti resta un
+solo pannello e le frecce non vengono mostrate, per evitare due controlli con
+lo stesso effetto.
+
 La sintassi della ricerca avanzata è case-insensitive e accent-insensitive.
 Supporta parole, frasi tra virgolette, `AND`, `OR`, `NOT` e parentesi. Parole
 adiacenti equivalgono a `AND`, quindi `creatinina 2024` è equivalente a

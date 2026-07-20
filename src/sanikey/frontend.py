@@ -1663,6 +1663,14 @@ body[data-density="compact"] md-text-button {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
   }
+
+  .nav-control {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nav-control md-icon-button {
+    display: none;
+  }
 }
 
 @media print {
