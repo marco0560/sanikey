@@ -656,6 +656,66 @@ def test_export_usb_removes_obsolete_target_files(tmp_path: Path) -> None:
     assert validate_usb(result.root)
 
 
+def test_replace_tree_preserves_existing_target_for_rsync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify rsync receives the existing target without a preliminary clear.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "report.txt").write_text("synthetic", encoding="utf-8")
+    target = tmp_path / "target"
+    target.mkdir()
+    stale = target / "stale.txt"
+    stale.write_text("remove me", encoding="utf-8")
+    calls: list[tuple[Path, Path]] = []
+
+    def fake_rsync(source_path: Path, target_path: Path, *, progress: object) -> None:
+        """Record the target received by the rsync branch.
+
+        Parameters
+        ----------
+        source_path : pathlib.Path
+            Source directory passed to rsync.
+        target_path : pathlib.Path
+            Existing target directory passed to rsync.
+        progress : object
+            Progress reporter passed through by the caller.
+
+        Returns
+        -------
+        None
+        """
+
+        assert stale.exists()
+        calls.append((source_path, target_path))
+
+    monkeypatch.setattr(usb.shutil, "which", lambda _name: "/usr/bin/rsync")
+    monkeypatch.setattr(usb, "_rsync_directory_contents", fake_rsync)
+    monkeypatch.setattr(
+        usb,
+        "_clear_directory_contents",
+        lambda _target: pytest.fail("rsync must not clear the target first"),
+    )
+
+    usb._replace_tree(source, target, copy_strategy="rsync-preferred")
+
+    assert calls == [(source, target)]
+
+
 def test_export_usb_optional_real_filesystem_target(tmp_path: Path) -> None:
     """Verify export against an explicitly configured real target.
 

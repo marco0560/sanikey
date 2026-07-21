@@ -321,6 +321,10 @@ def _replace_tree(
 ) -> None:
     """Replace target contents with a copied tree.
 
+    With ``rsync-preferred``, retain an existing target directory so that
+    ``rsync --delete`` can reuse unchanged files while removing obsolete ones.
+    The Python strategy clears the target before copying.
+
     Parameters
     ----------
     source : pathlib.Path
@@ -341,6 +345,9 @@ def _replace_tree(
         if not target.is_dir():
             target.unlink()
             _copy_tree_with_progress(source, target, progress=progress)
+            return
+        if copy_strategy == "rsync-preferred" and shutil.which("rsync") is not None:
+            _rsync_directory_contents(source, target, progress=progress)
             return
         _clear_directory_contents(target)
     else:

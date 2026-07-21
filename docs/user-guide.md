@@ -711,6 +711,10 @@ Quando il target e' una chiavetta fisica montata sotto `/run/media` o `/media`,
 `copy_strategy = "rsync-preferred"`. Se `rsync` non e' installato, usa la copia
 Python; se `rsync` parte e fallisce, il comando fallisce senza fallback
 silenzioso.
+Con `rsync-preferred` il target esistente non viene svuotato prima della copia:
+`rsync` riusa quindi i file invariati e, con `--delete`, rimuove quelli ormai
+obsoleti. La strategia `python` mantiene invece la sostituzione completa della
+directory di destinazione.
 
 Valida la struttura esportata:
 
