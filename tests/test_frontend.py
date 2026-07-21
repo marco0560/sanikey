@@ -41,6 +41,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert result.helper.is_file()
     assert result.material_script.is_file()
     assert result.material_stylesheet.is_file()
+    assert (result.web_dir / "assets" / "sanikey-logo.svg").is_file()
     assert "Patient A" in result.index.read_text(encoding="utf-8")
     assert 'data-section-button="documents"' in result.index.read_text(encoding="utf-8")
     assert 'data-section-button="summary"' in result.index.read_text(encoding="utf-8")
@@ -76,6 +77,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert 'script src="assets/ui-helper.js"' in index
     assert 'script type="module" src="assets/material-web.js"' in index
     assert 'href="assets/material-web.css"' in index
+    assert 'class="header-logo" src="assets/sanikey-logo.svg" alt="sanikey"' in index
+    assert 'class="footer-logo" src="assets/sanikey-logo.svg" alt="sanikey"' in index
     assert "fetch(" not in script
     assert "window.sanikey_data" in script
     assert "window.sanikey_content_search" in script
@@ -131,6 +134,9 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "grid-row: 1" in stylesheet
     assert ".search-panel" in stylesheet
     assert ".help-dialog" in stylesheet
+    assert ".header-logo" in stylesheet
+    assert ".footer-repository" in stylesheet
+    assert ".footer-logo" in stylesheet
     assert ".dialog-close" in stylesheet
     assert ".warning" in stylesheet
     assert "--search-basic-accent" in stylesheet

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .config import PersonConfig
 
 
@@ -73,6 +72,10 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     helper.write_text(_ui_helper_js(), encoding="utf-8")
     material_script.write_text(_material_web_js(), encoding="utf-8")
     material_stylesheet.write_text(_material_web_css(), encoding="utf-8")
+    shutil.copy2(
+        Path(__file__).resolve().parents[2] / "immagini" / "SaniKey-logo.svg",
+        assets_dir / "sanikey-logo.svg",
+    )
     if person.ui.background_image is not None:
         shutil.copy2(
             person.ui.background_image,
@@ -121,6 +124,7 @@ def _index_html(person: PersonConfig) -> str:
     <div class="header-primary">
       <div class="header-title">
         <h1>{title}</h1>
+        <img class="header-logo" src="assets/sanikey-logo.svg" alt="SaniKey">
         <p>{subtitle}</p>
       </div>
       <nav class="header-actions" aria-label="Sezioni archivio">
@@ -202,7 +206,7 @@ def _index_html(person: PersonConfig) -> str:
     <section id="parameters" data-section-panel="parameters" aria-label="Parametri" hidden></section>
     <section id="dicom" data-section-panel="dicom" aria-label="Studi DICOM"></section>
   </main>
-  <footer class="app-footer"><a href="https://github.com/marco0560/sanikey" target="_blank" rel="noopener">SaniKey su GitHub</a></footer>
+  <footer class="app-footer"><a class="footer-repository" href="https://github.com/marco0560/sanikey" target="_blank" rel="noopener"><img class="footer-logo" src="assets/sanikey-logo.svg" alt="SaniKey"><span>Repository su GitHub</span></a></footer>
   <dialog id="basic-help-dialog" class="help-dialog">
     <article>
       <h2>Aiuto ricerca base</h2>
@@ -1371,6 +1375,14 @@ header p {
   margin: 0.25rem 0 0;
 }
 
+.header-logo {
+  display: block;
+  height: 2.25rem;
+  margin-top: 0.35rem;
+  object-fit: contain;
+  width: 2.25rem;
+}
+
 .header-actions,
 .search-toolbar,
 .actions {
@@ -1474,6 +1486,26 @@ input {
   margin-top: 1rem;
   padding: 1rem;
   text-align: center;
+}
+
+.footer-repository {
+  align-items: center;
+  color: inherit;
+  display: inline-flex;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.footer-repository:hover,
+.footer-repository:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.footer-logo {
+  height: 3.25rem;
+  object-fit: contain;
+  width: 3.25rem;
 }
 
 .help-dialog {
