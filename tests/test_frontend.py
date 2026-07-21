@@ -150,7 +150,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "[data-section-panel].is-active" in stylesheet
     assert '[data-pane-role="left"]' in desktop_css
     assert '[data-pane-role="right"]' in desktop_css
-    assert "height: calc(100vh - 8rem)" in desktop_css
+    assert "height: calc(200vh - 16rem)" in desktop_css
     assert "min-height: 0" in desktop_css
     mobile_css = stylesheet.split("@media (max-width: 44rem)", 1)[1].split(
         "@media print", 1

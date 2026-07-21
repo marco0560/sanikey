@@ -1651,7 +1651,7 @@ body[data-density="compact"] md-text-button {
 
   body[data-layout="dual"] [data-pane-role="left"],
   body[data-layout="dual"] [data-pane-role="right"] {
-    height: calc(100vh - 8rem);
+    height: calc(200vh - 16rem);
     min-height: 0;
     overflow: auto;
   }
