@@ -67,6 +67,24 @@ Crea una nuova nota decisionale in `docs/decisions/` e aggiorna l'indice.
 
 Esegue la validazione strutturale deterministica di `pyproject.toml`.
 
+## `scripts/replace_usb_logo.py`
+
+Sostituisce il logo in tutte le pagine paziente di una chiavetta SaniKey gia'
+esportata, ricostruisce i checksum del manifest e valida il risultato. Accetta
+un file SVG, il mountpoint della chiavetta e una percentuale opzionale per la
+dimensione del logo:
+
+```bash
+uv run python scripts/replace_usb_logo.py immagini/SaniKey-logo-horizontal-transparent.svg /media/SANIKEY
+uv run python scripts/replace_usb_logo.py immagini/SaniKey-logo-horizontal-transparent.svg /media/SANIKEY 150
+```
+
+Il comando agisce esclusivamente sui pazienti elencati nel manifest della
+chiavetta e aggiorna `assets/sanikey-logo-horizontal-transparent.svg` per
+ciascuno di essi. La
+percentuale predefinita e' `100`: `150` ingrandisce il logo del 50%, mentre
+`75` lo riduce al 75% della dimensione corrente.
+
 ## `scripts/release_audit.sh`
 
 Esegue controlli conservativi di sicurezza prima di inviare tag o pubblicare.

@@ -177,6 +177,8 @@ def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
     root_index = (result.root / "index.html").read_text(encoding="utf-8")
     assert "url=patients/patient-a/web/index.html" in root_index
     assert 'href="patients/patient-a/web/index.html"' in root_index
+    assert 'href="assets/sanikey-icon-transparent.svg"' in root_index
+    assert (result.root / "assets" / "sanikey-icon-transparent.svg").is_file()
     assert (result.root / "patients" / "patient-a" / "medical_archive.db").is_file()
     assert (result.root / "patients" / "patient-a" / "web" / "index.html").is_file()
     assert (result.root / "patients" / "patient-a" / "web" / "data.js").is_file()
@@ -223,7 +225,38 @@ def test_export_usb_root_index_lists_multiple_patients(tmp_path: Path) -> None:
     assert 'href="patients/patient-b/web/index.html"' in root_index
     assert "Patient A" in root_index
     assert "Patient B" in root_index
+    assert 'href="assets/sanikey-icon-transparent.svg"' in root_index
+    assert 'src="assets/sanikey-logo.svg"' in root_index
+    assert 'href="https://github.com/marco0560/sanikey"' in root_index
+    assert ".repository-logo img { display: block; width: 9rem; }" in root_index
+    assert (result.root / "assets" / "sanikey-logo.svg").is_file()
     assert validate_usb(result.root)
+
+
+def test_usb_index_allows_only_the_sanikey_repository_external_link(
+    tmp_path: Path,
+) -> None:
+    """Verify the root index rejects external URLs except the repository.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    index = tmp_path / "index.html"
+    index.write_text(
+        '<a href="https://github.com/marco0560/sanikey">SaniKey</a>',
+        encoding="utf-8",
+    )
+    assert usb._validate_usb_index_links(tmp_path)
+
+    index.write_text('<a href="https://example.test">Esterno</a>', encoding="utf-8")
+    assert not usb._validate_usb_index_links(tmp_path)
 
 
 def test_export_usb_reports_progress_phases(tmp_path: Path) -> None:

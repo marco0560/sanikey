@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from .progress import ProgressReporter
 
 
+SANIKEY_REPOSITORY_URL = "https://github.com/marco0560/sanikey"
+
+
 @dataclass(frozen=True)
 class UsbExportResult:
     """Result of a USB export.
@@ -741,13 +744,17 @@ def _validate_usb_index_links(target: Path) -> bool:
     Returns
     -------
     bool
-        ``True`` when every root index href resolves inside the export.
+        ``True`` when every root index href resolves inside the export or is
+        the SaniKey repository URL.
     """
 
     index = target / "index.html"
     content = index.read_text(encoding="utf-8")
     hrefs = re.findall(r'href="([^"]+)"', content)
-    return all(_validate_relative_href(target, href) for href in hrefs)
+    return all(
+        href == SANIKEY_REPOSITORY_URL or _validate_relative_href(target, href)
+        for href in hrefs
+    )
 
 
 def _frontend_hrefs(value: object) -> tuple[str, ...]:
@@ -879,6 +886,14 @@ def _write_usb_index(people: tuple[PersonConfig, ...], target: Path) -> Path:
     """
 
     index = target / "index.html"
+    assets = target / "assets"
+    assets.mkdir(exist_ok=True)
+    image_root = Path(__file__).resolve().parents[2] / "immagini"
+    shutil.copy2(image_root / "SaniKey-logo.svg", assets / "sanikey-logo.svg")
+    shutil.copy2(
+        image_root / "SaniKey-icon-transparent.svg",
+        assets / "sanikey-icon-transparent.svg",
+    )
     if len(people) == 1:
         person = people[0]
         href = f"patients/{_escape_html(person.id)}/web/index.html"
@@ -888,6 +903,7 @@ def _write_usb_index(people: tuple[PersonConfig, ...], target: Path) -> Path:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="assets/sanikey-icon-transparent.svg" type="image/svg+xml">
   <meta http-equiv="refresh" content="0; url={href}">
   <title>SaniKey - {_escape_html(person.display_name)}</title>
 </head>
@@ -910,12 +926,16 @@ def _write_usb_index(people: tuple[PersonConfig, ...], target: Path) -> Path:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="assets/sanikey-icon-transparent.svg" type="image/svg+xml">
   <title>SaniKey - Archivi pazienti</title>
   <style>
     body {{ font-family: system-ui, sans-serif; line-height: 1.5; margin: 2rem; }}
     main {{ max-width: 42rem; }}
     a {{ color: #1f5f8b; font-weight: 700; }}
     li {{ margin: 0.75rem 0; }}
+    .repository-logo {{ display: inline-block; margin-top: 1.25rem; }}
+    .repository-logo img {{ display: block; width: 9rem; }}
+    .repository-logo:focus-visible {{ outline: 3px solid #1f5f8b; outline-offset: 4px; }}
   </style>
 </head>
 <body>
@@ -925,6 +945,7 @@ def _write_usb_index(people: tuple[PersonConfig, ...], target: Path) -> Path:
     <ul>
 {links}
     </ul>
+    <a class="repository-logo" href="{SANIKEY_REPOSITORY_URL}" target="_blank" rel="noopener"><img src="assets/sanikey-logo.svg" alt="Apri il repository SaniKey su GitHub"></a>
   </main>
 </body>
 </html>

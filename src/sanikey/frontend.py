@@ -73,8 +73,10 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     material_script.write_text(_material_web_js(), encoding="utf-8")
     material_stylesheet.write_text(_material_web_css(), encoding="utf-8")
     shutil.copy2(
-        Path(__file__).resolve().parents[2] / "immagini" / "SaniKey-logo.svg",
-        assets_dir / "sanikey-logo.svg",
+        Path(__file__).resolve().parents[2]
+        / "immagini"
+        / "SaniKey-logo-horizontal-transparent.svg",
+        assets_dir / "sanikey-logo-horizontal-transparent.svg",
     )
     if person.ui.background_image is not None:
         shutil.copy2(
@@ -124,8 +126,10 @@ def _index_html(person: PersonConfig) -> str:
     <div class="header-primary">
       <div class="header-title">
         <h1>{title}</h1>
-        <img class="header-logo" src="assets/sanikey-logo.svg" alt="SaniKey">
-        <p>{subtitle}</p>
+        <div class="header-branding">
+          <img class="header-logo" src="assets/sanikey-logo-horizontal-transparent.svg" alt="SaniKey">
+          <p>{subtitle}</p>
+        </div>
       </div>
       <nav class="header-actions" aria-label="Sezioni archivio">
         <span class="nav-control">
@@ -206,7 +210,7 @@ def _index_html(person: PersonConfig) -> str:
     <section id="parameters" data-section-panel="parameters" aria-label="Parametri" hidden></section>
     <section id="dicom" data-section-panel="dicom" aria-label="Studi DICOM"></section>
   </main>
-  <footer class="app-footer"><a class="footer-repository" href="https://github.com/marco0560/sanikey" target="_blank" rel="noopener"><img class="footer-logo" src="assets/sanikey-logo.svg" alt="SaniKey"><span>Repository su GitHub</span></a></footer>
+  <footer class="app-footer"><a class="footer-repository" href="https://github.com/marco0560/sanikey" target="_blank" rel="noopener"><img class="footer-logo" src="assets/sanikey-logo-horizontal-transparent.svg" alt="Apri il repository SaniKey su GitHub"></a></footer>
   <dialog id="basic-help-dialog" class="help-dialog">
     <article>
       <h2>Aiuto ricerca base</h2>
@@ -1377,10 +1381,21 @@ header p {
 
 .header-logo {
   display: block;
-  height: 2.25rem;
-  margin-top: 0.35rem;
-  object-fit: contain;
-  width: 2.25rem;
+  height: auto;
+  width: 10.125rem;
+}
+
+.header-branding {
+  align-items: baseline;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.header-branding p {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  transform: translateY(-1.35rem);
 }
 
 .header-actions,
@@ -1489,23 +1504,23 @@ input {
 }
 
 .footer-repository {
-  align-items: center;
-  color: inherit;
-  display: inline-flex;
-  gap: 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+  line-height: 0;
   text-decoration: none;
 }
 
 .footer-repository:hover,
 .footer-repository:focus-visible {
-  color: var(--accent);
-  text-decoration: underline;
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 4px;
 }
 
 .footer-logo {
-  height: 3.25rem;
-  object-fit: contain;
-  width: 3.25rem;
+  display: block;
+  height: auto;
+  max-width: 100%;
+  width: 19.5rem;
 }
 
 .help-dialog {
