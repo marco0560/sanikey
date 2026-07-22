@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Corretto il branding della descrizione PyPI: un solo wordmark e badge
+  aggiornabile dopo la pubblicazione iniziale.
+
 ## 0.8.0 - 2026-07-22
 
 - Prima release pubblica di SaniKey.

@@ -1,13 +1,10 @@
 # SaniKey
 
-[![PyPI](https://img.shields.io/pypi/v/sanikey.svg)](https://pypi.org/project/sanikey/)
+[![PyPI](https://img.shields.io/pypi/v/sanikey.svg?cacheSeconds=3600)](https://pypi.org/project/sanikey/)
 
 <p align="center">
   <a href="https://github.com/marco0560/sanikey">
     <img src="https://raw.githubusercontent.com/marco0560/sanikey/main/immagini/SaniKey-logo-horizontal-transparent.svg" alt="SaniKey" width="360">
-  </a>
-  <a href="https://github.com/marco0560/sanikey">
-    <img src="https://raw.githubusercontent.com/marco0560/sanikey/main/immagini/SaniKey-icon-transparent.svg" alt="Icona SaniKey" width="48">
   </a>
 </p>
 
