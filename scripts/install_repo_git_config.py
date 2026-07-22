@@ -35,8 +35,11 @@ def git_alias_entries() -> list[tuple[str, str]]:
         ("alias.clean-repo", "!uv run python scripts/clean_repo.py"),
         ("alias.new-decision", "!uv run python scripts/new_decision.py"),
         ("alias.gen-cheatsheet", "!uv run python scripts/generate_cheatsheet.py"),
-        ("alias.docs-build", "!uv run mkdocs build --strict"),
-        ("alias.docs-serve", "!uv run mkdocs serve"),
+        (
+            "alias.docs-build",
+            "!NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict",
+        ),
+        ("alias.docs-serve", "!NO_MKDOCS_2_WARNING=1 uv run mkdocs serve"),
         ("alias.release-audit", "!bash scripts/release_audit.sh"),
         ("alias.safe-push", "!git fetch && git pull --ff-only && git push"),
         (

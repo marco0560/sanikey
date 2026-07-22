@@ -26,6 +26,23 @@ markdown_extensions:
 plugins:
   - search
 
+not_in_nav: |
+  /decisions/adr-advanced-offline-search.md
+  /decisions/adr-consultation-artifact-visibility.md
+  /decisions/adr-consultation-host-compatibility.md
+  /decisions/adr-cornerstone3d-offline-spike.md
+  /decisions/adr-dwv-offline-spike.md
+  /decisions/adr-explicit-ingestion-patterns.md
+  /decisions/adr-federated-clinical-search-ui.md
+  /decisions/adr-frontend-consultation-ui.md
+  /decisions/adr-italian-interface-language.md
+  /decisions/adr-medication-leaflets.md
+  /decisions/adr-observation-imports.md
+  /decisions/adr-source-image-ocr-policy.md
+  /decisions/adr-usb-consultation-hardening.md
+  /decisions/adr-usb-uuid-global-default.md
+  /process/dicom-treatment.md
+
 nav:
   - Pagina iniziale: index.md
   - Per iniziare:

@@ -8,4 +8,4 @@ Non modificare questo file manualmente.
 
 - `uv run python scripts/bootstrap_dev_environment.py`
 - `uv run python scripts/validate_repo.py`
-- `mkdocs build --strict`
+- `NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict`

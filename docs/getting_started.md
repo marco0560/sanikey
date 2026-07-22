@@ -27,7 +27,7 @@ Dopo il bootstrap, il flusso locale normale è:
 
 ```bash
 uv run python scripts/validate_repo.py
-mkdocs build --strict
+NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict
 ```
 
 Il comando CLI installato è l'interfaccia utente autorevole. L'esecuzione diretta

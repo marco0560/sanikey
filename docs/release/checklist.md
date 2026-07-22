@@ -10,7 +10,7 @@
 
    ```bash
    uv run python scripts/validate_repo.py
-   uv run mkdocs build --strict
+   NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict
    git release-audit
    ```
 
