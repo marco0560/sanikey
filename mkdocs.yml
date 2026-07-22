@@ -28,16 +28,18 @@ plugins:
 
 nav:
   - Pagina iniziale: index.md
-  - Guida Utente:
+  - Per iniziare:
+      - Prima chiavetta USB: first-usb-key.md
       - Uso di SaniKey: user-guide.md
       - Organizzare l'archivio sanitario: organizzare-archivio-sanitario.md
+      - Limiti e sviluppi futuri: limits-and-future-work.md
   - Esempi:
       - Panoramica: examples.md
       - Esempio configurazione: config-example/README.md
       - Esempio pazienti: patients-example/README.md
       - Esempio artefatti generati: generated-example/README.md
       - Esempio paziente generato: generated-example/patient-a/README.md
-  - Sviluppo:
+  - Per sviluppatori:
       - Avvio sviluppo: getting_started.md
       - Architettura: architecture.md
       - Script: scripts.md
@@ -46,17 +48,11 @@ nav:
       - Stato dei test: process/stato-dei-test.md
       - Verifica end-to-end con dati reali: process/end-to-end-real-data-verification.md
       - Riferimento metadati TOML: process/metadata-toml-reference.md
-  - Specifiche:
+  - Riferimento tecnico:
       - Specifica alto livello: sanikey-high-level-spec.md
       - Specifica dettagliata: sanikey-detailed-spec.md
       - Decisioni iniziali: decisions/decisioni-iniziali.md
       - Indice decisioni: decisions/index.md
-      - Lingua italiana per errori e interfaccia: decisions/adr-italian-interface-language.md
-      - Immagini sorgente senza OCR diretto: decisions/adr-source-image-ocr-policy.md
-      - Compatibilita' del PC di consultazione: decisions/adr-consultation-host-compatibility.md
-      - Esito spike DWV offline: decisions/adr-dwv-offline-spike.md
-      - Esito spike Cornerstone3D offline: decisions/adr-cornerstone3d-offline-spike.md
-      - Fogli illustrativi locali con verifica AIFA: decisions/adr-medication-leaflets.md
   - Rilascio:
       - Lista di controllo: release/checklist.md
       - Processo: release/process.md

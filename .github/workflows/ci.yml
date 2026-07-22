@@ -57,6 +57,12 @@ jobs:
       - name: Run standard validation
         run: uv run python scripts/validate_repo.py
 
+      - name: Build distributable package
+        run: uv run python -m build
+
+      - name: Check distributable package metadata
+        run: uv run twine check --strict dist/*
+
       - name: Run release audit
         env:
           SKIP_RELEASE_AUDIT: "1"

@@ -1,0 +1,16 @@
+prune .agents
+prune .github
+prune .githooks
+prune docs
+prune immagini
+prune scripts
+prune tests
+
+exclude AGENTS.md
+exclude mkdocs.yml
+exclude package-lock.json
+exclude package.json
+
+include CHANGELOG.md
+include LICENSE
+include README.md

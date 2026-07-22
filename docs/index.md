@@ -7,12 +7,13 @@ locali restano fuori dal repository pubblicato.
 
 ## Da Dove Iniziare
 
-- [Guida utente](user-guide.md): usare SaniKey per un archivio paziente.
-- [Esempi](examples.md): ispezionare la struttura degli esempi pubblicabili.
-- [Avvio sviluppo](getting_started.md): configurare un checkout di sviluppo.
-- [Architettura](architecture.md): comprendere la pipeline implementata.
-- [Decisioni iniziali](decisions/decisioni-iniziali.md): consultare le ADR del
-  progetto.
+- [Prima chiavetta USB](first-usb-key.md): percorso completo dal clone alla
+  chiavetta verificata.
+- [Guida utente](user-guide.md): riferimento operativo per archivio e pazienti.
+- [Organizzare l'archivio sanitario](organizzare-archivio-sanitario.md):
+  convenzioni per documenti, archivi e DICOM.
+- [Limiti e sviluppi futuri](limits-and-future-work.md): ciò che richiede una
+  verifica manuale e ciò che non fa parte del prodotto operativo.
 
 <!-- cheatsheet:start -->
 ## Comandi Principali
@@ -22,12 +23,12 @@ locali restano fuori dal repository pubblicato.
 - `mkdocs build --strict`
 <!-- cheatsheet:end -->
 
-## Documentazione Pubblicata
+## Documentazione tecnica
 
 La documentazione è organizzata per GitHub Pages con MkDocs:
 
-- il materiale utente spiega configurazione, build, export USB e ripristino;
+- il materiale utente spiega configurazione, cura dati, build ed export USB;
 - il materiale sviluppatore documenta setup del repository, architettura,
   script, regole di contribuzione e processo di rilascio;
 - specifiche e decisioni conservano le scelte usate per costruire la prima
-  implementazione.
+  implementazione e non sostituiscono la guida operativa.
