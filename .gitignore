@@ -17,9 +17,7 @@ immagini/*.png
 # -------------------------------
 # Local Scripts
 # -------------------------------
-scripts/reload.sh
-scripts/test-comandi.sh
-output.log
+scripts/reload.py
 
 # -------------------------------
 # Virtual environments

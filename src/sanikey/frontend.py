@@ -1352,7 +1352,6 @@ body.has-background-image::before {
 
 header {
   align-items: start;
-  background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: grid;
   gap: 1rem;

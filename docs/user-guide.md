@@ -662,7 +662,7 @@ I valori ammessi sono:
 - `accent_color`: colore esadecimale `#rrggbb`;
 - `subtitle`: testo libero breve;
 - `background_image`: immagine opzionale copiata in `web/assets/` durante la
-  build;
+  build e visibile su tutta la pagina, inclusa l'intestazione;
 - `background_opacity`: numero tra `0` e `1`, da mantenere basso per non
   compromettere leggibilità;
 - `dictionary`: TOML opzionale per sinonimi e normalizzazioni della ricerca

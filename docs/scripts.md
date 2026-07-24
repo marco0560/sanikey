@@ -85,6 +85,24 @@ ciascuno di essi. La
 percentuale predefinita e' `100`: `150` ingrandisce il logo del 50%, mentre
 `75` lo riduce al 75% della dimensione corrente.
 
+## `scripts/prepare_usb.py`
+
+Elenca le chiavette USB e prepara quella scelta con una singola partizione MBR
+exFAT. L'etichetta predefinita e' `SANIKEY`, modificabile con `--label`. Se la
+chiavetta ha gia' una sola partizione MBR/exFAT con l'etichetta richiesta e
+inizio esatto a 1 MiB, non modifica nulla; esegue anche un controllo exFAT in
+sola lettura. Se serve solo l'etichetta, la aggiorna senza formattare. Negli
+altri casi richiede due conferme testuali prima di cancellare partizioni e dati.
+
+```bash
+uv run python scripts/prepare_usb.py --list
+sudo uv run python scripts/prepare_usb.py --device /dev/sdX
+sudo uv run python scripts/prepare_usb.py --device /dev/sdX --label ARCHIVIO
+```
+
+Al termine stampa l'UUID effettivo e una riga TOML da copiare in
+`[global.usb]` di `config/accounts.toml`. Il supporto resta smontato.
+
 ## `scripts/release_audit.sh`
 
 Esegue controlli conservativi di sicurezza prima di inviare tag o pubblicare.

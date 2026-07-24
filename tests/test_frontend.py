@@ -154,6 +154,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "--search-advanced-accent" in stylesheet
     assert ".badge" in stylesheet
     assert "has-background-image" in stylesheet
+    header_css = stylesheet.split("header {", 1)[1].split("\n}", 1)[0]
+    assert "background:" not in header_css
     assert "sintesi clinica" in index
     assert "section-jumps" not in index
     assert "function updatesectionjumps(sections)" not in script

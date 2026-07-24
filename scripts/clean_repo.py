@@ -13,7 +13,17 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 GIT_EXE = shutil.which("git")
-PROTECTED_PATHS = {".venv", ".vscode", "node_modules"}
+PROTECTED_PATHS = {
+    ".venv",
+    ".vscode",
+    "node_modules",
+    ".codira",
+    "config",
+    "local-data",
+    "immagini",
+    "scripts/reload.py",
+    "scripts/test-comandi.sh",
+}
 
 
 def git_ignored_paths() -> Iterable[Path]:
