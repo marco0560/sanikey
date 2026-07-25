@@ -241,6 +241,15 @@ def _usb_disks() -> tuple[UsbDisk, ...]:
     -------
     tuple[UsbDisk, ...]
         USB disks ordered by their kernel-reported path.
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If ``lsblk`` fails while collecting the device inventory.
+    json.JSONDecodeError
+        If ``lsblk`` produces invalid JSON.
+    TypeError
+        If the device inventory does not contain a list of block devices.
     """
 
     result = subprocess.run(

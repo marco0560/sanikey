@@ -62,6 +62,8 @@ nav:
       - Script: scripts.md
       - Contribuire: CONTRIBUTING.md
       - Implementazione iniziale: process/initial-implementation.md
+      - Piano SaniKey Desktop: process/sanikey-desktop-implementation-plan.md
+      - Piano slice longitudinali: process/longitudinal-clinical-parameter-slices-implementation-plan.md
       - Stato dei test: process/stato-dei-test.md
       - Verifica end-to-end con dati reali: process/end-to-end-real-data-verification.md
       - Riferimento metadati TOML: process/metadata-toml-reference.md
