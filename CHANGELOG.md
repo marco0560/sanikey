@@ -1,3 +1,9 @@
+## [0.9.1](https://github.com/marco0560/sanikey/compare/v0.9.0...v0.9.1) (2026-07-27)
+
+### Bug Fixes
+
+* **release:** enforce privacy guard in GitHub ([2efe14d](https://github.com/marco0560/sanikey/commit/2efe14dabc7db01e1378d67ed579243d6df34311))
+
 ## [0.9.0](https://github.com/marco0560/sanikey/compare/v0.8.2...v0.9.0) (2026-07-27)
 
 ### Features
