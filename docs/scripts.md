@@ -115,8 +115,8 @@ Questo script implementa `git release-audit`.
 
 Implementa il percorso controllato `git rel` per `main`: aggiorna dal remoto,
 esegue l'audit e invia il ramo con il bypass strettamente locale dell'hook.
-Versione, changelog, tag, release e artefatti sono creati dalla CI GitHub;
-terminato il workflow, eseguire `git pull --ff-only && uv sync`.
+Versione, changelog, tag e release GitHub sono creati dalla CI; terminato il
+workflow, eseguire `git pull --ff-only && uv sync && uv run sanikey -V`.
 
 ## `scripts/release_system_selfcheck.py`
 

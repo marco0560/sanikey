@@ -19,26 +19,14 @@
    Non creare manualmente il tag: la CI calcola versione, changelog e tag da
    commit `feat`/`fix` e dalle modifiche incompatibili.
 
-## TestPyPI
+## Dopo il workflow GitHub
 
-5. Configurare su TestPyPI il trusted publisher
-   `marco0560/sanikey`, workflow `.github/workflows/release.yml`, environment
-   `testpypi`. Avviare manualmente il workflow `Release`, inserendo il tag
-   creato dalla CI e la destinazione `testpypi`.
-6. In un ambiente pulito, installare e provare esattamente l'artefatto
-   pubblicato:
+5. Verificare che la release GitHub abbia il tag `vX.Y.Z`, il changelog
+   aggiornato e le note generate da Semantic Release.
+6. Aggiornare il checkout locale e confermare la versione:
 
    ```bash
-   uv venv /tmp/sanikey-testpypi
-   uv pip install --python /tmp/sanikey-testpypi/bin/python \
-     --index-url https://test.pypi.org/simple/ \
-     --extra-index-url https://pypi.org/simple/ sanikey==0.8.0
-   /tmp/sanikey-testpypi/bin/sanikey --help
+   git pull --ff-only
+   uv sync
+   uv run sanikey -V
    ```
-
-## PyPI e GitHub
-
-7. Configurare su PyPI lo stesso trusted publisher con environment `pypi`,
-   rieseguire il workflow sullo stesso tag con destinazione `pypi`, quindi
-   verificare installazione da PyPI. Controllare infine la release GitHub,
-   gli artefatti allegati e la documentazione pubblicata.

@@ -1,11 +1,10 @@
 # Processo di Rilascio
 
-SaniKey usa Semantic Release su GitHub e Trusted Publishing. Ogni push
-controllata su `main` viene analizzata dalla CI: un commit `fix` crea una patch,
-un commit `feat` una minor e una modifica incompatibile una major. La CI aggiorna
-`CHANGELOG.md`, crea il commit di rilascio, il tag `vX.Y.Z`, la release GitHub e
-gli artefatti; la pubblicazione su TestPyPI o PyPI resta manuale e protetta da
-environment separati.
+SaniKey usa Semantic Release su GitHub, con lo stesso meccanismo di Fontshow.
+Ogni push controllata su `main` viene analizzata dalla CI: un commit `fix` crea
+una patch, un commit `feat` una minor e una modifica incompatibile una major.
+La CI aggiorna `CHANGELOG.md`, crea il commit di rilascio, il tag `vX.Y.Z` e la
+release GitHub. Non pubblica pacchetti su PyPI o TestPyPI.
 
 ## Controlli Locali
 
@@ -50,32 +49,9 @@ dei controlli con `git release-check`.
 SaniKey fornisce anche `scripts/tag_guard.sh` per validare separatamente un tag
 proposto.
 
-## GitHub, TestPyPI e PyPI
+## Workflow GitHub
 
-Il workflow `.github/workflows/release.yml` costruisce sia sdist sia wheel,
-esegue `twine check --strict` e allega i file alla release GitHub generata da
-Semantic Release. Da **Actions → Release → Run workflow**, indicare il tag
-creato dalla CI e una destinazione:
-
-- `none`: ricostruisce e controlla gli artefatti senza pubblicarli;
-- `testpypi`: carica su TestPyPI nell'environment GitHub `testpypi`;
-- `pypi`: carica su PyPI nell'environment GitHub `pypi`.
-
-Prima del primo upload, il proprietario del progetto deve configurare in
-TestPyPI e PyPI un Trusted Publisher con questi valori:
-
-| Campo | Valore |
-| --- | --- |
-| Owner GitHub | `marco0560` |
-| Repository | `sanikey` |
-| Workflow | `.github/workflows/release.yml` |
-| Environment TestPyPI | `testpypi` |
-| Environment PyPI | `pypi` |
-
-Il workflow usa token OIDC effimeri (`id-token: write`); non salvare token API
-PyPI nei secret del repository. Proteggere l'environment `pypi` con approvazione
-manuale. TestPyPI è obbligatorio per ogni nuova versione prima di PyPI.
-
-L'esito dell'upload non sostituisce il smoke test: installare `sanikey==X.Y.Z`
-in un ambiente nuovo e verificare almeno `sanikey --help`. La checklist indica
-i comandi esatti.
+Il workflow `.github/workflows/release.yml` segue il modello di Fontshow:
+checkout completo, Node 22, `npm ci` e `npx semantic-release`. Semantic Release
+genera changelog, tag e release GitHub. Il progetto non include un percorso
+automatico o manuale di pubblicazione PyPI/TestPyPI.
