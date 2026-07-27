@@ -1,12 +1,9 @@
-"""sanikey package."""
+"""Expose the SaniKey package version."""
 
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError, version
+from .version import package_version
 
 __all__ = ["__version__"]
 
-try:
-    __version__ = version("sanikey")
-except PackageNotFoundError:
-    __version__ = "development"
+__version__ = package_version()
