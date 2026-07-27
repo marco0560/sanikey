@@ -51,7 +51,8 @@ git rel
 contenuti candidati) e invia `main`. Il workflow GitHub `Release` calcola poi
 la versione da `feat`/`fix` e dalle modifiche incompatibili, aggiorna il
 changelog e crea tag e release. Quando il workflow è verde, eseguire
-`git pull --ff-only && uv sync` per usare localmente la versione taggata.
+`git pull --ff-only && uv sync && uv run sanikey -V` per usare localmente la
+versione taggata.
 `git release-check` controlla invece hook, alias e configurazione del rilascio.
 
 Il contratto conservativo di rilascio è documentato in

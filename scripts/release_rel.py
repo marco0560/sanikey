@@ -94,7 +94,7 @@ def main() -> int:
         return status
 
     print("[4] Attendere il workflow Release di GitHub.")
-    print("[5] Al termine: git pull --ff-only && uv sync && sanikey -V")
+    print("[5] Al termine: git pull --ff-only && uv sync && uv run sanikey -V")
     return 0
 
 

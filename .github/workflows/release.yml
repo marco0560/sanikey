@@ -34,9 +34,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact release tag
-        run: git describe --tags --exact-match --match "v[0-9]*"
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:

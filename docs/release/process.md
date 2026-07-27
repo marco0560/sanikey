@@ -39,8 +39,9 @@ git rel
 
 `git rel` e' l'unico percorso di push da `main`: aggiorna il ramo con
 fast-forward, esegue l'audit e invia il ramo. Attendere il workflow `Release`,
-quindi eseguire `git pull --ff-only && uv sync`; `sanikey -V` mostrerà la
-versione esatta del tag creato dalla CI, non una versione di sviluppo `.postN`.
+quindi eseguire `git pull --ff-only && uv sync && uv run sanikey -V`; il comando
+mostrerà la versione esatta del tag creato dalla CI, non una versione di sviluppo
+`.postN`.
 L'hook `pre-push` blocca una `git push` diretta su `main`; la sola eccezione
 locale di emergenza e' `git push --no-verify`, da usare soltanto per recupero
 operativo documentato. Prima di un rilascio si puo' verificare l'installazione

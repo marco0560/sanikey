@@ -143,5 +143,12 @@ def test_semantic_release_creates_versioned_changelog_releases() -> None:
     assert "CHANGELOG.md" in configuration
     assert "npx semantic-release" in workflow
     assert "contents: write" in workflow
+    semantic_release_job = workflow.split("  build-manual:", maxsplit=1)[0]
+    assert (
+        'git describe --tags --exact-match --match "v[0-9]*"'
+        not in semantic_release_job
+    )
+    assert "npx semantic-release" in semantic_release_job
     assert "--no-isolation" not in release_command
     assert 'run(["git", "push"], env=environment)' in release_command
+    assert "uv run sanikey -V" in release_command
