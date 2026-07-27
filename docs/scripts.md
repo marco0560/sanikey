@@ -114,13 +114,15 @@ Questo script implementa `git release-audit`.
 ## `scripts/release_rel.py`
 
 Implementa il percorso controllato `git rel` per `main`: aggiorna dal remoto,
-esegue l'audit, invia branch e tag annotati con il bypass strettamente locale
-dell'hook, attende la propagazione e costruisce e verifica la wheel risultante.
+esegue l'audit e invia il ramo con il bypass strettamente locale dell'hook.
+Versione, changelog, tag, release e artefatti sono creati dalla CI GitHub;
+terminato il workflow, eseguire `git pull --ff-only && uv sync`.
 
 ## `scripts/release_system_selfcheck.py`
 
 Implementa `git release-check`. Controlla hook, alias, strumenti di rilascio,
-versione dinamica da `setuptools-scm` e i marker di protezione della push.
+versione dinamica da `setuptools-scm`, configurazione Semantic Release e i
+marker di protezione della push.
 
 ## `scripts/tag_guard.sh`
 

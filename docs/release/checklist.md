@@ -1,6 +1,6 @@
 # Lista di Controllo del Rilascio
 
-## Prima del tag
+## Prima della push controllata
 
 1. Verificare che non esistano dati sanitari, percorsi privati o credenziali
    nel diff e che l'albero di lavoro sia pulito dopo il commit di release.
@@ -15,15 +15,16 @@
    git release-check
    ```
 
-4. Creare il tag annotato `v0.8.0` e inviarlo soltanto tramite `git rel` quando
-   i controlli sono positivi.
+4. Inviare `main` soltanto tramite `git rel` quando i controlli sono positivi.
+   Non creare manualmente il tag: la CI calcola versione, changelog e tag da
+   commit `feat`/`fix` e dalle modifiche incompatibili.
 
 ## TestPyPI
 
 5. Configurare su TestPyPI il trusted publisher
    `marco0560/sanikey`, workflow `.github/workflows/release.yml`, environment
-   `testpypi`. Avviare manualmente il workflow `Release` sul tag `v0.8.0` con
-   destinazione `testpypi`.
+   `testpypi`. Avviare manualmente il workflow `Release`, inserendo il tag
+   creato dalla CI e la destinazione `testpypi`.
 6. In un ambiente pulito, installare e provare esattamente l'artefatto
    pubblicato:
 

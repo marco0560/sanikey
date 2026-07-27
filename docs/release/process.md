@@ -1,13 +1,16 @@
 # Processo di Rilascio
 
-SaniKey usa un flusso basato su tag e Trusted Publishing. Il tag costruisce e
-allega gli artefatti alla release GitHub; la pubblicazione su TestPyPI o PyPI
-è una scelta manuale e protetta da environment separati.
+SaniKey usa Semantic Release su GitHub e Trusted Publishing. Ogni push
+controllata su `main` viene analizzata dalla CI: un commit `fix` crea una patch,
+un commit `feat` una minor e una modifica incompatibile una major. La CI aggiorna
+`CHANGELOG.md`, crea il commit di rilascio, il tag `vX.Y.Z`, la release GitHub e
+gli artefatti; la pubblicazione su TestPyPI o PyPI resta manuale e protetta da
+environment separati.
 
 ## Controlli Locali
 
-Prima di creare un tag di rilascio, verificare che il repository sia in uno
-stato pubblicabile:
+Prima di inviare `main`, verificare che il repository sia in uno stato
+pubblicabile:
 
 ```bash
 git release-audit
@@ -23,23 +26,25 @@ Quel guard controlla:
 - ultimo tag di versione antenato di `HEAD`
 - presenza della sezione `Unreleased` in `CHANGELOG.md`
 
-## Tagging
+## Versione, changelog e tag
 
-I tag di rilascio devono rispettare `vX.Y.Z`.
+I tag di rilascio rispettano `vX.Y.Z`, ma sono creati soltanto da GitHub
+Semantic Release. Non creare tag manuali salvo una riparazione documentata.
 
-Per `0.8.0`, creare il tag annotato e usare il percorso controllato:
+Per inviare una modifica pronta al rilascio:
 
 ```bash
-git tag -a v0.8.0 -m "SaniKey 0.8.0"
 git rel
 ```
 
 `git rel` e' l'unico percorso di push da `main`: aggiorna il ramo con
-fast-forward, esegue l'audit, invia branch e tag annotati e verifica la wheel
-locale. L'hook `pre-push` blocca una `git push` diretta su `main`; la sola
-eccezione locale di emergenza e' `git push --no-verify`, da usare soltanto per
-recupero operativo documentato. Prima di un rilascio si puo' verificare
-l'installazione dei controlli con `git release-check`.
+fast-forward, esegue l'audit e invia il ramo. Attendere il workflow `Release`,
+quindi eseguire `git pull --ff-only && uv sync`; `sanikey -V` mostrerà la
+versione esatta del tag creato dalla CI, non una versione di sviluppo `.postN`.
+L'hook `pre-push` blocca una `git push` diretta su `main`; la sola eccezione
+locale di emergenza e' `git push --no-verify`, da usare soltanto per recupero
+operativo documentato. Prima di un rilascio si puo' verificare l'installazione
+dei controlli con `git release-check`.
 
 SaniKey fornisce anche `scripts/tag_guard.sh` per validare separatamente un tag
 proposto.
@@ -47,8 +52,9 @@ proposto.
 ## GitHub, TestPyPI e PyPI
 
 Il workflow `.github/workflows/release.yml` costruisce sia sdist sia wheel,
-esegue `twine check --strict` e allega i file alla release GitHub. Da
-**Actions → Release → Run workflow**, scegliere il tag e una destinazione:
+esegue `twine check --strict` e allega i file alla release GitHub generata da
+Semantic Release. Da **Actions → Release → Run workflow**, indicare il tag
+creato dalla CI e una destinazione:
 
 - `none`: ricostruisce e controlla gli artefatti senza pubblicarli;
 - `testpypi`: carica su TestPyPI nell'environment GitHub `testpypi`;

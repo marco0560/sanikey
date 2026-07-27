@@ -46,6 +46,7 @@ sanikey = [
 [dependency-groups]
 dev = [
     "build>=1.2,<2",
+    "wheel>=0.45,<1",
     "ruff",
     "pre-commit",
     "pytest",

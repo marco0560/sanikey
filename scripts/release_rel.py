@@ -4,10 +4,8 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -53,24 +51,6 @@ def output(command: list[str]) -> str:
     ).stdout.strip()
 
 
-def clean_build_artifacts() -> None:
-    """Remove disposable package build artifacts before local verification.
-
-    Parameters
-    ----------
-    None
-
-    Returns
-    -------
-    None
-    """
-    for path in (REPO_ROOT / "dist", REPO_ROOT / "build"):
-        shutil.rmtree(path, ignore_errors=True)
-    for path in REPO_ROOT.glob("*.egg-info"):
-        if path.is_dir():
-            shutil.rmtree(path, ignore_errors=True)
-
-
 def main() -> int:
     """Push ``main`` through the guarded SaniKey release workflow.
 
@@ -81,8 +61,8 @@ def main() -> int:
     Returns
     -------
     int
-        Zero on successful push and installed-wheel verification, otherwise a
-        failing child-process status.
+        Zero on successful guarded push, otherwise a failing child-process
+        status.
     """
     if any(argument in {"-h", "--help"} for argument in sys.argv[1:]):
         print("Usage: python -m scripts.release_rel [-h|--help]")
@@ -108,45 +88,14 @@ def main() -> int:
     environment = dict(os.environ)
     environment["SKIP_RELEASE_AUDIT"] = "1"
     environment["ALLOW_MAIN_PUSH"] = "1"
-    print("[3] Invio branch e tag annotati...")
-    status = run(["git", "push", "--follow-tags"], env=environment)
+    print("[3] Invio branch a GitHub...")
+    status = run(["git", "push"], env=environment)
     if status:
         return status
 
-    print("[4] Attesa propagazione CI/tag...")
-    time.sleep(30)
-    for command in (["git", "fetch", "-q"], ["git", "pull", "--ff-only", "-q"]):
-        status = run(command)
-        if status:
-            return status
-
-    print("[5] Verifica artefatto e versione installata...")
-    clean_build_artifacts()
-    if run([sys.executable, "-m", "build", "--wheel", "--no-isolation"]):
-        return 1
-    wheels = sorted(
-        (REPO_ROOT / "dist").glob("*.whl"),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
-    if not wheels:
-        print("ERRORE: nessuna wheel prodotta in dist/")
-        return 1
-    if run(
-        [
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            sys.executable,
-            "--force-reinstall",
-            "--no-deps",
-            "--quiet",
-            str(wheels[0]),
-        ]
-    ):
-        return 1
-    return run([sys.executable, "-m", "sanikey", "-V"])
+    print("[4] Attendere il workflow Release di GitHub.")
+    print("[5] Al termine: git pull --ff-only && uv sync && sanikey -V")
+    return 0
 
 
 if __name__ == "__main__":

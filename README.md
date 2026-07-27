@@ -64,7 +64,8 @@ git release-check
 ```
 
 Le push su `main` passano esclusivamente da `git rel`, che ripete l'audit
-privacy-aware e verifica l'artefatto della versione derivata dai tag.
+privacy-aware. GitHub Semantic Release calcola poi versione, changelog e tag
+dal tipo di commit (`fix`, `feat` o modifica incompatibile).
 
 Il comando `sanikey` è l'interfaccia utente documentata. L'esecuzione
 `python -m sanikey` è destinata a sviluppo e diagnostica.

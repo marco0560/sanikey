@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SEMANTIC_RELEASE_PACKAGES = {
+    "@semantic-release/changelog",
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/git",
+    "@semantic-release/github",
+    "@semantic-release/release-notes-generator",
+    "conventional-changelog-conventionalcommits",
+    "semantic-release",
+}
 
 
 def load_git_config_module() -> object:
@@ -84,3 +95,53 @@ def test_release_tools_exist() -> None:
         "release_system_selfcheck.py",
     ):
         assert (REPO_ROOT / "scripts" / script).is_file()
+
+
+def test_release_build_dependencies_and_tooling_are_pinned() -> None:
+    """Ensure local release checks have a wheel builder and pinned tooling.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
+    assert "wheel>=0.45,<1" in pyproject["dependency-groups"]["dev"]
+
+    package = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
+    dependencies = package["devDependencies"]
+    assert dependencies.keys() >= SEMANTIC_RELEASE_PACKAGES
+    assert all(dependencies[name][0].isdigit() for name in SEMANTIC_RELEASE_PACKAGES)
+
+
+def test_semantic_release_creates_versioned_changelog_releases() -> None:
+    """Ensure GitHub owns tags, release numbers, and changelog updates.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+    configuration = (REPO_ROOT / ".releaserc.json").read_text(encoding="utf-8")
+    workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+    release_command = (REPO_ROOT / "scripts" / "release_rel.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"branches": ["main"]' in configuration
+    assert '"tagFormat": "v${version}"' in configuration
+    assert '"type": "feat", "release": "minor"' in configuration
+    assert '"type": "fix", "release": "patch"' in configuration
+    assert "CHANGELOG.md" in configuration
+    assert "npx semantic-release" in workflow
+    assert "contents: write" in workflow
+    assert "--no-isolation" not in release_command
+    assert 'run(["git", "push"], env=environment)' in release_command

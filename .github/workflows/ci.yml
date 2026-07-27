@@ -64,6 +64,4 @@ jobs:
         run: uv run twine check --strict dist/*
 
       - name: Run release audit
-        env:
-          SKIP_RELEASE_AUDIT: "1"
-        run: bash scripts/release_audit.sh
+        run: uv run python -m scripts.release_audit

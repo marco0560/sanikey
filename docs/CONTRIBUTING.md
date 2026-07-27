@@ -48,9 +48,11 @@ git rel
 ```
 
 `git rel` aggiorna il ramo, ripete l'audit (incluso il controllo privacy dei
-contenuti candidati), invia branch e tag annotati, attende la propagazione e
-verifica una wheel appena costruita. `git release-check` controlla invece che
-hook, alias e versione derivata dai tag siano configurati coerentemente.
+contenuti candidati) e invia `main`. Il workflow GitHub `Release` calcola poi
+la versione da `feat`/`fix` e dalle modifiche incompatibili, aggiorna il
+changelog e crea tag e release. Quando il workflow è verde, eseguire
+`git pull --ff-only && uv sync` per usare localmente la versione taggata.
+`git release-check` controlla invece hook, alias e configurazione del rilascio.
 
 Il contratto conservativo di rilascio è documentato in
 `docs/release/checklist.md` e `docs/release/process.md`.

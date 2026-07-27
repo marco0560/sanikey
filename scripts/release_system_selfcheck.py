@@ -64,6 +64,9 @@ def main() -> int:
         Path("scripts/tag_guard.sh"),
         Path("scripts/changelog_guard.sh"),
         Path(".githooks/pre-push"),
+        Path(".releaserc.json"),
+        Path("package.json"),
+        Path("package-lock.json"),
     ):
         if not (REPO_ROOT / path).is_file():
             print(f"ERRORE: file mancante {path}")
@@ -93,7 +96,19 @@ def main() -> int:
             print(f"ERRORE: controllo pre-push mancante: {marker}")
             failed = True
 
-    print("[6] Controllo integrita' dei tag...")
+    print("[6] Controllo configurazione Semantic Release...")
+    release_config = (REPO_ROOT / ".releaserc.json").read_text(encoding="utf-8")
+    for marker in (
+        '"branches": ["main"]',
+        '"tagFormat": "v${version}"',
+        "@semantic-release/changelog",
+        "@semantic-release/git",
+    ):
+        if marker not in release_config:
+            print(f"ERRORE: configurazione Semantic Release mancante: {marker}")
+            failed = True
+
+    print("[7] Controllo integrita' dei tag...")
     tags = [
         tag
         for tag in output(["git", "tag", "--sort=v:refname"]).splitlines()
