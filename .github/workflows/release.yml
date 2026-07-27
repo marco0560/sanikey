@@ -22,6 +22,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Run SaniKey privacy guard
+        run: python scripts/privacy_guard.py
+        env:
+          PYTHONPATH: src
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:

@@ -148,7 +148,13 @@ def test_semantic_release_creates_versioned_changelog_releases() -> None:
     assert "workflow_dispatch:" not in workflow
     assert "pypa/gh-action-pypi-publish" not in workflow
     assert "uv sync" not in workflow
+    assert "uses: actions/setup-python@v6" in workflow
+    assert "python scripts/privacy_guard.py" in workflow
+    assert "PYTHONPATH: src" in workflow
     assert "uses: actions/setup-node@v6" in workflow
+    assert workflow.index("python scripts/privacy_guard.py") < workflow.index(
+        "npx semantic-release"
+    )
     assert workflow.index("npm ci") < workflow.index("npx semantic-release")
     assert "--no-isolation" not in release_command
     assert 'run(["git", "push"], env=environment)' in release_command
