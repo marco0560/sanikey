@@ -252,11 +252,23 @@ def test_short_option_aliases_parse_like_long_options() -> None:
     assert scan_args.no_progress is True
 
     build_args = parser.parse_args(
-        ["build-patient", "-c", "accounts.toml", "-r", ".", "-m", "full", "-q", "p1"]
+        [
+            "build-patient",
+            "-c",
+            "accounts.toml",
+            "-r",
+            ".",
+            "-m",
+            "full",
+            "--force-pdf-ocr",
+            "-q",
+            "p1",
+        ]
     )
     assert build_args.config_option == Path("accounts.toml")
     assert build_args.repo_root == Path()
     assert build_args.mode == "full"
+    assert build_args.force_pdf_ocr is True
     assert build_args.no_progress is True
 
 
@@ -3618,3 +3630,61 @@ def test_resolve_medication_leaflets_rejects_unknown_non_aifa_medication(
     assert result == 1
     assert "farmaco non presente nei metadati curati: typo" in capsys.readouterr().out
     assert not (person.metadata_directory / "medication_leaflets.toml").exists()
+
+
+def test_discover_parameters_requires_valid_extraction_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify parameter discovery never invokes an extraction provider itself.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    capsys : pytest.CaptureFixture[str]
+        Pytest output capture fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    document = _document(person.source_documents / "20260102 Report.txt")
+    monkeypatch.setattr(cli, "load_accounts", lambda _path: _accounts(tmp_path, person))
+    monkeypatch.setattr(cli, "scan_documents", lambda _person: (document,))
+
+    def fail_cache(*_args: object) -> tuple[ExtractedText, ...]:
+        """Fail deterministically when no valid cache is available.
+
+        Parameters
+        ----------
+        *_args : object
+            Unused command dependencies.
+
+        Returns
+        -------
+        tuple[sanikey.documents.ExtractedText, ...]
+            Never returned.
+
+        Raises
+        ------
+        ConfigError
+            Always raised to model an absent cache.
+        """
+
+        message = "testo estratto non disponibile: eseguire prima build-patient"
+        raise ConfigError(message)
+
+    monkeypatch.setattr(cli, "load_cached_extracted_text", fail_cache)
+
+    result = cli.run_discover_parameters(
+        argparse.Namespace(config=tmp_path / "accounts.toml", patient="patient-a")
+    )
+
+    assert result == 1
+    assert "eseguire prima build-patient" in capsys.readouterr().out

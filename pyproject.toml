@@ -36,6 +36,13 @@ local_scheme = "no-local-version"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.package-data]
+sanikey = [
+  "assets/ocr/*.user-words",
+  "assets/vendor/chartjs/*.js",
+  "assets/vendor/chartjs/*.md",
+]
+
 [dependency-groups]
 dev = [
     "build>=1.2,<2",
@@ -46,7 +53,7 @@ dev = [
     "mypy",
     "packaging",
     "coverage",
-    "codira[bundle-official]",
+    "codira[bundle-official]==1.55.0",
     "setuptools-scm>=8",
     "twine>=6,<7",
     "pymarkdownlnt>=0.9.38",

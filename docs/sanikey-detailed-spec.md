@@ -10204,3 +10204,20 @@ Una futura estensione dovrebbe essere adottata soltanto se:
 * non compromette la portabilità;
 * non riduce la longevità;
 * non aumenta significativamente la complessità operativa.
+
+---
+
+## 22. Slice Longitudinali dei Parametri
+
+Le slice leggono esclusivamente il testo già estratto, una riga alla volta, e
+conservano digest, riga, offset, etichetta, valore e unità originali. Non usano
+AI, fuzzy matching né una nuova esecuzione OCR.
+
+`parameters.toml` contiene regole curate: una proposta non diventa mai regola
+da sola. Le conversioni sono esplicite e versionate; ambiguità, unità
+incompatibili e documenti senza data producono decisioni spiegabili.
+
+Gli output non contengono timestamp di esecuzione o percorsi assoluti. Il
+frontend usa Chart.js vendorizzato e conserva la tabella accessibile come
+rappresentazione primaria. Range, coppie, tabelle generiche, etichette su righe
+diverse e inferenze cliniche restano fuori ambito.

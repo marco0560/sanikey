@@ -8,10 +8,12 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
+from . import __version__
 from .database import database_path
 from .documents import is_excluded_source_path
 from .errors import UsbError
@@ -44,6 +46,25 @@ class UsbExportResult:
     manifest: Path
     patients: int
     files: int
+
+
+@dataclass(frozen=True)
+class _UsbExportMetadata:
+    """Provenance information embedded in a generated USB image.
+
+    Parameters
+    ----------
+    exported_at : str
+        UTC timestamp at which the USB image was finalized.
+    sanikey_version : str
+        Version of SaniKey that generated the image.
+    copy_strategy : str
+        Configured physical-copy strategy.
+    """
+
+    exported_at: str
+    sanikey_version: str
+    copy_strategy: str
 
 
 def usb_image_root(config: AccountsConfig) -> Path:
@@ -107,7 +128,22 @@ def export_usb(
     if progress is not None:
         progress.done(f"done patients={len(patients)}")
     _write_usb_index(patients, image_root)
-    _write_manifest(patients, image_root, progress=progress)
+    metadata = _UsbExportMetadata(
+        exported_at=datetime.now(UTC).isoformat(),
+        sanikey_version=__version__,
+        copy_strategy=config.usb.copy_strategy,
+    )
+    _write_usb_info(
+        patients,
+        image_root,
+        metadata=metadata,
+    )
+    _write_manifest(
+        patients,
+        image_root,
+        metadata=metadata,
+        progress=progress,
+    )
     if image_root.resolve() != target.resolve():
         _validate_physical_target(config, image_root, target)
         _replace_tree(
@@ -820,6 +856,7 @@ def _write_manifest(
     people: tuple[PersonConfig, ...],
     target: Path,
     *,
+    metadata: _UsbExportMetadata,
     progress: ProgressReporter | None = None,
 ) -> Path:
     """Write USB manifest with checksums.
@@ -830,6 +867,8 @@ def _write_manifest(
         Exported people.
     target : pathlib.Path
         USB root.
+    metadata : _UsbExportMetadata
+        Export provenance to record in the manifest.
     progress : ProgressReporter | None, optional
         Optional interactive progress reporter.
 
@@ -853,6 +892,9 @@ def _write_manifest(
         progress.done(f"done files={len(files)}")
     payload = {
         "schema_version": 1,
+        "exported_at": metadata.exported_at,
+        "sanikey_version": metadata.sanikey_version,
+        "copy_strategy": metadata.copy_strategy,
         "patients": [
             {
                 "id": person.id,
@@ -867,6 +909,43 @@ def _write_manifest(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return manifest
+
+
+def _write_usb_info(
+    people: tuple[PersonConfig, ...],
+    target: Path,
+    *,
+    metadata: _UsbExportMetadata,
+) -> None:
+    """Write per-patient offline USB provenance data.
+
+    Parameters
+    ----------
+    people : tuple[PersonConfig, ...]
+        Exported people.
+    target : pathlib.Path
+        USB image root.
+    metadata : _UsbExportMetadata
+        Export provenance to expose to the offline frontend.
+
+    Returns
+    -------
+    None
+    """
+
+    for person in people:
+        payload = {
+            "schema_version": 1,
+            "usb_uuid": person.usb_uuid,
+            "exported_at": metadata.exported_at,
+            "sanikey_version": metadata.sanikey_version,
+            "copy_strategy": metadata.copy_strategy,
+        }
+        info_path = target / "patients" / person.id / "web" / "usb-info.js"
+        info_path.write_text(
+            "window.SANIKEY_USB_INFO = " + json.dumps(payload, sort_keys=True) + ";\n",
+            encoding="utf-8",
+        )
 
 
 def _write_usb_index(people: tuple[PersonConfig, ...], target: Path) -> Path:

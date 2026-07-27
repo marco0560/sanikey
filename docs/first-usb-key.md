@@ -67,8 +67,9 @@ fa parte della loro provenienza. La convenzione consigliata è
 Nella `metadata_directory` curare almeno le informazioni richieste dalla
 configurazione. Se esiste una terapia, completare `medications.toml` e
 `therapies.toml`; se si importano misurazioni, completare anche
-`observation_imports.toml`. I modelli sintetici in
-`docs/patients-example/` mostrano la struttura. Per cartelle, archivi e DICOM,
+`observation_imports.toml`. L'[indice degli esempi sintetici](patients-example/README.md)
+nomina ogni file compilabile; il [riferimento TOML](process/metadata-toml-reference.md)
+indica campi e vincoli. Per cartelle, archivi e DICOM,
 seguire [Organizzare l'archivio sanitario](organizzare-archivio-sanitario.md).
 
 Fare una prima lettura automatica prima della build:
@@ -103,6 +104,9 @@ Per una prima esecuzione completa:
 ```bash
 uv run sanikey build-all --mode full
 ```
+
+Per riesaminare con OCR soltanto i PDF classificati come scannerizzati, senza
+ri-OCRizzare i PDF nativi, aggiungere `--force-pdf-ocr` al comando di build.
 
 Il comando crea database, export, pagina web e report nelle cartelle
 `local_build`. Controllare gli avvisi indicati nel report. Se si importano

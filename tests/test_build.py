@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from sanikey.build import _ensure_leaflet_downloads_succeeded, build_all, build_patient
-from sanikey.config import AccountsConfig, PersonConfig
+from sanikey.config import AccountsConfig, PersonConfig, SearchConfig, SearchDictionary
 from sanikey.documents import ExtractedText
 from sanikey.errors import ConfigError
 from sanikey.leaflets import LeafletDownloadFailure, LeafletDownloadResult
@@ -295,8 +295,9 @@ def test_full_build_ignores_extracted_text_cache(
     )
     calls = 0
 
-    def fake_extract(document):
+    def fake_extract(document, *, force_pdf_ocr: bool = False):
         nonlocal calls
+        assert not force_pdf_ocr
         calls += 1
         return ExtractedText(document_id=document.document_id, text=f"text {calls}")
 
@@ -311,6 +312,83 @@ def test_full_build_ignores_extracted_text_cache(
     with sqlite3.connect(result.database) as connection:
         row = connection.execute("SELECT text FROM document_text").fetchone()
     assert row == ("text 2",)
+
+
+def test_build_patient_passes_forced_scanned_pdf_ocr_to_extraction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the build forwards forced OCR selection to PDF extraction.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    selections: list[bool] = []
+
+    def fake_extract(document, *, force_pdf_ocr: bool = False):
+        selections.append(force_pdf_ocr)
+        return ExtractedText(document_id=document.document_id, text="synthetic")
+
+    monkeypatch.setattr("sanikey.build.extract_text", fake_extract)
+
+    build_patient(person, mode="full", force_pdf_ocr=True)
+
+    assert selections == [True]
+
+
+def test_forced_scanned_pdf_ocr_ignores_extraction_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify forced OCR rebuilds text instead of reusing incremental cache.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "synthetic",
+        encoding="utf-8",
+    )
+    selections: list[bool] = []
+
+    def fake_extract(document, *, force_pdf_ocr: bool = False):
+        selections.append(force_pdf_ocr)
+        return ExtractedText(document_id=document.document_id, text="synthetic")
+
+    monkeypatch.setattr("sanikey.build.extract_text", fake_extract)
+
+    build_patient(person)
+    result = build_patient(person, force_pdf_ocr=True)
+
+    assert selections == [False, True]
+    assert result.extracted_documents == 1
+    assert result.cached_documents == 0
 
 
 def test_build_all_skips_disabled_patients_and_isolates_outputs(
@@ -673,3 +751,70 @@ def test_build_patient_catalogs_dicom_after_container_staging(
         "catalog-dicom patient-a",
         "extract-text patient-a",
     ]
+
+
+def test_parameter_slice_build_outputs_are_byte_stable(tmp_path: Path) -> None:
+    """Verify two full builds preserve parameter reports and static exports.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    base = _person(tmp_path)
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        search=SearchConfig(
+            dictionary_data=SearchDictionary(terms={"emoglobina": ("Hb", "emoglobina")})
+        ),
+    )
+    person.source_documents.mkdir(parents=True)
+    person.metadata_directory.mkdir()
+    (person.source_documents / "20260102 Report.txt").write_text(
+        "Hb: 13.7 g/dL\n",
+        encoding="utf-8",
+    )
+    (person.metadata_directory / "parameters.toml").write_text(
+        """
+[discovery]
+min_occurrences = 1
+min_distinct_documents = 1
+min_distinct_dates = 1
+
+[parameters.emoglobina]
+display_name = "Emoglobina"
+term = "emoglobina"
+version = 1
+value_type = "scalar"
+number_formats = ["decimal-point"]
+unit_policy = "required"
+enabled = true
+units = ["g/dL"]
+canonical_unit = "g/dL"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    build_patient(person, mode="full")
+    outputs = (
+        person.local_build / "reports" / "parameter-candidates.json",
+        person.local_build / "reports" / "parameter-extraction.json",
+        person.local_build / "exports" / "parameter-slices.json",
+        person.local_build / "web" / "data" / "parameter-slices.js",
+    )
+    first = {path.name: path.read_bytes() for path in outputs}
+    build_patient(person, mode="full")
+
+    assert all(path.read_bytes() == first[path.name] for path in outputs)
+    assert all(b"/home/" not in content for content in first.values())
+    assert all(b"generated_at" not in content for content in first.values())

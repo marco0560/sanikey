@@ -179,6 +179,7 @@ id = "peso"
 name = "Peso"
 value_type = "numeric"
 unit = "kg"
+synonyms = ["massa corporea"]
 """,
         encoding="utf-8",
     )
@@ -204,6 +205,15 @@ numeric_value = 70.5
     point = next(item for item in search if item["type"] == "observation_point")
     assert point["title"] == "Peso"
     assert point["section"] == "observations"
+    script = result.data_script.read_text(encoding="utf-8")
+    payload = json.loads(
+        script.removeprefix("window.SANIKEY_DATA = ").removesuffix(";\n")
+    )
+    series = payload["clinical"]["observation_series"][0]
+    assert series["synonyms"] == ["massa corporea"]
+    assert series["text"] == "Peso massa corporea numeric kg"
+    point_payload = payload["clinical"]["observation_points"][0]
+    assert point_payload["numeric_value"] == 70.5
 
 
 def test_generate_exports_writes_advanced_search_dictionary_and_warning(

@@ -9,6 +9,7 @@ Decisioni successive:
 - [Ricerca avanzata offline](adr-advanced-offline-search.md)
 - [Ricerca federata e dashboard clinica](adr-federated-clinical-search-ui.md)
 - [Import osservazioni longitudinali](adr-observation-imports.md)
+- [Slice longitudinali dei parametri](adr-longitudinal-parameter-slices.md)
 - [Hardening consultazione USB](adr-usb-consultation-hardening.md)
 - [Default globale UUID USB](adr-usb-uuid-global-default.md)
 - [Pattern di ingestione espliciti](adr-explicit-ingestion-patterns.md)

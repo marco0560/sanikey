@@ -417,6 +417,7 @@ def _observation_series_from_table(
             path=path,
             index=index,
         ),
+        synonyms=_string_tuple(item.get("synonyms", ()), path, "synonyms", index),
     )
 
 

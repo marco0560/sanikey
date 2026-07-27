@@ -426,6 +426,14 @@ def test_export_usb_isolates_enabled_patients(tmp_path: Path) -> None:
         "patient-a",
         "patient-b",
     }
+    assert manifest["sanikey_version"]
+    assert manifest["exported_at"].endswith("+00:00")
+    assert manifest["copy_strategy"] == "rsync-preferred"
+    usb_info = (
+        result.root / "patients" / "patient-a" / "web" / "usb-info.js"
+    ).read_text(encoding="utf-8")
+    assert "window.SANIKEY_USB_INFO" in usb_info
+    assert '"usb_uuid": "UUID-patient-a"' in usb_info
     assert (result.root / "patients" / "patient-a" / "documents").is_dir()
     assert (result.root / "patients" / "patient-b" / "documents").is_dir()
     assert not (result.root / "patients" / "patient-disabled").exists()

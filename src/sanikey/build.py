@@ -22,6 +22,13 @@ from .inspection import (
 from .leaflets import LeafletDownloadResult, download_confirmed_leaflets
 from .metadata import load_curated_metadata
 from .observation_imports import ensure_observation_imports_current
+from .parameter_reports import write_parameter_reports
+from .parameter_rules import (
+    build_parameter_slices,
+    load_parameter_rules,
+    merge_parameter_observations,
+)
+from .parameter_slices import discover_candidates
 from .rendering import prepare_consultation_documents
 
 if TYPE_CHECKING:
@@ -138,6 +145,7 @@ def build_patient(
     person: PersonConfig,
     *,
     mode: str = "incremental",
+    force_pdf_ocr: bool = False,
     progress: ProgressReporter | None = None,
 ) -> PatientBuildResult:
     """Build generated artefacts for one patient.
@@ -148,6 +156,9 @@ def build_patient(
         Patient configuration.
     mode : str, optional
         Build mode: ``full``, ``incremental``, or ``validation``.
+    force_pdf_ocr : bool, optional
+        Whether scanned PDFs with sufficient text should be reprocessed with
+        OCRmyPDF.
     progress : ProgressReporter | None, optional
         Progress reporter for long build steps.
 
@@ -195,9 +206,32 @@ def build_patient(
         person,
         extraction_documents,
         mode=mode,
+        force_pdf_ocr=force_pdf_ocr,
         progress=progress,
     )
     extracted = extracted_result.items
+    parameters_path = person.metadata_directory / "parameters.toml"
+    if parameters_path.exists():
+        parameter_rules = load_parameter_rules(
+            parameters_path,
+            person.search.dictionary_data,
+        )
+        parameter_discovery = discover_candidates(
+            documents,
+            extracted,
+            document_hrefs=_parameter_document_hrefs(person, documents),
+            settings=parameter_rules.discovery,
+        )
+        parameter_result = build_parameter_slices(
+            parameter_discovery.candidates,
+            parameter_rules,
+        )
+        metadata = merge_parameter_observations(metadata, parameter_result)
+        write_parameter_reports(
+            person.local_build,
+            parameter_discovery,
+            parameter_result,
+        )
     render_result = prepare_consultation_documents(person, documents)
     inspection_warnings = tuple(
         warning
@@ -355,6 +389,7 @@ def build_all(
     config: AccountsConfig,
     *,
     mode: str = "incremental",
+    force_pdf_ocr: bool = False,
     progress: ProgressReporter | None = None,
 ) -> tuple[PatientBuildResult, ...]:
     """Build all enabled patients.
@@ -365,6 +400,9 @@ def build_all(
         Loaded accounts configuration.
     mode : str, optional
         Build mode.
+    force_pdf_ocr : bool, optional
+        Whether scanned PDFs with sufficient text should be reprocessed with
+        OCRmyPDF.
     progress : ProgressReporter | None, optional
         Progress reporter for long build steps.
 
@@ -375,7 +413,12 @@ def build_all(
     """
 
     return tuple(
-        build_patient(person, mode=mode, progress=progress)
+        build_patient(
+            person,
+            mode=mode,
+            force_pdf_ocr=force_pdf_ocr,
+            progress=progress,
+        )
         for person in config.enabled_people()
     )
 
@@ -385,6 +428,7 @@ def _extract_documents(
     documents: tuple[DocumentRecord, ...],
     *,
     mode: str,
+    force_pdf_ocr: bool,
     progress: ProgressReporter | None,
 ) -> ExtractDocumentsResult:
     """Extract document text using the incremental cache when enabled.
@@ -397,6 +441,9 @@ def _extract_documents(
         Documents eligible for text extraction.
     mode : str
         Build mode.
+    force_pdf_ocr : bool
+        Whether scanned PDFs with sufficient text should be reprocessed with
+        OCRmyPDF.
     progress : ProgressReporter | None
         Progress reporter for extraction.
 
@@ -407,7 +454,11 @@ def _extract_documents(
     """
 
     cache_path = _extraction_cache_path(person)
-    cache = _read_extraction_cache(cache_path) if mode == "incremental" else {}
+    cache = (
+        _read_extraction_cache(cache_path)
+        if mode == "incremental" and not force_pdf_ocr
+        else {}
+    )
     next_cache: dict[str, dict[str, object]] = {}
     extracted_items = []
     extracted_count = 0
@@ -417,7 +468,11 @@ def _extract_documents(
     for index, document in enumerate(documents, start=1):
         cached = _cached_extracted_text(cache, document)
         if cached is None:
-            item = extract_text(document)
+            item = (
+                extract_text(document, force_pdf_ocr=True)
+                if force_pdf_ocr
+                else extract_text(document)
+            )
             extracted_count += 1
         else:
             item = cached
@@ -454,6 +509,75 @@ def _extraction_cache_path(person: PersonConfig) -> Path:
     """
 
     return person.local_build / "cache" / "extracted_text.json"
+
+
+def load_cached_extracted_text(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+) -> tuple[ExtractedText, ...]:
+    """Load only valid cached text without invoking extraction providers.
+
+    Parameters
+    ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration owning the extraction cache.
+    documents : tuple[sanikey.models.DocumentRecord, ...]
+        Current documents whose cache identities must match.
+
+    Returns
+    -------
+    tuple[sanikey.documents.ExtractedText, ...]
+        Cached extracted text in document order.
+
+    Raises
+    ------
+    ConfigError
+        If the cache is absent, stale, or incomplete.
+    """
+
+    cache = _read_extraction_cache(_extraction_cache_path(person))
+    if not cache:
+        message = "testo estratto non disponibile: eseguire prima build-patient"
+        raise ConfigError(message)
+    items: list[ExtractedText] = []
+    for document in documents:
+        item = _cached_extracted_text(cache, document)
+        if item is None:
+            message = "testo estratto stale: eseguire prima build-patient"
+            raise ConfigError(message)
+        items.append(item)
+    return tuple(items)
+
+
+def _parameter_document_hrefs(
+    person: PersonConfig,
+    documents: tuple[DocumentRecord, ...],
+) -> dict[str, str]:
+    """Build relative original-document links for parameter provenance.
+
+    Parameters
+    ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration.
+    documents : tuple[sanikey.models.DocumentRecord, ...]
+        Documents considered by the build.
+
+    Returns
+    -------
+    dict[str, str]
+        Relative exported-document links keyed by document id.
+    """
+
+    hrefs: dict[str, str] = {}
+    for document in documents:
+        if document.origin != "source":
+            continue
+        try:
+            relative = document.path.relative_to(person.source_documents)
+        except ValueError:
+            continue
+        hrefs[document.document_id] = f"../documents/{relative.as_posix()}"
+    return hrefs
 
 
 def _read_extraction_cache(target: Path) -> dict[str, dict[str, object]]:

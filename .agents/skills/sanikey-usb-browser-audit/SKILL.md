@@ -14,6 +14,14 @@ description: Audit a mounted SaniKey USB export with Chrome headless. Use for po
 - Use Chrome headless only for evidence gathering. `--allow-file-access-from-files`
   is permitted for the audit harness; it does not prove that a consultation
   browser needs or receives that flag.
+- Launch Chrome with `--disable-background-networking`, `--disable-component-update`,
+  `--disable-sync`, and `--no-first-run` to avoid unrelated Google background
+  service activity during an offline audit.
+- Classify Chrome stderr entries from
+  `google_apis/gcm/engine/registration_request.cc` with
+  `DEPRECATED_ENDPOINT` as background-networking noise, not as an export or
+  application error, when page-console checks are otherwise clean. Do not
+  suppress other Chrome stderr errors.
 - Report findings only. Do not modify the export or repository unless the user
   separately asks for a fix.
 
@@ -28,7 +36,11 @@ description: Audit a mounted SaniKey USB export with Chrome headless. Use for po
    document overflow, active panes, visible section panels, and link targets.
 4. Exercise the stable interaction contract when the controls exist: basic and
    advanced search, each help dialog and close button, section buttons in both
-   panes, timeline detail links, original-document links, and DICOM actions.
+   panes, timeline links, original-document links, and DICOM actions. For a
+   timeline link resolving to a document, verify that it opens the exported
+   document in a new tab and does not replace either active pane. For a link
+   resolving to a clinical entity, verify that it opens the entity's section
+   in the left pane and scrolls to its card.
 5. Inspect exported data and filesystem targets. Flag an anomaly when a listed
    document has no usable local target, a DICOM study has neither native HTML
    viewer nor non-diagnostic preview nor `DICOMDIR`, or an external path leaks
@@ -42,9 +54,9 @@ description: Audit a mounted SaniKey USB export with Chrome headless. Use for po
 - At least one patient with documents, observations, therapy, and DICOM data;
   audit all patients when present.
 - Wide desktop, older laptop, and mobile viewports.
-- Relative link resolution, current-tab versus new-tab semantics, layout
-  overflow, dialog dismissal, search results, pane targeting, and browser
-  exceptions.
+- Relative link resolution, current-tab versus new-tab semantics (including
+  timeline document links), layout overflow, dialog dismissal, search results,
+  pane targeting for timeline clinical-entity links, and browser exceptions.
 - DICOM cards: native viewer, preview fallback, professional-reader media, and
   absence of misleading individual DICOM-file listings.
 

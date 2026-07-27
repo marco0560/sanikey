@@ -9,6 +9,11 @@ I campi non indicati come obbligatori sono opzionali. Le date nei TOML sono
 memorizzate in formato ISO `YYYY-MM-DD`; il frontend le presenta all'utente in
 formato italiano `gg/mm/aaaa`.
 
+Gli esempi completi e sintetici sono in
+[`docs/patients-example/`](../patients-example/README.md). I file
+`metadata/observations/` e `medication_leaflets.toml` sono generati dai comandi
+dedicati: non copiarli né modificarli manualmente.
+
 ## `clinical_summary.toml`
 
 Contiene una sintesi clinica libera, orientata alla consultazione rapida.
@@ -404,6 +409,37 @@ date = "Data"
 column = "Misura"
 pattern = '^(?P<systolic>\d+)/(?P<diastolic>\d+)\s+(?P<pulse>\d+)$'
 ```
+
+## `parameters.toml`
+
+Definisce la discovery deterministica e le regole curate per ricavare serie
+longitudinali dal testo già estratto. È opzionale: se assente, `build-patient`
+non ricava parametri. Le proposte prodotte in
+`reports/parameter-rules.proposed.toml` restano sempre disabilitate e vanno
+revisionate prima di essere copiate qui.
+
+```toml
+[discovery]
+min_occurrences = 2
+min_distinct_documents = 2
+min_distinct_dates = 1
+
+[parameters.emoglobina]
+display_name = "Emoglobina"
+term = "emoglobina"
+version = 1
+value_type = "qualified-scalar"
+number_formats = ["integer", "decimal-comma", "decimal-point"]
+unit_policy = "required"
+enabled = false
+units = ["g/dL", "g/l"]
+canonical_unit = "g/dL"
+```
+
+`term` deve esistere nel dizionario configurato; `enabled = true` è l'unico
+modo per consentire alla regola di creare punti. Le conversioni sono ammesse
+solo in blocchi `[[parameters.<id>.conversions]]` espliciti e versionati. Vedere
+l'[esempio sintetico](../patients-example/parameters.toml).
 
 ## `timeline_events.toml`
 

@@ -56,6 +56,8 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "Ricerca avanzata" in result.index.read_text(encoding="utf-8")
     assert "search-mode-control" in result.index.read_text(encoding="utf-8")
     assert "data-close-dialog" in result.index.read_text(encoding="utf-8")
+    assert 'id="usb-info-button"' in result.index.read_text(encoding="utf-8")
+    assert 'id="usb-info-dialog"' in result.index.read_text(encoding="utf-8")
     script = result.script.read_text(encoding="utf-8").lower()
     helper = result.helper.read_text(encoding="utf-8").lower()
     material = result.material_script.read_text(encoding="utf-8").lower()
@@ -76,6 +78,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     )
     assert not any(fragment in generated for fragment in forbidden_fragments)
     assert 'script src="data.js"' in index
+    assert 'script src="usb-info.js"' in index
     assert 'script src="assets/ui-helper.js"' in index
     assert 'script type="module" src="assets/material-web.js"' in index
     assert 'href="assets/material-web.css"' in index
@@ -103,6 +106,16 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "setuptimelinedetaillinks" in script
     assert "setupresultdetaillinks" in script
     assert "data-result-detail-link" in script
+    assert "function rendertimeline(timeline, documents)" in script
+    assert "const documentitem = documentsbyid.get(link);" in script
+    assert (
+        'href="${attr(documentitem.href)}" target="_blank" rel="noopener">apri documento'
+        in script
+    )
+    assert (
+        'href="#entity-${attr(link)}" data-detail-link="${attr(link)}">dettaglio'
+        in script
+    )
     assert "custom-elements" not in material
     assert "customElements.define".lower() in material
     assert "function formatdate(value)" in script
@@ -114,7 +127,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "item.href" in script
     assert "item.viewer_href" in script
     assert "apri studio dicom" in script
-    assert script.count('target="_blank" rel="noopener">apri documento') == 2
+    assert script.count('target="_blank" rel="noopener">apri documento') >= 2
     assert 'target="_blank" rel="noopener">scarica originale' in script
     assert "scarica supporto originale" not in script
     assert "renderdicomstudies" in script
@@ -128,7 +141,21 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "anomalia: nessun viewer, anteprima o dicomdir disponibile" in script
     assert "supporto originale per verifica tecnica" in script
     assert "renderclinicaldashboard" in script
+    assert "renderparametersection" in script
+    assert "parametersearchtext" in script
+    assert "data-parameter-series" in script
+    assert "data-parameter-point" in script
+    assert "data-parameter-filter" in script
+    assert "filters.qualified" in script
+    assert "filters.order" in script
+    assert "onpointselected(point)" in script
     assert "renderquicksearch" in script
+    assert "renderusbinfo" in script
+    assert "sanikey_usb_info" in script
+    assert 'timezoneName: "short"'.lower() in script
+    assert "datestyle:" not in script
+    assert "timestyle:" not in script
+    assert "sortdocumentresults" in script
     assert "rendersearchresults" in script
     assert "section_links" not in script
     assert "section-links" in stylesheet
@@ -143,6 +170,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert ".search-panel" in stylesheet
     assert ".help-dialog" in stylesheet
     assert ".header-logo" in stylesheet
+    assert ".header-logo-button" in stylesheet
     assert ".header-branding" in stylesheet
     assert ".header-branding {\n  align-items: baseline;" in stylesheet
     assert "transform: translatey(-1.35rem);" in stylesheet
@@ -153,9 +181,19 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "--search-basic-accent" in stylesheet
     assert "--search-advanced-accent" in stylesheet
     assert ".badge" in stylesheet
+    assert ".parameter-layout" in stylesheet
+    assert ".parameter-filters" in stylesheet
     assert "has-background-image" in stylesheet
     header_css = stylesheet.split("header {", 1)[1].split("\n}", 1)[0]
-    assert "background:" not in header_css
+    assert "background: var(--surface)" in header_css
+    assert "z-index: 10" in header_css
+    header_background_css = stylesheet.split("body.has-background-image header {", 1)[
+        1
+    ].split("\n}", 1)[0]
+    assert "background-image:" in header_background_css
+    assert "var(--background-image)" in header_background_css
+    assert "var(--background-opacity)" in header_background_css
+    assert "background-attachment: fixed" in header_background_css
     assert "sintesi clinica" in index
     assert "section-jumps" not in index
     assert "function updatesectionjumps(sections)" not in script
@@ -169,13 +207,20 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "[data-section-panel].is-active" in stylesheet
     assert '[data-pane-role="left"]' in desktop_css
     assert '[data-pane-role="right"]' in desktop_css
-    assert "height: calc(200vh - 16rem)" in desktop_css
+    assert 'body[data-layout="dual"] {' in desktop_css
+    assert "min-height: 200dvh" in desktop_css
+    assert "height: 200dvh" in desktop_css
+    assert "max-width: none" in desktop_css
+    assert "width: 90%" in desktop_css
     assert "min-height: 0" in desktop_css
     mobile_css = stylesheet.split("@media (max-width: 44rem)", 1)[1].split(
         "@media print", 1
     )[0]
     assert ".nav-control md-icon-button" in mobile_css
     assert "display: none" in mobile_css
+    usb_info = (result.web_dir / "usb-info.js").read_text(encoding="utf-8").lower()
+    assert "window.sanikey_usb_info" in usb_info
+    assert '"usb_uuid": "1a2b-3c4d"' in usb_info
 
 
 def test_build_frontend_copies_configured_background_image(tmp_path: Path) -> None:

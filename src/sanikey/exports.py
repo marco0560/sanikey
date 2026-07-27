@@ -1273,8 +1273,16 @@ def _observation_series_payload(series: Any) -> dict[str, Any]:
         "value_type": series.value_type,
         "unit": series.unit,
         "description": series.description,
+        "synonyms": list(series.synonyms),
         "text": " ".join(
-            item for item in (series.name, series.value_type, series.unit) if item
+            item
+            for item in (
+                series.name,
+                *series.synonyms,
+                series.value_type,
+                series.unit,
+            )
+            if item
         ).strip(),
     }
 
@@ -1307,8 +1315,23 @@ def _observation_point_payload(
         "series_id": point.series_id,
         "date": point.observation_date,
         "value": value,
+        "numeric_value": point.numeric_value,
         "source_reference": point.source_reference,
         "note": point.note,
+        "source_kind": point.source_kind,
+        "document_id": point.document_id,
+        "document_href": point.document_href,
+        "document_title": point.document_title,
+        "document_category": point.document_category,
+        "matched_label": point.matched_label,
+        "raw_value": point.raw_value,
+        "parsed_value": point.parsed_value,
+        "raw_unit": point.raw_unit,
+        "normalized_unit": point.normalized_unit,
+        "qualifier": point.qualifier,
+        "rule_id": point.rule_id,
+        "rule_version": point.rule_version,
+        "reason_code": point.reason_code,
         "text": " ".join(
             item
             for item in (

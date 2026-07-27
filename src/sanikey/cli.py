@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Never, cast
 
 from . import __version__
-from .build import PatientBuildResult, build_all, build_patient
+from .build import (
+    PatientBuildResult,
+    build_all,
+    build_patient,
+    load_cached_extracted_text,
+)
 from .config import default_accounts_path, load_accounts
 from .containers import stage_container_documents
 from .database import build_database
@@ -36,6 +41,9 @@ from .leaflets import (
 from .metadata import load_curated_metadata
 from .models import MedicationLeaflet, MedicationLeafletExclusion
 from .observation_imports import import_observations
+from .parameter_reports import write_parameter_reports
+from .parameter_rules import build_parameter_slices, load_parameter_rules
+from .parameter_slices import discover_candidates
 from .privacy import validate_privacy
 from .progress import ProgressDots
 from .proposals import generate_manual_proposals, review_proposal
@@ -256,6 +264,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     observations_parser.set_defaults(func=run_import_observations)
 
+    discover_parameters_parser = subparsers.add_parser(
+        "discover-parameters",
+        help="Propone parametri longitudinali dal testo gia' estratto",
+        description="Genera proposte deterministiche senza modificare i metadati.",
+    )
+    _add_config_arguments(discover_parameters_parser, allow_config_flag=True)
+    discover_parameters_parser.add_argument("patient", nargs="?")
+    discover_parameters_parser.set_defaults(func=run_discover_parameters)
+
+    parameter_slices_parser = subparsers.add_parser(
+        "build-parameter-slices",
+        help="Genera slice longitudinali dalle regole curate",
+        description="Applica parameters.toml al testo gia' estratto.",
+    )
+    _add_config_arguments(parameter_slices_parser, allow_config_flag=True)
+    parameter_slices_parser.add_argument("patient", nargs="?")
+    parameter_slices_parser.set_defaults(func=run_build_parameter_slices)
+
     dicom_parser = subparsers.add_parser(
         "process-dicom",
         help="Cataloga supporti DICOM e directory di espansione manuale",
@@ -302,6 +328,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("full", "incremental", "validation"),
         default="incremental",
     )
+    build_patient_parser.add_argument(
+        "-O",
+        "--force-pdf-ocr",
+        action="store_true",
+        help="Riapplica OCRmyPDF ai PDF classificati come scannerizzati",
+    )
     _add_progress_argument(build_patient_parser)
     build_patient_parser.set_defaults(func=run_build_patient)
 
@@ -316,6 +348,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode",
         choices=("full", "incremental", "validation"),
         default="incremental",
+    )
+    build_all_parser.add_argument(
+        "-O",
+        "--force-pdf-ocr",
+        action="store_true",
+        help="Riapplica OCRmyPDF ai PDF classificati come scannerizzati",
     )
     _add_progress_argument(build_all_parser)
     build_all_parser.set_defaults(func=run_build_all)
@@ -1461,6 +1499,7 @@ def run_build_patient(args: argparse.Namespace) -> int:
             build_patient(
                 selected[0],
                 mode=args.mode,
+                force_pdf_ocr=getattr(args, "force_pdf_ocr", False),
                 progress=_progress_from_args(args),
             )
         )
@@ -1504,6 +1543,102 @@ def run_import_observations(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_discover_parameters(args: argparse.Namespace) -> int:
+    """Generate deterministic parameter proposals from cached extracted text.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(_config_path(args))
+        selected = _selected_people(config, args.patient)
+        if args.patient and not selected:
+            print(f"ERRORE: paziente non trovato o disabilitato: {args.patient}")
+            return 1
+        for person in selected:
+            documents = tuple(
+                item
+                for item in scan_documents(person)
+                if not item.kind.startswith("dicom_")
+            )
+            extracted = load_cached_extracted_text(person, documents)
+            rules = load_parameter_rules(
+                person.metadata_directory / "parameters.toml",
+                person.search.dictionary_data,
+            )
+            result = discover_candidates(documents, extracted, settings=rules.discovery)
+            write_parameter_reports(person.local_build, result)
+            print(
+                f"paziente={person.id} righe_analizzate={result.analyzed_lines} "
+                f"candidati={len(result.candidates)} "
+                f"gruppi_proposti={len(result.proposed_groups)}"
+            )
+    except SaniKeyError as exc:
+        print(f"ERRORE: {exc}")
+        return 1
+    return 0
+
+
+def run_build_parameter_slices(args: argparse.Namespace) -> int:
+    """Apply curated parameter rules to cached extracted text.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command arguments.
+
+    Returns
+    -------
+    int
+        Process exit status.
+    """
+
+    try:
+        config = load_accounts(_config_path(args))
+        selected = _selected_people(config, args.patient)
+        if args.patient and not selected:
+            print(f"ERRORE: paziente non trovato o disabilitato: {args.patient}")
+            return 1
+        for person in selected:
+            parameters_path = person.metadata_directory / "parameters.toml"
+            if not parameters_path.exists():
+                print(f"ERRORE: regole parametri assenti: {parameters_path}")
+                return 1
+            documents = tuple(
+                item
+                for item in scan_documents(person)
+                if not item.kind.startswith("dicom_")
+            )
+            extracted = load_cached_extracted_text(person, documents)
+            rules = load_parameter_rules(parameters_path, person.search.dictionary_data)
+            discovery = discover_candidates(
+                documents,
+                extracted,
+                settings=rules.discovery,
+            )
+            result = build_parameter_slices(discovery.candidates, rules)
+            write_parameter_reports(person.local_build, discovery, result)
+            rejected = sum(not item.accepted for item in result.decisions)
+            print(
+                f"paziente={person.id} righe_analizzate={discovery.analyzed_lines} "
+                f"candidati={len(discovery.candidates)} "
+                f"regole_applicate={len(rules.rules)} "
+                f"punti_accettati={len(result.points)} punti_rifiutati={rejected}"
+            )
+    except SaniKeyError as exc:
+        print(f"ERRORE: {exc}")
+        return 1
+    return 0
+
+
 def run_build_all(args: argparse.Namespace) -> int:
     """Run the local build pipeline for all enabled patients.
 
@@ -1523,6 +1658,7 @@ def run_build_all(args: argparse.Namespace) -> int:
         for result in build_all(
             config,
             mode=args.mode,
+            force_pdf_ocr=getattr(args, "force_pdf_ocr", False),
             progress=_progress_from_args(args),
         ):
             _print_build_result(result)

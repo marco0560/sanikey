@@ -11,7 +11,11 @@ restano in directory locali referenziate da `config/accounts.toml`; le directory
 `config` e `local-data` sono escluse da Git.
 
 Gli esempi pubblicabili sotto `docs/config-example`, `docs/patients-example` e
-`docs/generated-example` sono fixture di documentazione.
+`docs/generated-example` sono fixture di documentazione. Per compilare una
+configurazione o un metadato, partire dall'[indice degli esempi di
+configurazione](config-example/README.md) e dall'[indice degli esempi
+paziente](patients-example/README.md), poi verificare campi e vincoli nel
+[riferimento metadati TOML](process/metadata-toml-reference.md).
 
 ## Prerequisiti
 
@@ -461,6 +465,24 @@ I documenti `.md` e i campi TOML documentati come Markdown, incluso
 grezzo presente nel Markdown viene escapato; il frontend usa solo l'HTML
 generato dalla pipeline.
 
+### Glossario medico per OCR
+
+`src/sanikey/assets/ocr/tesseract-medical-it.user-words` e' un glossario versionato in formato
+Tesseract: UTF-8, un lemma o
+abbreviazione per riga, senza commenti. Contiene termini clinici e di
+laboratorio italiani, latino-medici e inglesi correntemente presenti nei
+referti italiani, oltre a unita' e abbreviazioni comuni.
+
+Il file e' pensato per essere modificato localmente dall'utilizzatore e
+condiviso tramite Git quando le aggiunte sono generali e verificate. Aggiungere
+solo forme corrette e canonicali, non errori OCR: per esempio `HbA1c`, non
+`HbAlc`. Conservare l'ultima riga terminata da newline e una voce per riga.
+
+Quando SaniKey deve ricorrere all'OCR di un PDF, passa automaticamente il
+glossario a OCRmyPDF tramite `--user-words`; OCRmyPDF lo inoltra a Tesseract.
+Il glossario non viene applicato ai PDF il cui testo digitale viene estratto da
+PyMuPDF, né alle immagini sorgente aperte direttamente nel frontend.
+
 Le immagini sorgente `.jpg`, `.jpeg` e `.png` restano documenti consultabili e
 apribili dal frontend, ma SaniKey non esegue OCR diretto con Tesseract su questi
 file. Questa scelta evita testo rumoroso e tempi di build non necessari. I PDF
@@ -488,6 +510,19 @@ documento coincidono con la cache in `local_build/cache/extracted_text.json`. In
 modalità `full`, l'estrazione testo viene sempre rieseguita. Il database viene
 comunque rigenerato dall'inventario corrente, usando testo nuovo o cache, per
 evitare record obsoleti.
+
+Per riesaminare i PDF acquisiti da scanner, senza alterare i PDF nativi prodotti
+dal laboratorio o da altri sistemi digitali, usare:
+
+```bash
+uv run sanikey build-patient patient-a --mode full --force-pdf-ocr
+```
+
+L'opzione classifica un PDF come scannerizzato soltanto quando ogni sua pagina
+contiene un'immagine raster che copre quasi tutta la pagina. Solo questi PDF
+vengono inviati nuovamente a OCRmyPDF/Tesseract con il glossario medico; un PDF
+nativo resta estratto con PyMuPDF. I PDF senza testo sufficiente continuano a
+usare OCRmyPDF anche senza l'opzione.
 Gli avvisi lunghi o ripetitivi non vengono serializzati in stdout: sono
 conservati nel report JSON indicato dalla riga
 `report=...`. Gli avvisi sui documenti duplicati restano visibili anche in

@@ -12,7 +12,12 @@ from sanikey.database import build_database, database_path
 from sanikey.dicom import DicomStudy, catalog_dicom_studies
 from sanikey.documents import ExtractedText, scan_documents
 from sanikey.metadata import load_curated_metadata
-from sanikey.models import CuratedMetadata, TherapyEpisode
+from sanikey.models import (
+    CuratedMetadata,
+    ObservationPoint,
+    ObservationSeries,
+    TherapyEpisode,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -236,4 +241,109 @@ def test_build_database_persists_dicom_study_metadata(tmp_path: Path) -> None:
         "2026-01-02",
         "Synthetic Study",
         2,
+    )
+
+
+def test_build_database_preserves_parameter_slice_provenance(tmp_path: Path) -> None:
+    """Verify SQLite preserves derived parameter rule and source evidence.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    person = _person(tmp_path)
+    person.source_documents.mkdir(parents=True)
+    source = person.source_documents / "20260102 Report.txt"
+    source.write_text("Synthetic", encoding="utf-8")
+    document = scan_documents(person)[0]
+    metadata = CuratedMetadata(
+        observation_series=(
+            ObservationSeries(
+                id="emoglobina",
+                name="Emoglobina",
+                value_type="qualified-scalar",
+                unit="g/dL",
+                synonyms=("Hb", "HGB"),
+                parameter_rule_id="emoglobina",
+                parameter_rule_version=1,
+                parameter_rule_digest="rule-digest",
+            ),
+        ),
+        observation_points=(
+            ObservationPoint(
+                id="point-a",
+                series_id="emoglobina",
+                observation_date="2026-01-02",
+                source_type="document-line",
+                source_reference="doc-a:1",
+                numeric_value=13.7,
+                source_kind="document-extraction",
+                document_id=document.document_id,
+                document_href="../documents/20260102 Report.txt",
+                document_title="Report",
+                document_category="Laboratorio",
+                source_text_digest="text-digest",
+                original_line="Hb: 137 g/l",
+                line_number=1,
+                character_start=0,
+                character_end=11,
+                matched_label="Hb",
+                raw_value="137",
+                parsed_value=137.0,
+                raw_unit="g/l",
+                normalized_unit="g/dL",
+                qualifier="<",
+                rule_id="emoglobina",
+                rule_version=1,
+                rule_digest="rule-digest",
+                reason_code="ACCEPTED_CONFIGURED_SYNONYM",
+            ),
+        ),
+    )
+
+    result = build_database(person, (document,), metadata, ())
+
+    with sqlite3.connect(result.path) as connection:
+        series = connection.execute(
+            """
+            SELECT synonyms, parameter_rule_id, parameter_rule_version,
+                   parameter_rule_digest, unit_variant
+            FROM observation_series WHERE id = 'emoglobina'
+            """
+        ).fetchone()
+        point = connection.execute(
+            """
+            SELECT source_kind, document_href, source_text_digest, original_line,
+                   line_number, character_start, character_end, matched_label,
+                   raw_value, parsed_value, raw_unit, normalized_unit, qualifier,
+                   rule_id, rule_version, rule_digest, reason_code
+            FROM observation_points WHERE id = 'point-a'
+            """
+        ).fetchone()
+
+    assert series == ("Hb,HGB", "emoglobina", 1, "rule-digest", None)
+    assert point == (
+        "document-extraction",
+        "../documents/20260102 Report.txt",
+        "text-digest",
+        "Hb: 137 g/l",
+        1,
+        0,
+        11,
+        "Hb",
+        "137",
+        137.0,
+        "g/l",
+        "g/dL",
+        "<",
+        "emoglobina",
+        1,
+        "rule-digest",
+        "ACCEPTED_CONFIGURED_SYNONYM",
     )

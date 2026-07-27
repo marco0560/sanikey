@@ -13,6 +13,8 @@ prototipi e limiti da conoscere prima di una consegna. Il percorso consigliato
 - catalogazione di studi DICOM, viewer HTML incluso quando disponibile e
   fallback JPEG non diagnostico quando le istanze sono leggibili;
 - import esplicito di osservazioni da fogli e CSV configurati.
+- discovery e slice longitudinali da regole curate, con report di revisione,
+  provenienza completa e grafico statico offline.
 
 ## Richiede cura o verifica manuale
 
@@ -27,6 +29,9 @@ prototipi e limiti da conoscere prima di una consegna. Il percorso consigliato
   possono non essere ricercabili o consultabili direttamente nel browser;
 - dati clinici, scelta delle fonti e metadati restano responsabilità del
   curatore: SaniKey non formula diagnosi né sostituisce la cartella clinica.
+- le slice analizzano solo forme scalari sulla stessa riga; non interpretano
+  tabelle generiche, range, coppie pressione, etichette su righe diverse o
+  date interne ai documenti.
 
 ## Non usare nel flusso di consegna
 

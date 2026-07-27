@@ -31,6 +31,13 @@ LEGACY_OFFICE_EXTENSIONS = {".doc"}
 OFFICE_EXTENSIONS = PANDOC_EXTENSIONS | LEGACY_OFFICE_EXTENSIONS
 SPREADSHEET_EXTENSIONS = {".ods", ".xls", ".xlsb", ".xlsm", ".xlsx"}
 MIN_PDF_TEXT_CHARACTERS = 40
+SCANNED_PDF_PAGE_IMAGE_COVERAGE = 0.9
+TESSERACT_MEDICAL_USER_WORDS = (
+    Path(__file__).resolve().parent
+    / "assets"
+    / "ocr"
+    / "tesseract-medical-it.user-words"
+)
 
 
 @dataclass(frozen=True)
@@ -306,13 +313,20 @@ def duplicate_document_warnings(
     return tuple(warnings)
 
 
-def extract_text(document: DocumentRecord) -> ExtractedText:
+def extract_text(
+    document: DocumentRecord,
+    *,
+    force_pdf_ocr: bool = False,
+) -> ExtractedText:
     """Extract text from a document when supported.
 
     Parameters
     ----------
     document : DocumentRecord
         Source document.
+    force_pdf_ocr : bool, optional
+        Whether scanned PDFs with otherwise sufficient digital text should be
+        reprocessed with OCRmyPDF.
 
     Returns
     -------
@@ -327,7 +341,7 @@ def extract_text(document: DocumentRecord) -> ExtractedText:
             text=document.path.read_text(encoding="utf-8", errors="replace"),
         )
     if suffix == ".pdf":
-        return _extract_pdf_text(document)
+        return _extract_pdf_text(document, force_pdf_ocr=force_pdf_ocr)
     if suffix in ARCHIVE_EXTENSIONS:
         return _extract_archive_text(document)
     if suffix in SPREADSHEET_EXTENSIONS:
@@ -616,13 +630,20 @@ def _has_dicom_magic(path: Path) -> bool:
         return False
 
 
-def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:
+def _extract_pdf_text(
+    document: DocumentRecord,
+    *,
+    force_pdf_ocr: bool = False,
+) -> ExtractedText:
     """Extract PDF text through the first available provider.
 
     Parameters
     ----------
     document : DocumentRecord
         PDF document.
+    force_pdf_ocr : bool, optional
+        Whether scanned PDFs with sufficient PyMuPDF text should be rerun
+        through OCRmyPDF.
 
     Returns
     -------
@@ -631,7 +652,11 @@ def _extract_pdf_text(document: DocumentRecord) -> ExtractedText:
     """
 
     pymupdf_result = _extract_pdf_text_with_pymupdf(document)
-    if pymupdf_result is not None and _has_sufficient_pdf_text(pymupdf_result.text):
+    if (
+        pymupdf_result is not None
+        and _has_sufficient_pdf_text(pymupdf_result.text)
+        and (not force_pdf_ocr or not _is_scanned_pdf(document.path))
+    ):
         return pymupdf_result
     ocrmypdf_result = _extract_pdf_text_with_ocrmypdf(document)
     if ocrmypdf_result is not None:
@@ -720,6 +745,47 @@ def _has_sufficient_pdf_text(text: str) -> bool:
     return sum(1 for character in text if not character.isspace()) >= (
         MIN_PDF_TEXT_CHARACTERS
     )
+
+
+def _is_scanned_pdf(path: Path) -> bool:
+    """Return whether every PDF page is covered by a raster scan.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        PDF to classify.
+
+    Returns
+    -------
+    bool
+        ``True`` when each page has an image covering at least the configured
+        fraction of its visible area; otherwise ``False``.
+    """
+
+    try:
+        import fitz
+    except ImportError:
+        return False
+    try:
+        with fitz.open(path) as pdf:
+            if not pdf:
+                return False
+            for page in pdf:
+                page_area = page.rect.width * page.rect.height
+                if page_area <= 0:
+                    return False
+                largest_image_area = max(
+                    (
+                        max(0.0, (fitz.Rect(item["bbox"]) & page.rect).get_area())
+                        for item in page.get_image_info()
+                    ),
+                    default=0.0,
+                )
+                if largest_image_area / page_area < SCANNED_PDF_PAGE_IMAGE_COVERAGE:
+                    return False
+    except (fitz.FileDataError, RuntimeError, ValueError):
+        return False
+    return True
 
 
 def _extract_archive_text(document: DocumentRecord) -> ExtractedText:
@@ -1191,6 +1257,8 @@ def _run_ocrmypdf(
         start, end = pages
         page_range = str(start) if start == end else f"{start}-{end}"
         command.extend(("--pages", page_range))
+    if TESSERACT_MEDICAL_USER_WORDS.is_file():
+        command.extend(("--user-words", str(TESSERACT_MEDICAL_USER_WORDS)))
     sidecar, output_pdf = outputs
     command.extend(("--sidecar", str(sidecar), str(source), str(output_pdf)))
     return subprocess.run(

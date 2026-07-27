@@ -38,6 +38,7 @@ not_in_nav: |
   /decisions/adr-italian-interface-language.md
   /decisions/adr-medication-leaflets.md
   /decisions/adr-observation-imports.md
+  /decisions/adr-longitudinal-parameter-slices.md
   /decisions/adr-source-image-ocr-policy.md
   /decisions/adr-usb-consultation-hardening.md
   /decisions/adr-usb-uuid-global-default.md

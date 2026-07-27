@@ -41,10 +41,12 @@ La pipeline implementata è:
 6. Catalogare supporti DICOM e directory di espansione manuale.
 7. Estrarre il testo supportato e preparare rappresentazioni consultabili.
 8. Verificare FI/RCP locali per ogni terapia AIFA.
-9. Costruire un archivio SQLite per paziente.
-10. Generare export JSON e la lista tecnica dei documenti non apribili.
-11. Generare i file statici del frontend.
-12. Esportare la build in una struttura USB e scrivere i checksum.
+9. Se presente `parameters.toml`, ricavare slice dai testi già estratti usando
+   esclusivamente regole curate abilitate.
+10. Costruire un archivio SQLite per paziente.
+11. Generare export JSON e la lista tecnica dei documenti non apribili.
+12. Generare i file statici del frontend.
+13. Esportare la build in una struttura USB e scrivere i checksum.
 
 Il comando `deploy-usb` esegue la build dei pazienti abilitati e poi esporta la
 struttura USB.
@@ -57,6 +59,8 @@ struttura USB.
 - `documents.py`: scansiona i documenti, calcola digest, estrae testo
   supportato, applica esclusioni configurate e rileva duplicati.
 - `metadata.py`: carica metadati curati da file TOML.
+- `parameter_slices.py` e `parameter_rules.py`: scoprono candidati dal testo
+  già estratto e applicano regole curate senza inferenze implicite.
 - `leaflets.py`: ricerca e verifica riferimenti AIFA, scarica FI/RCP locali e
   registra la data dell'ultimo download riuscito.
 - `markdown.py`: converte contenuti Markdown curati o documentali in HTML

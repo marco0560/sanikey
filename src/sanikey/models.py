@@ -261,6 +261,16 @@ class ObservationSeries:
         Free-text description.
     warn_duplicate_same_day : bool
         Whether same-day duplicates should be reported during import.
+    synonyms : tuple[str, ...]
+        Deterministic search aliases for a derived parameter series.
+    parameter_rule_id : str | None, optional
+        Curated rule that generated the series.
+    parameter_rule_version : int | None, optional
+        Version declared by the curated rule.
+    parameter_rule_digest : str | None, optional
+        Digest of the resolved rule configuration.
+    unit_variant : str | None, optional
+        Separate unit variant when no explicit conversion is configured.
     """
 
     id: str
@@ -269,6 +279,11 @@ class ObservationSeries:
     unit: str | None = None
     description: str | None = None
     warn_duplicate_same_day: bool = True
+    synonyms: tuple[str, ...] = ()
+    parameter_rule_id: str | None = None
+    parameter_rule_version: int | None = None
+    parameter_rule_digest: str | None = None
+    unit_variant: str | None = None
 
 
 @dataclass(frozen=True)
@@ -299,6 +314,48 @@ class ObservationPoint:
         Pulse value.
     note : str | None, optional
         Optional free-text note.
+    source_kind : str
+        High-level origin, either curated observation or document extraction.
+    document_id : str | None, optional
+        Source document identity for extracted points.
+    document_href : str | None, optional
+        Relative link to the exported original document.
+    document_title : str | None, optional
+        Source document title.
+    document_category : str | None, optional
+        Source document category.
+    source_text_digest : str | None, optional
+        Digest of the exact extracted source text.
+    original_line : str | None, optional
+        Exact source line for extracted points.
+    line_number : int | None, optional
+        One-based source line number.
+    page_number : int | None, optional
+        Source page when the extractor supplies it reliably.
+    character_start : int | None, optional
+        Zero-based inclusive source offset.
+    character_end : int | None, optional
+        Zero-based exclusive source offset.
+    matched_label : str | None, optional
+        Label matched by the curated rule.
+    raw_value : str | None, optional
+        Numeric token before normalization or conversion.
+    parsed_value : float | None, optional
+        Numeric value before conversion.
+    raw_unit : str | None, optional
+        Unit token before normalization or conversion.
+    normalized_unit : str | None, optional
+        Unit used by the series after explicit conversion.
+    qualifier : str | None, optional
+        Optional comparison qualifier.
+    rule_id : str | None, optional
+        Curated rule identifier.
+    rule_version : int | None, optional
+        Curated rule version.
+    rule_digest : str | None, optional
+        Digest of the resolved curated rule.
+    reason_code : str | None, optional
+        Deterministic acceptance or conflict reason.
     """
 
     id: str
@@ -312,6 +369,27 @@ class ObservationPoint:
     diastolic: float | None = None
     pulse: float | None = None
     note: str | None = None
+    source_kind: str = "curated-observation"
+    document_id: str | None = None
+    document_href: str | None = None
+    document_title: str | None = None
+    document_category: str | None = None
+    source_text_digest: str | None = None
+    original_line: str | None = None
+    line_number: int | None = None
+    page_number: int | None = None
+    character_start: int | None = None
+    character_end: int | None = None
+    matched_label: str | None = None
+    raw_value: str | None = None
+    parsed_value: float | None = None
+    raw_unit: str | None = None
+    normalized_unit: str | None = None
+    qualifier: str | None = None
+    rule_id: str | None = None
+    rule_version: int | None = None
+    rule_digest: str | None = None
+    reason_code: str | None = None
 
 
 @dataclass(frozen=True)

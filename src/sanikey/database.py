@@ -190,7 +190,12 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             value_type TEXT NOT NULL,
             unit TEXT,
             description TEXT,
-            warn_duplicate_same_day INTEGER NOT NULL
+            warn_duplicate_same_day INTEGER NOT NULL,
+            synonyms TEXT NOT NULL,
+            parameter_rule_id TEXT,
+            parameter_rule_version INTEGER,
+            parameter_rule_digest TEXT,
+            unit_variant TEXT
         );
 
         CREATE TABLE observation_points (
@@ -205,6 +210,27 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             diastolic REAL,
             pulse REAL,
             note TEXT,
+            source_kind TEXT NOT NULL,
+            document_id TEXT,
+            document_href TEXT,
+            document_title TEXT,
+            document_category TEXT,
+            source_text_digest TEXT,
+            original_line TEXT,
+            line_number INTEGER,
+            page_number INTEGER,
+            character_start INTEGER,
+            character_end INTEGER,
+            matched_label TEXT,
+            raw_value TEXT,
+            parsed_value REAL,
+            raw_unit TEXT,
+            normalized_unit TEXT,
+            qualifier TEXT,
+            rule_id TEXT,
+            rule_version INTEGER,
+            rule_digest TEXT,
+            reason_code TEXT,
             FOREIGN KEY (series_id) REFERENCES observation_series(id)
         );
 
@@ -368,8 +394,10 @@ def _insert_metadata(connection: sqlite3.Connection, metadata: CuratedMetadata) 
     connection.executemany(
         """
         INSERT INTO observation_series(
-            id, name, value_type, unit, description, warn_duplicate_same_day
-        ) VALUES (?, ?, ?, ?, ?, ?)
+            id, name, value_type, unit, description, warn_duplicate_same_day,
+            synonyms, parameter_rule_id, parameter_rule_version,
+            parameter_rule_digest, unit_variant
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             (
@@ -379,6 +407,11 @@ def _insert_metadata(connection: sqlite3.Connection, metadata: CuratedMetadata) 
                 item.unit,
                 item.description,
                 int(item.warn_duplicate_same_day),
+                ",".join(item.synonyms),
+                item.parameter_rule_id,
+                item.parameter_rule_version,
+                item.parameter_rule_digest,
+                item.unit_variant,
             )
             for item in metadata.observation_series
         ),
@@ -387,8 +420,18 @@ def _insert_metadata(connection: sqlite3.Connection, metadata: CuratedMetadata) 
         """
         INSERT INTO observation_points(
             id, series_id, observation_date, source_type, source_reference,
-            numeric_value, text_value, systolic, diastolic, pulse, note
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            numeric_value, text_value, systolic, diastolic, pulse, note,
+            source_kind, document_id, document_href, document_title,
+            document_category, source_text_digest, original_line, line_number,
+            page_number, character_start, character_end, matched_label, raw_value,
+            parsed_value, raw_unit, normalized_unit, qualifier, rule_id,
+            rule_version, rule_digest, reason_code
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?
+        )
         """,
         (
             (
@@ -403,6 +446,27 @@ def _insert_metadata(connection: sqlite3.Connection, metadata: CuratedMetadata) 
                 item.diastolic,
                 item.pulse,
                 item.note,
+                item.source_kind,
+                item.document_id,
+                item.document_href,
+                item.document_title,
+                item.document_category,
+                item.source_text_digest,
+                item.original_line,
+                item.line_number,
+                item.page_number,
+                item.character_start,
+                item.character_end,
+                item.matched_label,
+                item.raw_value,
+                item.parsed_value,
+                item.raw_unit,
+                item.normalized_unit,
+                item.qualifier,
+                item.rule_id,
+                item.rule_version,
+                item.rule_digest,
+                item.reason_code,
             )
             for item in metadata.observation_points
         ),

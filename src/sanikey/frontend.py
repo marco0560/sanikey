@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .config import PersonConfig
+
+from . import __version__
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,8 @@ class FrontendResult:
         Vendored Material Web compatibility JavaScript.
     material_stylesheet : pathlib.Path
         Vendored Material Web compatibility stylesheet.
+    chart_script : pathlib.Path
+        Vendored Chart.js runtime.
     """
 
     web_dir: Path
@@ -40,6 +45,7 @@ class FrontendResult:
     helper: Path
     material_script: Path
     material_stylesheet: Path
+    chart_script: Path
 
 
 def build_frontend(person: PersonConfig) -> FrontendResult:
@@ -66,12 +72,22 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     helper = assets_dir / "ui-helper.js"
     material_script = assets_dir / "material-web.js"
     material_stylesheet = assets_dir / "material-web.css"
+    chart_script = assets_dir / "chart.umd.min.js"
     index.write_text(_index_html(person), encoding="utf-8")
     script.write_text(_app_js(), encoding="utf-8")
     stylesheet.write_text(_style_css(), encoding="utf-8")
+    (web_dir / "usb-info.js").write_text(_usb_info_js(person), encoding="utf-8")
     helper.write_text(_ui_helper_js(), encoding="utf-8")
     material_script.write_text(_material_web_js(), encoding="utf-8")
     material_stylesheet.write_text(_material_web_css(), encoding="utf-8")
+    shutil.copy2(
+        Path(__file__).resolve().parent
+        / "assets"
+        / "vendor"
+        / "chartjs"
+        / "chart.umd.min.js",
+        chart_script,
+    )
     shutil.copy2(
         Path(__file__).resolve().parents[2]
         / "immagini"
@@ -91,7 +107,32 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
         helper=helper,
         material_script=material_script,
         material_stylesheet=material_stylesheet,
+        chart_script=chart_script,
     )
+
+
+def _usb_info_js(person: PersonConfig) -> str:
+    """Render fallback technical information for a local frontend preview.
+
+    Parameters
+    ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration supplying the expected USB UUID.
+
+    Returns
+    -------
+    str
+        Static JavaScript assigning the offline technical-information payload.
+    """
+
+    payload = {
+        "schema_version": 1,
+        "usb_uuid": person.usb_uuid,
+        "exported_at": None,
+        "sanikey_version": __version__,
+        "copy_strategy": None,
+    }
+    return "window.SANIKEY_USB_INFO = " + json.dumps(payload, sort_keys=True) + ";\n"
 
 
 def _index_html(person: PersonConfig) -> str:
@@ -127,7 +168,7 @@ def _index_html(person: PersonConfig) -> str:
       <div class="header-title">
         <h1>{title}</h1>
         <div class="header-branding">
-          <img class="header-logo" src="assets/sanikey-logo-horizontal-transparent.svg" alt="SaniKey">
+          <button class="header-logo-button" type="button" id="usb-info-button" aria-label="Apri informazioni tecniche della chiavetta"><img class="header-logo" src="assets/sanikey-logo-horizontal-transparent.svg" alt="SaniKey"></button>
           <p>{subtitle}</p>
         </div>
       </div>
@@ -230,8 +271,17 @@ def _index_html(person: PersonConfig) -> str:
       <button type="button" class="dialog-close" data-close-dialog="advanced-help-dialog">Chiudi</button>
     </article>
   </dialog>
+  <dialog id="usb-info-dialog" class="help-dialog">
+    <article>
+      <h2>Informazioni tecniche della chiavetta</h2>
+      <dl id="usb-info-details"></dl>
+      <button type="button" class="dialog-close" data-close-dialog="usb-info-dialog">Chiudi</button>
+    </article>
+  </dialog>
   <script src="data.js"></script>
+  <script src="usb-info.js"></script>
   <script src="assets/ui-helper.js"></script>
+  <script src="assets/chart.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
@@ -311,6 +361,37 @@ function formatDateRange(startDate, endDate) {
   return end ? `${start} - ${end}` : start;
 }
 
+function formatTechnicalTimestamp(value) {
+  const parsed = new Date(text(value));
+  if (Number.isNaN(parsed.getTime())) {
+    return "Non disponibile";
+  }
+  return new Intl.DateTimeFormat("it-IT", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }).format(parsed);
+}
+
+function renderUsbInfo() {
+  const info = window.SANIKEY_USB_INFO || {};
+  const target = document.querySelector("#usb-info-details");
+  const fields = [
+    ["UUID USB", text(info.usb_uuid) || "Non disponibile"],
+    ["Ultimo export SaniKey", info.exported_at ? formatTechnicalTimestamp(info.exported_at) : "Anteprima locale non esportata"],
+    ["Versione SaniKey", text(info.sanikey_version) || "Non disponibile"],
+    ["Schema manifest", text(info.schema_version) || "Non disponibile"],
+    ["Copia USB", text(info.copy_strategy) || "Non disponibile"],
+  ];
+  target.innerHTML = fields.map(([label, value]) =>
+    `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`
+  ).join("");
+}
+
 function applyUi(summary) {
   const ui = summary.ui || {};
   document.documentElement.style.setProperty("--accent", text(ui.accent_color || "#2563eb"));
@@ -338,20 +419,27 @@ function renderSummary(summary, clinical = {}) {
     </section>`;
 }
 
-function renderTimeline(timeline) {
+function renderTimeline(timeline, documents) {
   const target = document.querySelector("#timeline");
   target.innerHTML = "<h2>Timeline</h2>" + timeline.map((item) =>
     `<article id="entity-${attr(item.id)}"><strong>${escapeHtml(formatDateRange(item.start_date, item.end_date))}</strong> ${escapeHtml(item.title)}
-      ${renderTimelineLinks(item)}</article>`
+      ${renderTimelineLinks(item, documents)}</article>`
   ).join("");
 }
 
-function renderTimelineLinks(item) {
+function renderTimelineLinks(item, documents) {
   const links = item.links || [];
   if (!links.length) {
     return "";
   }
-  return `<p>${links.map((link) => `<a href="#entity-${attr(link)}" data-detail-link="${attr(link)}">Dettaglio</a>`).join(" ")}</p>`;
+  const documentsById = new Map((documents || []).map((documentItem) => [documentItem.id, documentItem]));
+  return `<p>${links.map((link) => {
+    const documentItem = documentsById.get(link);
+    if (documentItem && documentItem.href) {
+      return `<a class="primary-action" href="${attr(documentItem.href)}" target="_blank" rel="noopener">Apri documento</a>`;
+    }
+    return `<a href="#entity-${attr(link)}" data-detail-link="${attr(link)}">Dettaglio</a>`;
+  }).join(" ")}</p>`;
 }
 
 function setupTimelineDetailLinks(documents) {
@@ -399,9 +487,9 @@ function setupResultDetailLinks() {
 
 function renderDocuments(documents, query = "") {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const selected = documents.filter((item) => !isDicomTechnicalDocument(item)).filter((item) =>
+  const selected = sortDocumentResults(documents.filter((item) => !isDicomTechnicalDocument(item)).filter((item) =>
     terms.every((term) => documentSearchText(item).includes(term))
-  );
+  ));
   const target = document.querySelector("#documents");
   const count = query ? `<p class="result-count">${selected.length} risultati</p>` : "";
   target.innerHTML = "<h2>Documenti</h2>" + count + selected.map((item) =>
@@ -411,6 +499,13 @@ function renderDocuments(documents, query = "") {
       ${item.markdown_html ? `<div class="markdown">${html(item.markdown_html)}</div>` : ""}
       ${renderDocumentActions(item)}</article>`
   ).join("");
+}
+
+function sortDocumentResults(records) {
+  return [...records].sort((left, right) =>
+    text(right.date).localeCompare(text(left.date))
+    || text(left.title).localeCompare(text(right.title), "it")
+  );
 }
 
 function renderDocumentActions(item) {
@@ -483,13 +578,202 @@ function renderObservationSections(clinical) {
 function renderObservationSection(section, items) {
   const target = document.querySelector(`#${section}`);
   const sorted = [...items].sort((left, right) => text(right.point.date).localeCompare(text(left.point.date)));
+  if (section === "parameters") {
+    renderParameterSection(target, sorted);
+    return;
+  }
   target.innerHTML = `<h2>${escapeHtml(SECTION_LABELS[section])}</h2>` + (
     sorted.length
       ? `<table class="observation-table"><thead><tr><th>Data</th><th>Serie</th><th>Valore</th><th>Fonte</th></tr></thead><tbody>${sorted.map(({series, point}) =>
-          `<tr id="entity-${attr(point.id)}"><td>${escapeHtml(formatDate(point.date))}</td><td>${escapeHtml(series.name || series.id)}</td><td>${escapeHtml(point.value)}</td><td>${escapeHtml(point.source_reference)}</td></tr>`
+          `<tr id="entity-${attr(point.id)}"><td>${escapeHtml(formatDate(point.date))}</td><td>${escapeHtml(series.name || series.id)}</td><td>${escapeHtml(observationDisplayValue(point))}</td><td>${renderObservationSource(point)}</td></tr>`
         ).join("")}</tbody></table>`
       : '<p class="muted">Nessuna misurazione disponibile.</p>'
   );
+}
+
+function renderParameterSection(target, items) {
+  const series = [...new Map(items.map(({series}) => [series.id, series])).values()]
+    .sort((left, right) => text(left.name || left.id).localeCompare(text(right.name || right.id), "it"));
+  let selectedSeriesId = series[0] && series[0].id;
+  let query = "";
+  const filters = {from: "", to: "", unit: "", category: "", qualified: "all", order: "desc"};
+  const units = [...new Set(items.map(({point}) => point.normalized_unit || point.raw_unit).filter(Boolean))].sort();
+  const categories = [...new Set(items.map(({point}) => point.document_category).filter(Boolean))].sort();
+  target.innerHTML = `<h2>Parametri</h2>
+    <label class="parameter-search">Cerca parametro o sinonimo
+      <input type="search" data-parameter-search autocomplete="off">
+    </label>
+    <fieldset class="parameter-filters"><legend>Filtri</legend>
+      <label>Da <input type="date" data-parameter-filter="from"></label><label>A <input type="date" data-parameter-filter="to"></label>
+      <label>Unita' <select data-parameter-filter="unit"><option value="">Tutte</option>${units.map((value) => `<option value="${attr(value)}">${escapeHtml(value)}</option>`).join("")}</select></label>
+      <label>Categoria <select data-parameter-filter="category"><option value="">Tutte</option>${categories.map((value) => `<option value="${attr(value)}">${escapeHtml(value)}</option>`).join("")}</select></label>
+      <label>Qualificati <select data-parameter-filter="qualified"><option value="all">Tutti</option><option value="hide">Nascondi</option><option value="only">Solo qualificati</option></select></label>
+      <label>Ordine <select data-parameter-filter="order"><option value="desc">Piu' recenti</option><option value="asc">Meno recenti</option></select></label>
+    </fieldset>
+    <div class="parameter-layout"><nav class="parameter-list" aria-label="Serie di parametri"></nav>
+      <div class="parameter-content"></div></div>`;
+  const search = target.querySelector("[data-parameter-search]");
+  const list = target.querySelector(".parameter-list");
+  const content = target.querySelector(".parameter-content");
+  const render = () => {
+    const normalized = normalizeSearchText(query);
+    const visible = series.filter((item) => parameterSearchText(item).includes(normalized));
+    if (!visible.some((item) => item.id === selectedSeriesId)) {
+      selectedSeriesId = visible[0] && visible[0].id;
+    }
+    list.innerHTML = visible.length ? visible.map((item) => {
+      const count = items.filter(({series}) => series.id === item.id).length;
+      return `<button type="button" data-parameter-series="${attr(item.id)}" aria-pressed="${item.id === selectedSeriesId}">${escapeHtml(item.name || item.id)} <span>${count}</span></button>`;
+    }).join("") : '<p class="muted">Nessun parametro corrispondente.</p>';
+    renderSelectedParameter(content, items, selectedSeriesId, filters);
+    list.querySelectorAll("[data-parameter-series]").forEach((button) => button.addEventListener("click", () => {
+      selectedSeriesId = button.dataset.parameterSeries;
+      render();
+    }));
+  };
+  search.addEventListener("input", () => {
+    query = search.value;
+    render();
+  });
+  target.querySelectorAll("[data-parameter-filter]").forEach((control) => control.addEventListener("input", () => {
+    filters[control.dataset.parameterFilter] = control.value;
+    render();
+  }));
+  render();
+}
+
+function parameterSearchText(series) {
+  return normalizeSearchText([series.name, series.id, ...(series.synonyms || [])].join(" "));
+}
+
+function renderSelectedParameter(target, items, seriesId, filters) {
+  const selected = items.filter(({series, point}) => series.id === seriesId
+    && (!filters.from || point.date >= filters.from)
+    && (!filters.to || point.date <= filters.to)
+    && (!filters.unit || (point.normalized_unit || point.raw_unit) === filters.unit)
+    && (!filters.category || point.document_category === filters.category)
+    && (filters.qualified === "all" || (filters.qualified === "only") === Boolean(point.qualifier)))
+    .sort((left, right) => filters.order === "asc"
+      ? text(left.point.date).localeCompare(text(right.point.date))
+      : text(right.point.date).localeCompare(text(left.point.date)));
+  if (!selected.length) {
+    target.innerHTML = '<p class="muted">Selezionare un parametro.</p>';
+    return;
+  }
+  const series = selected[0].series;
+  target.innerHTML = `<h3>${escapeHtml(series.name || series.id)}</h3>
+    ${series.synonyms && series.synonyms.length ? `<p class="muted">Sinonimi: ${escapeHtml(series.synonyms.join(", "))}</p>` : ""}
+    <div class="parameter-chart-host"></div><div class="parameter-detail" aria-live="polite"></div>
+    <table class="observation-table"><thead><tr><th>Data</th><th>Valore originale</th><th>Unita'</th><th>Documento</th><th>Etichetta trovata</th><th>Provenienza</th></tr></thead><tbody>${selected.map(({point}) =>
+      `<tr tabindex="0" data-parameter-point="${attr(point.id)}"><td>${escapeHtml(formatDate(point.date))}</td><td>${escapeHtml((point.qualifier || "") + (point.raw_value || point.value || ""))}</td><td>${escapeHtml(point.raw_unit || point.normalized_unit || "")}</td><td>${point.document_href ? `<a href="${attr(point.document_href)}" target="_blank" rel="noopener">Apri documento</a>` : escapeHtml(point.document_title || "")}</td><td>${escapeHtml(point.matched_label || "")}</td><td>${escapeHtml(point.source_reference || "")}</td></tr>`
+    ).join("")}</tbody></table>`;
+  const detail = target.querySelector(".parameter-detail");
+  const showPoint = (point) => { detail.innerHTML = renderParameterDetail(point); };
+  target.querySelectorAll("[data-parameter-point]").forEach((row) => {
+    const point = selected.find(({point: item}) => item.id === row.dataset.parameterPoint).point;
+    row.addEventListener("click", () => showPoint(point));
+    row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); showPoint(point); } });
+  });
+  showPoint(selected[0].point);
+  renderParameterChart(target.querySelector(".parameter-chart-host"), selected, showPoint);
+}
+
+function renderParameterDetail(point) {
+  const source = [point.document_title, point.matched_label && "Etichetta: " + point.matched_label, point.source_reference].filter(Boolean).join(" · ");
+  const action = point.document_href ? `<p class="actions"><a class="primary-action" href="${attr(point.document_href)}" target="_blank" rel="noopener">Apri documento</a></p>` : "";
+  return `<h4>Dettaglio misurazione</h4><p>${escapeHtml(observationDisplayValue(point))}</p><p class="muted">${escapeHtml(source)}</p>${action}`;
+}
+
+function observationDisplayValue(point) {
+  const raw = point.raw_value || point.value;
+  const qualifier = point.qualifier || "";
+  const unit = point.raw_unit || point.normalized_unit || "";
+  return qualifier + raw + (unit ? " " + unit : "");
+}
+
+function renderObservationSource(point) {
+  const details = [
+    point.matched_label ? "Etichetta: " + point.matched_label : "",
+    point.rule_id ? "Regola: " + point.rule_id : "",
+    point.source_reference || "",
+  ].filter(Boolean).join(" · ");
+  const detail = escapeHtml(details);
+  if (!point.document_href) {
+    return detail;
+  }
+  const link = '<a href="' + attr(point.document_href) + '" target="_blank" rel="noopener">Apri originale</a>';
+  return link + (detail ? "<br><small>" + detail + "</small>" : "");
+}
+
+function renderParameterChart(target, items, onPointSelected) {
+  if (typeof Chart === "undefined") {
+    return;
+  }
+  const numeric = items.filter(({point}) => Number.isFinite(Number(point.numeric_value)));
+  if (!numeric.length) {
+    return;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.className = "parameter-chart";
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute("aria-label", "Grafico temporale dei parametri disponibili");
+  target.appendChild(canvas);
+  const grouped = new Map();
+  numeric.forEach(({series, point}) => {
+    const key = series.id + "|" + (point.normalized_unit || point.raw_unit || "");
+    const entries = grouped.get(key) || {label: series.name || series.id, points: []};
+    entries.points.push(point);
+    grouped.set(key, entries);
+  });
+  const datasets = [];
+  grouped.forEach((entry) => {
+    const regular = entry.points.filter((point) => !point.qualifier);
+    const qualified = entry.points.filter((point) => point.qualifier);
+    if (regular.length) {
+      datasets.push({
+        label: entry.label,
+        data: regular.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point})),
+        borderWidth: 2,
+        tension: 0.15,
+      });
+    }
+    if (qualified.length) {
+      datasets.push({
+        label: entry.label + " (qualificati)",
+        data: qualified.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point})),
+        showLine: false,
+        pointStyle: "triangle",
+        pointRadius: 6,
+      });
+    }
+  });
+  new Chart(canvas, {
+    type: "line",
+    data: {datasets},
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: "linear",
+          ticks: {callback: (value) => new Date(Number(value)).toLocaleDateString("it-IT")},
+        },
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: (context) => context.dataset.label + ": " + context.formattedValue,
+          },
+        },
+      },
+      onClick: (_event, elements, chart) => {
+        if (!elements.length) { return; }
+        const element = elements[0];
+        const point = chart.data.datasets[element.datasetIndex].data[element.index].point;
+        if (point) { onPointSelected(point); }
+      },
+    },
+  });
 }
 
 function configureObservationNavigation(grouped) {
@@ -665,9 +949,11 @@ function renderQuickSearch(records, query) {
   const selected = records.filter((item) =>
     terms.every((term) => quickSearchText(item).includes(term))
   );
+  const documents = sortDocumentResults(selected.filter((item) => item.type === "document"));
+  const otherRecords = selected.filter((item) => item.type !== "document");
   renderSearchResults(
     document.querySelector("#documents"),
-    selected,
+    [...documents, ...otherRecords],
     "Risultati",
     "Nessun risultato nella ricerca rapida.",
   );
@@ -1028,8 +1314,9 @@ function main() {
   const clinicalRecords = searchRecords.filter((item) => item.type !== "document");
   const quickRecords = searchRecords;
   applyUi(summary);
+  renderUsbInfo();
   renderSummary(summary, data.clinical || {});
-  renderTimeline(timeline);
+  renderTimeline(timeline, documents);
   renderTherapies(therapies);
   configureTherapyNavigation(therapies);
   renderDicomStudies(dicomStudies);
@@ -1050,6 +1337,7 @@ function main() {
   document.querySelector("#advanced-toggle").addEventListener("click", () => setSearchMode("advanced"));
   document.querySelector("#basic-help-button").addEventListener("click", () => openHelpDialog("#basic-help-dialog"));
   document.querySelector("#advanced-help-button").addEventListener("click", () => openHelpDialog("#advanced-help-dialog"));
+  document.querySelector("#usb-info-button").addEventListener("click", () => openHelpDialog("#usb-info-dialog"));
   document.querySelectorAll("[data-close-dialog]").forEach((button) => {
     button.addEventListener("click", () => closeHelpDialog(button.dataset.closeDialog));
   });
@@ -1352,6 +1640,7 @@ body.has-background-image::before {
 
 header {
   align-items: start;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: grid;
   gap: 1rem;
@@ -1359,7 +1648,16 @@ header {
   padding: 1rem;
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 10;
+}
+
+body.has-background-image header {
+  background-color: var(--surface);
+  background-image: linear-gradient(rgb(246 248 251 / calc(1 - var(--background-opacity))), rgb(246 248 251 / calc(1 - var(--background-opacity)))), var(--background-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
 }
 
 .header-primary {
@@ -1382,6 +1680,18 @@ header p {
   display: block;
   height: auto;
   width: 10.125rem;
+}
+
+.header-logo-button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.header-logo-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .header-branding {
@@ -1635,6 +1945,54 @@ dd {
   vertical-align: top;
 }
 
+.parameter-chart {
+  display: block;
+  height: 20rem !important;
+  margin: 0.75rem 0 1rem;
+  max-width: 100%;
+  width: 100% !important;
+}
+
+.parameter-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr);
+}
+
+.parameter-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.parameter-filters label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.parameter-list button {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.2rem 0;
+  text-align: left;
+  width: 100%;
+}
+
+.parameter-list button[aria-pressed="true"] {
+  font-weight: 700;
+}
+
+.parameter-detail {
+  border-left: 3px solid var(--border);
+  margin: 0.75rem 0;
+  padding-left: 0.75rem;
+}
+
+.observation-table tr[data-parameter-point] {
+  cursor: pointer;
+}
+
 .markdown h1,
 .markdown h2,
 .markdown h3 {
@@ -1677,8 +2035,15 @@ body[data-density="compact"] md-text-button {
 }
 
 @media (min-width: 72rem) {
+  body[data-layout="dual"] {
+    min-height: 100dvh;
+  }
+
   body[data-layout="dual"] main {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    max-width: none;
+    min-height: 200dvh;
+    width: 90%;
   }
 
   body[data-layout="dual"] [data-pane-role="left"] {
@@ -1697,13 +2062,17 @@ body[data-density="compact"] md-text-button {
 
   body[data-layout="dual"] [data-pane-role="left"],
   body[data-layout="dual"] [data-pane-role="right"] {
-    height: calc(200vh - 16rem);
+    height: 200dvh;
     min-height: 0;
     overflow: auto;
   }
 }
 
 @media (max-width: 44rem) {
+  .parameter-layout {
+    grid-template-columns: 1fr;
+  }
+
   header {
     align-items: stretch;
     grid-template-columns: 1fr;
