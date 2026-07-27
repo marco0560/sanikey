@@ -12,10 +12,11 @@
    uv run python scripts/validate_repo.py
    NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict
    git release-audit
+   git release-check
    ```
 
-4. Creare e inviare il tag annotato `v0.8.0` solo quando i controlli sono
-   positivi.
+4. Creare il tag annotato `v0.8.0` e inviarlo soltanto tramite `git rel` quando
+   i controlli sono positivi.
 
 ## TestPyPI
 

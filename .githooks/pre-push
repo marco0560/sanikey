@@ -11,8 +11,24 @@ if [ ! -x "$PYTHON_BIN" ]; then
   exit 1
 fi
 
-echo "Running release safety audit..."
-scripts/release_audit.sh || exit 1
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$BRANCH" = "main" ] && [ -z "${ALLOW_MAIN_PUSH:-}" ]; then
+  echo "ERRORE: la push diretta su main e' bloccata"
+  echo "Usare: git rel"
+  echo "Eccezione di emergenza: git push --no-verify"
+  exit 1
+fi
+
+echo "Running SaniKey privacy guard..."
+"$PYTHON_BIN" "$REPO_ROOT/scripts/privacy_guard.py"
+
+if [ -z "${SKIP_RELEASE_AUDIT:-}" ]; then
+  echo "Running release safety audit..."
+  "$PYTHON_BIN" -m scripts.release_audit
+else
+  echo "Skipping release audit (already executed by git rel)"
+fi
 
 echo "Running pre-commit checks before push..."
 "$PYTHON_BIN" "$REPO_ROOT/scripts/run_repo_tool.py" pre-commit run --all-files

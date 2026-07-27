@@ -40,11 +40,16 @@ def git_alias_entries() -> list[tuple[str, str]]:
             "!NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict",
         ),
         ("alias.docs-serve", "!NO_MKDOCS_2_WARNING=1 uv run mkdocs serve"),
-        ("alias.release-audit", "!bash scripts/release_audit.sh"),
+        ("alias.release-audit", "!uv run python -m scripts.release_audit"),
+        (
+            "alias.release-check",
+            "!uv run python -m scripts.release_system_selfcheck",
+        ),
+        ("alias.rel", "!uv run python -m scripts.release_rel"),
         ("alias.safe-push", "!git fetch && git pull --ff-only && git push"),
         (
             "alias.release",
-            "!bash scripts/release_audit.sh && git push --follow-tags",
+            "!git rel",
         ),
     ]
 

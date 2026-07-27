@@ -60,7 +60,11 @@ del percorso operativo consigliato.
 uv run python scripts/validate_repo.py
 NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict
 git release-audit
+git release-check
 ```
+
+Le push su `main` passano esclusivamente da `git rel`, che ripete l'audit
+privacy-aware e verifica l'artefatto della versione derivata dai tag.
 
 Il comando `sanikey` è l'interfaccia utente documentata. L'esecuzione
 `python -m sanikey` è destinata a sviluppo e diagnostica.

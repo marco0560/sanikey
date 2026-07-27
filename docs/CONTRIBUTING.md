@@ -34,11 +34,23 @@ corrente.
 
 ## Disciplina di Rilascio
 
-Prima di inviare un tag di rilascio, esegui:
+Prima di inviare modifiche su `main` o un tag di rilascio, esegui:
 
 ```bash
 git release-audit
 ```
+
+La push diretta su `main` e' bloccata dall'hook `pre-push`. Dopo il commit e
+l'audit, usa il solo percorso controllato:
+
+```bash
+git rel
+```
+
+`git rel` aggiorna il ramo, ripete l'audit (incluso il controllo privacy dei
+contenuti candidati), invia branch e tag annotati, attende la propagazione e
+verifica una wheel appena costruita. `git release-check` controlla invece che
+hook, alias e versione derivata dai tag siano configurati coerentemente.
 
 Il contratto conservativo di rilascio è documentato in
 `docs/release/checklist.md` e `docs/release/process.md`.

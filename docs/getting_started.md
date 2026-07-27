@@ -19,7 +19,7 @@ repository, inclusi:
 - hook versionati da `.githooks/`
 - template di commit da `.gitmessage`
 - alias locali autorizzati come `git clean-repo`, `git gen-cheatsheet`,
-  `git release-audit` e `git release`
+  `git release-audit`, `git release-check` e `git rel`
 
 ## Flusso del Primo Giorno
 

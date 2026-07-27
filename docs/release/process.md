@@ -15,6 +15,8 @@ git release-audit
 
 Quel guard controlla:
 
+- contenuti candidati al commit privi di dati sanitari, percorsi privati e
+  credenziali
 - albero di lavoro pulito
 - area di staging vuota
 - branch non arretrato rispetto all'upstream
@@ -25,15 +27,22 @@ Quel guard controlla:
 
 I tag di rilascio devono rispettare `vX.Y.Z`.
 
-Per `0.8.0`:
+Per `0.8.0`, creare il tag annotato e usare il percorso controllato:
 
 ```bash
 git tag -a v0.8.0 -m "SaniKey 0.8.0"
-git push --follow-tags
+git rel
 ```
 
-Il template fornisce anche `scripts/tag_guard.sh` per validare separatamente un
-tag proposto.
+`git rel` e' l'unico percorso di push da `main`: aggiorna il ramo con
+fast-forward, esegue l'audit, invia branch e tag annotati e verifica la wheel
+locale. L'hook `pre-push` blocca una `git push` diretta su `main`; la sola
+eccezione locale di emergenza e' `git push --no-verify`, da usare soltanto per
+recupero operativo documentato. Prima di un rilascio si puo' verificare
+l'installazione dei controlli con `git release-check`.
+
+SaniKey fornisce anche `scripts/tag_guard.sh` per validare separatamente un tag
+proposto.
 
 ## GitHub, TestPyPI e PyPI
 
