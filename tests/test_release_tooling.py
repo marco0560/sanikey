@@ -144,6 +144,10 @@ def test_semantic_release_creates_versioned_changelog_releases() -> None:
     assert "npx semantic-release" in workflow
     assert "contents: write" in workflow
     semantic_release_job = workflow.split("  build-manual:", maxsplit=1)[0]
+    assert "uses: astral-sh/setup-uv@v5" in semantic_release_job
+    assert semantic_release_job.index("uses: astral-sh/setup-uv@v5") < (
+        semantic_release_job.index("uv sync --frozen --group dev --extra docs")
+    )
     assert (
         'git describe --tags --exact-match --match "v[0-9]*"'
         not in semantic_release_job
