@@ -1,3 +1,9 @@
+## [0.9.2](https://github.com/marco0560/sanikey/compare/v0.9.1...v0.9.2) (2026-07-30)
+
+### Bug Fixes
+
+* **dev:** bootstrap Fedora prerequisites ([1afe14d](https://github.com/marco0560/sanikey/commit/1afe14d1c6347ce52e7cb96e600674353af5f023))
+
 ## [0.9.1](https://github.com/marco0560/sanikey/compare/v0.9.0...v0.9.1) (2026-07-27)
 
 ### Bug Fixes
