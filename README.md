@@ -24,7 +24,7 @@ Poi:
 ```bash
 git clone https://github.com/marco0560/sanikey.git
 cd sanikey
-uv run python scripts/bootstrap_dev_environment.py
+python3 scripts/bootstrap_dev_environment.py
 mkdir -p config
 cp docs/config-example/accounts.toml config/accounts.toml
 ```

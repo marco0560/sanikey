@@ -27,6 +27,10 @@ dependencies = [
 [tool.uv]
 python-preference = "only-managed"
 
+[tool.sanikey.bootstrap]
+[tool.sanikey.bootstrap.system-dependencies]
+dnf = ["uv", "pandoc"]
+
 [tool.setuptools_scm]
 tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.post\\d+)?)$"
 git_describe_command = "git describe --dirty --tags --long --match v*"

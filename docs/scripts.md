@@ -6,7 +6,12 @@ Sincronizza l'ambiente gestito da uv, configura lo stato Git locale ed esegue
 opzionalmente la validazione.
 
 Lo script verifica la radice del repository ed esegue `uv pip check` dopo la
-sincronizzazione delle dipendenze.
+sincronizzazione delle dipendenze. Legge i prerequisiti di sistema da
+`[tool.sanikey.bootstrap.system-dependencies]` in `pyproject.toml`: su Fedora,
+se necessario, installa `uv` e `pandoc` tramite `sudo dnf`, poi assicura Python
+3.13 tramite `uv python install 3.13`. Per un clone nuovo avviarlo con
+`python3 scripts/bootstrap_dev_environment.py`, così l'avvio non dipende già da
+uv o dall'interprete gestito dal progetto.
 
 ## `scripts/install_repo_git_config.py`
 

@@ -21,7 +21,7 @@ Scaricare e inizializzare il repository:
 ```bash
 git clone https://github.com/marco0560/sanikey.git
 cd sanikey
-uv run python scripts/bootstrap_dev_environment.py
+python3 scripts/bootstrap_dev_environment.py
 ```
 
 Se il bootstrap termina senza errori, verificare il programma:

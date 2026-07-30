@@ -23,7 +23,7 @@ Un clone nuovo deve essere inizializzato con lo script di bootstrap del
 repository:
 
 ```bash
-uv run python scripts/bootstrap_dev_environment.py
+python3 scripts/bootstrap_dev_environment.py
 ```
 
 ## Alias Git

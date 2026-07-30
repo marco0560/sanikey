@@ -13,8 +13,13 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, NoReturn
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 REQUIRED_REPO_MARKERS = (
     ".git",
@@ -22,6 +27,7 @@ REQUIRED_REPO_MARKERS = (
     ".gitmessage",
     "pyproject.toml",
 )
+BOOTSTRAP_CONFIG_PATH = ("tool", "sanikey", "bootstrap")
 
 
 @dataclass(frozen=True)
@@ -59,7 +65,112 @@ class BootstrapOptions:
     run_validation: bool
 
 
-def fail(msg: str, *, exit_code: int = 1) -> None:
+def load_system_dependencies(repo_root: Path) -> dict[str, tuple[str, ...]]:
+    """Load declared system dependencies from ``pyproject.toml``.
+
+    Parameters
+    ----------
+    repo_root : pathlib.Path
+        Validated repository root containing ``pyproject.toml``.
+
+    Returns
+    -------
+    dict[str, tuple[str, ...]]
+        Package-manager names mapped to their required package names.
+
+    Raises
+    ------
+    SystemExit
+        If the bootstrap system-dependency configuration is malformed.
+    """
+
+    with (repo_root / "pyproject.toml").open("rb") as handle:
+        data = tomllib.load(handle)
+    configuration: object = data
+    for key in BOOTSTRAP_CONFIG_PATH:
+        if not isinstance(configuration, dict):
+            fail("configurazione bootstrap non valida in pyproject.toml")
+        configuration = configuration.get(key)
+    if not isinstance(configuration, dict):
+        fail("configurazione bootstrap mancante in pyproject.toml")
+    dependencies = configuration.get("system-dependencies")
+    if not isinstance(dependencies, dict):
+        fail("dipendenze di sistema bootstrap mancanti in pyproject.toml")
+
+    result: dict[str, tuple[str, ...]] = {}
+    for manager, packages in dependencies.items():
+        if (
+            not isinstance(manager, str)
+            or not isinstance(packages, list)
+            or not packages
+            or not all(isinstance(package, str) and package for package in packages)
+        ):
+            fail("dipendenze di sistema bootstrap non valide in pyproject.toml")
+        result[manager] = tuple(packages)
+    return result
+
+
+def system_dependency_commands(
+    *,
+    repo_root: Path,
+    executable_lookup: Callable[[str], str | None] | None = None,
+) -> list[CommandSpec]:
+    """Build commands that install missing host tools declared by the project.
+
+    Parameters
+    ----------
+    repo_root : pathlib.Path
+        Validated repository root.
+    executable_lookup : collections.abc.Callable[[str], str | None], optional
+        Executable resolver, injectable for tests.
+
+    Returns
+    -------
+    list[CommandSpec]
+        Empty when all declared host tools are already available.
+
+    Raises
+    ------
+    SystemExit
+        If tools are missing and no declared package manager is available.
+    """
+
+    resolver = shutil.which if executable_lookup is None else executable_lookup
+    dependencies = load_system_dependencies(repo_root)
+    for manager, packages in dependencies.items():
+        missing = [package for package in packages if resolver(package) is None]
+        if not missing:
+            continue
+        if resolver(manager) is None:
+            continue
+        if resolver("sudo") is None:
+            fail("sudo non trovato: impossibile installare " + ", ".join(missing))
+        return [
+            CommandSpec(
+                "Installa prerequisiti di sistema mancanti",
+                ("sudo", manager, "install", "--assumeyes", *missing),
+                repo_root,
+            )
+        ]
+
+    missing_tools = sorted(
+        {
+            package
+            for packages in dependencies.values()
+            for package in packages
+            if resolver(package) is None
+        }
+    )
+    if missing_tools:
+        fail(
+            "Prerequisiti di sistema mancanti: "
+            + ", ".join(missing_tools)
+            + ". Nessun gestore pacchetti dichiarato e disponibile puo' installarli."
+        )
+    return []
+
+
+def fail(msg: str, *, exit_code: int = 1) -> NoReturn:
     """Print an error message and terminate the program.
 
     Parameters
@@ -71,7 +182,8 @@ def fail(msg: str, *, exit_code: int = 1) -> None:
 
     Returns
     -------
-    None
+    typing.NoReturn
+        This function never returns.
 
     Raises
     ------
@@ -81,26 +193,6 @@ def fail(msg: str, *, exit_code: int = 1) -> None:
 
     print(f"ERRORE: {msg}", file=sys.stderr)
     raise SystemExit(exit_code)
-
-
-def resolve_executable(name: str) -> str:
-    """Resolve an executable to an absolute path.
-
-    Parameters
-    ----------
-    name : str
-        Executable name to resolve from ``PATH``.
-
-    Returns
-    -------
-    str
-        Absolute executable path.
-    """
-
-    resolved = shutil.which(name)
-    if resolved is None:
-        fail(f"Eseguibile obbligatorio non trovato nel PATH: {name}")
-    return resolved
 
 
 def detect_repo_root(repo_root: Path | None = None) -> Path:
@@ -172,6 +264,12 @@ def build_bootstrap_commands(
     """
 
     commands = [
+        *system_dependency_commands(repo_root=repo_root),
+        CommandSpec(
+            "Assicura l'interprete Python 3.13 gestito da uv",
+            ("uv", "python", "install", "3.13"),
+            repo_root,
+        ),
         CommandSpec(
             "Sincronizza ambiente di sviluppo gestito da uv",
             uv_sync_command(with_docs=options.with_docs),
@@ -277,7 +375,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
-    resolve_executable("uv")
     repo_root = detect_repo_root(args.repo_root)
     commands = build_bootstrap_commands(
         repo_root=repo_root,

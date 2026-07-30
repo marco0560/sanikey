@@ -27,7 +27,7 @@ Installa le dipendenze del progetto e gli strumenti del repository da un
 checkout locale:
 
 ```bash
-uv run python scripts/bootstrap_dev_environment.py
+python3 scripts/bootstrap_dev_environment.py
 ```
 
 Esegui la validazione del repository prima di affidarti al checkout:
