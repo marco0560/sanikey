@@ -1,3 +1,9 @@
+## [0.10.0](https://github.com/marco0560/sanikey/compare/v0.9.2...v0.10.0) (2026-08-01)
+
+### Features
+
+* **build:** consolidate longitudinal parameter review ([a60cffd](https://github.com/marco0560/sanikey/commit/a60cffdacd9c7c834484467df489748b2c5f6534))
+
 ## [0.9.2](https://github.com/marco0560/sanikey/compare/v0.9.1...v0.9.2) (2026-07-30)
 
 ### Bug Fixes
