@@ -100,6 +100,10 @@ class ParameterRule:
         Rejected normalized same-line text.
     conversions : tuple[UnitConversion, ...]
         Explicit allowed conversions.
+    specimen : str | None
+        Required biological specimen when configured.
+    default_specimen_labels : tuple[str, ...]
+        Labels allowed to use the configured specimen without explicit evidence.
     digest : str
         Resolved rule contract digest.
     """
@@ -122,6 +126,8 @@ class ParameterRule:
     required_context: tuple[str, ...]
     excluded_context: tuple[str, ...]
     conversions: tuple[UnitConversion, ...]
+    specimen: str | None
+    default_specimen_labels: tuple[str, ...]
     digest: str
 
 
@@ -223,6 +229,68 @@ def load_parameter_rules(path: Path, dictionary: SearchDictionary) -> ParameterR
             for rule_id, raw in sorted(raw_rules.items())
         ),
     )
+
+
+def load_patient_parameter_rules(
+    common_path: Path,
+    patient_path: Path,
+    dictionary: SearchDictionary,
+) -> ParameterRules:
+    """Load mandatory common rules and complete or replace them per patient.
+
+    Parameters
+    ----------
+    common_path : pathlib.Path
+        Mandatory common ``parameters.toml`` path.
+    patient_path : pathlib.Path
+        Optional patient-specific complement and override path.
+    dictionary : sanikey.config.SearchDictionary
+        Resolved search dictionary.
+
+    Returns
+    -------
+    ParameterRules
+        Common rules with same-id patient rules fully replaced.
+
+    Raises
+    ------
+    ConfigError
+        If the common rule file is absent.
+    """
+
+    if not common_path.is_file():
+        raise ConfigError(f"regole parametri comuni assenti: {common_path}")
+    common = load_parameter_rules(common_path, dictionary)
+    patient = load_parameter_rules(patient_path, dictionary)
+    merged = {rule.id: rule for rule in common.rules}
+    merged.update({rule.id: rule for rule in patient.rules})
+    return ParameterRules(
+        patient.discovery if _has_discovery(patient_path) else common.discovery,
+        tuple(merged[key] for key in sorted(merged)),
+    )
+
+
+def _has_discovery(path: Path) -> bool:
+    """Return whether a parameter TOML explicitly declares discovery settings.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Parameter TOML file to inspect.
+
+    Returns
+    -------
+    bool
+        Whether the top-level ``discovery`` table is present.
+    """
+
+    if not path.is_file():
+        return False
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError:
+        return False
+    return isinstance(data, dict) and "discovery" in data
 
 
 def build_parameter_slices(
@@ -434,6 +502,8 @@ def _rule(
         "required_context",
         "excluded_context",
         "conversions",
+        "specimen",
+        "default_specimen_labels",
     }
     if set(value) - required - optional or not required.issubset(value):
         raise ConfigError(f"{path} parameters.{rule_id} campi non validi")
@@ -511,6 +581,17 @@ def _rule(
             )
         ),
         "conversions": _conversions(value.get("conversions", []), path, rule_id),
+        "specimen": _optional_string(value.get("specimen"), path, "specimen"),
+        "default_specimen_labels": tuple(
+            sorted(
+                normalize_label(item)
+                for item in _strings(
+                    value.get("default_specimen_labels", []),
+                    path,
+                    "default_specimen_labels",
+                )
+            )
+        ),
     }
     digest = hashlib.sha256(_canonical(raw).encode("utf-8")).hexdigest()
     return ParameterRule(**raw, digest=digest)
@@ -536,6 +617,22 @@ def _evaluate(
 
     if candidate.normalized_label not in rule.synonyms:
         return _reject(candidate, rule, "REJECTED_LABEL")
+    acceptance_reason = "ACCEPTED_CONFIGURED_SYNONYM"
+    if rule.specimen:
+        explicit = (
+            "serum"
+            if candidate.normalized_label.startswith("s-")
+            else "urine"
+            if candidate.normalized_label.startswith("u-")
+            else None
+        )
+        observed = explicit or candidate.section_specimen
+        if observed and observed != rule.specimen:
+            return _reject(candidate, rule, "REJECTED_SPECIMEN_MISMATCH")
+        if observed is None:
+            if candidate.normalized_label not in rule.default_specimen_labels:
+                return _reject(candidate, rule, "REJECTED_SPECIMEN_AMBIGUOUS")
+            acceptance_reason = "ACCEPTED_DEFAULT_SPECIMEN"
     if (
         candidate.parsed_value is None
         or candidate.number_format not in rule.number_formats
@@ -564,7 +661,7 @@ def _evaluate(
         rule.maximum is not None and value > rule.maximum
     ):
         return _reject(candidate, rule, "REJECTED_OUT_OF_RANGE")
-    return value, unit, "ACCEPTED_CONFIGURED_SYNONYM"
+    return value, unit, acceptance_reason
 
 
 def _value_and_unit(

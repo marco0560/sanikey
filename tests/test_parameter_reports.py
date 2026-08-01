@@ -1,8 +1,9 @@
-"""Tests for deterministic parameter discovery artefacts."""
+"""Tests for timestamped parameter discovery artefacts."""
 
 from __future__ import annotations
 
 import tomllib
+from datetime import datetime
 from pathlib import Path
 
 from sanikey.documents import ExtractedText
@@ -42,7 +43,7 @@ def _document(document_id: str, date: str) -> DocumentRecord:
 def test_reports_write_disabled_deterministic_parameter_rule_scaffold(
     tmp_path: Path,
 ) -> None:
-    """Verify discovery emits a stable review-only TOML scaffold.
+    """Verify discovery emits a timestamped review-only TOML scaffold.
 
     Parameters
     ----------
@@ -65,12 +66,9 @@ def test_reports_write_disabled_deterministic_parameter_rule_scaffold(
 
     write_parameter_reports(tmp_path, discovery)
     proposal = tmp_path / "reports" / "parameter-rules.proposed.toml"
-    first = proposal.read_bytes()
-    write_parameter_reports(tmp_path, discovery)
-
     parsed = tomllib.loads(proposal.read_text(encoding="utf-8"))
     rule = parsed["parameters"]["hb"]
-    assert proposal.read_bytes() == first
+    assert datetime.fromisoformat(parsed["generated_at"]).utcoffset() is not None
     assert rule["enabled"] is False
     assert rule["value_type"] == "qualified-scalar"
     assert rule["number_formats"] == ["decimal-point"]

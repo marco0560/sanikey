@@ -41,9 +41,16 @@ from .leaflets import (
 from .metadata import load_curated_metadata
 from .models import MedicationLeaflet, MedicationLeafletExclusion
 from .observation_imports import import_observations
-from .parameter_reports import write_parameter_reports
-from .parameter_rules import build_parameter_slices, load_parameter_rules
-from .parameter_slices import discover_candidates
+from .parameter_reports import (
+    write_parameter_extraction_reports,
+    write_parameter_rejections,
+    write_parameter_reports,
+)
+from .parameter_rules import (
+    build_parameter_slices,
+    load_patient_parameter_rules,
+)
+from .parameter_slices import discover_candidates, discover_configured_candidates
 from .privacy import validate_privacy
 from .progress import ProgressDots
 from .proposals import generate_manual_proposals, review_proposal
@@ -1500,6 +1507,7 @@ def run_build_patient(args: argparse.Namespace) -> int:
                 selected[0],
                 mode=args.mode,
                 force_pdf_ocr=getattr(args, "force_pdf_ocr", False),
+                parameter_debug=getattr(args, "parameter_debug", False),
                 progress=_progress_from_args(args),
             )
         )
@@ -1570,7 +1578,10 @@ def run_discover_parameters(args: argparse.Namespace) -> int:
                 if not item.kind.startswith("dicom_")
             )
             extracted = load_cached_extracted_text(person, documents)
-            rules = load_parameter_rules(
+            rules = load_patient_parameter_rules(
+                person.search.dictionary.parent / "parameters.toml"
+                if person.search.dictionary is not None
+                else person.metadata_directory / "parameters.common.toml",
                 person.metadata_directory / "parameters.toml",
                 person.search.dictionary_data,
             )
@@ -1618,14 +1629,27 @@ def run_build_parameter_slices(args: argparse.Namespace) -> int:
                 if not item.kind.startswith("dicom_")
             )
             extracted = load_cached_extracted_text(person, documents)
-            rules = load_parameter_rules(parameters_path, person.search.dictionary_data)
-            discovery = discover_candidates(
+            rules = load_patient_parameter_rules(
+                person.search.dictionary.parent / "parameters.toml"
+                if person.search.dictionary is not None
+                else person.metadata_directory / "parameters.common.toml",
+                parameters_path,
+                person.search.dictionary_data,
+            )
+            discovery = discover_configured_candidates(
                 documents,
                 extracted,
+                accepted_labels=tuple(
+                    synonym
+                    for rule in rules.rules
+                    if rule.enabled
+                    for synonym in rule.synonyms
+                ),
                 settings=rules.discovery,
             )
             result = build_parameter_slices(discovery.candidates, rules)
-            write_parameter_reports(person.local_build, discovery, result)
+            write_parameter_extraction_reports(person.local_build, result)
+            write_parameter_rejections(person.local_build, discovery, result)
             rejected = sum(not item.accepted for item in result.decisions)
             print(
                 f"paziente={person.id} righe_analizzate={discovery.analyzed_lines} "
@@ -1659,6 +1683,7 @@ def run_build_all(args: argparse.Namespace) -> int:
             config,
             mode=args.mode,
             force_pdf_ocr=getattr(args, "force_pdf_ocr", False),
+            parameter_debug=getattr(args, "parameter_debug", False),
             progress=_progress_from_args(args),
         ):
             _print_build_result(result)

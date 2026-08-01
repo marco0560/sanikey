@@ -780,6 +780,10 @@ def test_parameter_slice_build_outputs_are_byte_stable(tmp_path: Path) -> None:
     )
     person.source_documents.mkdir(parents=True)
     person.metadata_directory.mkdir()
+    (person.metadata_directory / "parameters.common.toml").write_text(
+        "",
+        encoding="utf-8",
+    )
     (person.source_documents / "20260102 Report.txt").write_text(
         "Hb: 13.7 g/dL\n",
         encoding="utf-8",
@@ -807,8 +811,10 @@ canonical_unit = "g/dL"
 
     build_patient(person, mode="full")
     outputs = (
-        person.local_build / "reports" / "parameter-candidates.json",
-        person.local_build / "reports" / "parameter-extraction.json",
+        person.local_build / "reports" / "parameter-accepted.json",
+        person.local_build / "reports" / "parameter-accepted.txt",
+        person.local_build / "reports" / "parameter-rejected.json",
+        person.local_build / "reports" / "parameter-rejected.txt",
         person.local_build / "exports" / "parameter-slices.json",
         person.local_build / "web" / "data" / "parameter-slices.js",
     )
@@ -818,3 +824,4 @@ canonical_unit = "g/dL"
     assert all(path.read_bytes() == first[path.name] for path in outputs)
     assert all(b"/home/" not in content for content in first.values())
     assert all(b"generated_at" not in content for content in first.values())
+    assert not (person.local_build / "reports" / "parameter-candidates.json").exists()

@@ -24,6 +24,8 @@ class FrontendResult:
         Generated frontend directory.
     index : pathlib.Path
         Generated index HTML.
+    extended_chart : pathlib.Path
+        Generated extended parameter-chart HTML.
     script : pathlib.Path
         Generated JavaScript.
     stylesheet : pathlib.Path
@@ -40,6 +42,7 @@ class FrontendResult:
 
     web_dir: Path
     index: Path
+    extended_chart: Path
     script: Path
     stylesheet: Path
     helper: Path
@@ -67,6 +70,7 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     assets_dir = web_dir / "assets"
     assets_dir.mkdir(exist_ok=True)
     index = web_dir / "index.html"
+    extended_chart = web_dir / "parameter-chart.html"
     script = web_dir / "app.js"
     stylesheet = web_dir / "style.css"
     helper = assets_dir / "ui-helper.js"
@@ -74,7 +78,9 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     material_stylesheet = assets_dir / "material-web.css"
     chart_script = assets_dir / "chart.umd.min.js"
     index.write_text(_index_html(person), encoding="utf-8")
+    extended_chart.write_text(_extended_chart_html(person), encoding="utf-8")
     script.write_text(_app_js(), encoding="utf-8")
+    (web_dir / "parameter-chart.js").write_text(_extended_chart_js(), encoding="utf-8")
     stylesheet.write_text(_style_css(), encoding="utf-8")
     (web_dir / "usb-info.js").write_text(_usb_info_js(person), encoding="utf-8")
     helper.write_text(_ui_helper_js(), encoding="utf-8")
@@ -102,6 +108,7 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     return FrontendResult(
         web_dir=web_dir,
         index=index,
+        extended_chart=extended_chart,
         script=script,
         stylesheet=stylesheet,
         helper=helper,
@@ -189,25 +196,8 @@ def _index_html(person: PersonConfig) -> str:
           <md-text-button type="button" data-section-button="therapies" data-pane-target="left">Terapia</md-text-button>
           <md-icon-button type="button" data-section-button="therapies" data-pane-target="right" aria-label="Apri Terapia a destra">&gt;</md-icon-button>
         </span>
-        <span class="nav-control" data-observation-control="weight" hidden>
-          <md-text-button type="button" data-section-button="weight" data-pane-target="left">Peso</md-text-button>
-          <md-icon-button type="button" data-section-button="weight" data-pane-target="right" aria-label="Apri Peso a destra">&gt;</md-icon-button>
-        </span>
-        <span class="nav-control" data-observation-control="pressure" hidden>
-          <md-text-button type="button" data-section-button="pressure" data-pane-target="left">Pressione</md-text-button>
-          <md-icon-button type="button" data-section-button="pressure" data-pane-target="right" aria-label="Apri Pressione a destra">&gt;</md-icon-button>
-        </span>
-        <span class="nav-control" data-observation-control="glucose" hidden>
-          <md-text-button type="button" data-section-button="glucose" data-pane-target="left">Glicemia</md-text-button>
-          <md-icon-button type="button" data-section-button="glucose" data-pane-target="right" aria-label="Apri Glicemia a destra">&gt;</md-icon-button>
-        </span>
-        <span class="nav-control" data-observation-control="inr" hidden>
-          <md-text-button type="button" data-section-button="inr" data-pane-target="left">INR</md-text-button>
-          <md-icon-button type="button" data-section-button="inr" data-pane-target="right" aria-label="Apri INR a destra">&gt;</md-icon-button>
-        </span>
         <span class="nav-control" data-observation-control="parameters" hidden>
           <md-text-button type="button" data-section-button="parameters" data-pane-target="left">Parametri</md-text-button>
-          <md-icon-button type="button" data-section-button="parameters" data-pane-target="right" aria-label="Apri Parametri a destra">&gt;</md-icon-button>
         </span>
         <span class="nav-control" data-dicom-control hidden>
           <md-text-button type="button" data-section-button="dicom" data-pane-target="left">Studi DICOM</md-text-button>
@@ -244,11 +234,8 @@ def _index_html(person: PersonConfig) -> str:
     <section id="timeline" data-section-panel="timeline" aria-label="Timeline"></section>
     <section id="summary" data-section-panel="summary" aria-label="Sintesi Clinica"></section>
     <section id="therapies" data-section-panel="therapies" aria-label="Terapia"></section>
-    <section id="weight" data-section-panel="weight" aria-label="Peso" hidden></section>
-    <section id="pressure" data-section-panel="pressure" aria-label="Pressione" hidden></section>
-    <section id="glucose" data-section-panel="glucose" aria-label="Glicemia" hidden></section>
-    <section id="inr" data-section-panel="inr" aria-label="INR" hidden></section>
     <section id="parameters" data-section-panel="parameters" aria-label="Parametri" hidden></section>
+    <section id="parameter-detail" data-section-panel="parameter-detail" aria-label="Dettaglio parametro" hidden></section>
     <section id="dicom" data-section-panel="dicom" aria-label="Studi DICOM"></section>
   </main>
   <footer class="app-footer"><a class="footer-repository" href="https://github.com/marco0560/sanikey" target="_blank" rel="noopener"><img class="footer-logo" src="assets/sanikey-logo-horizontal-transparent.svg" alt="Apri il repository SaniKey su GitHub"></a></footer>
@@ -288,6 +275,55 @@ def _index_html(person: PersonConfig) -> str:
 """
 
 
+def _extended_chart_html(person: PersonConfig) -> str:
+    """Render the standalone extended parameter-chart page.
+
+    Parameters
+    ----------
+    person : sanikey.config.PersonConfig
+        Patient configuration supplying the display name.
+
+    Returns
+    -------
+    str
+        Offline HTML document for extended parameter charts.
+    """
+
+    title = _escape_html(person.display_name)
+    return f"""<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grafici parametri - {title}</title>
+  <link rel="stylesheet" href="assets/material-web.css">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="assets/material-web.js"></script>
+</head>
+<body class="extended-chart-page">
+  <main class="extended-chart-main">
+    <p><a href="index.html">Torna all'archivio</a></p>
+    <h1>Grafici parametri: {title}</h1>
+    <p class="muted">Seleziona una o piu' serie. Due unita' condividono un grafico con doppia scala; ulteriori unita' vengono separate.</p>
+    <fieldset class="extended-chart-filters">
+      <legend>Periodo</legend>
+      <label>Da <input type="date" data-extended-filter="from"></label>
+      <label>A <input type="date" data-extended-filter="to"></label>
+    </fieldset>
+    <fieldset class="extended-series-list">
+      <legend>Serie</legend>
+      <div data-extended-series></div>
+    </fieldset>
+    <div data-extended-charts></div>
+  </main>
+  <script src="data.js"></script>
+  <script src="assets/chart.umd.min.js"></script>
+  <script src="parameter-chart.js"></script>
+</body>
+</html>
+"""
+
+
 def _app_js() -> str:
     """Render offline JavaScript.
 
@@ -308,27 +344,13 @@ def _app_js() -> str:
   problems: "Problemi",
   procedures: "Procedure",
   observations: "Osservazioni",
-  weight: "Peso",
-  pressure: "Pressione",
-  glucose: "Glicemia",
-  inr: "INR",
   parameters: "Parametri",
   dicom: "Studi DICOM",
   timeline: "Timeline",
   summary: "Sintesi Clinica",
 };
 
-const OBSERVATION_SECTION_BY_ID = {
-  peso: "weight",
-  weight: "weight",
-  pressione: "pressure",
-  pressure: "pressure",
-  glicemia: "glucose",
-  glucose: "glucose",
-  inr: "inr",
-};
-
-const SECTION_ORDER = ["documents", "therapies", "medications", "problems", "procedures", "observations", "weight", "pressure", "glucose", "inr", "parameters", "dicom", "timeline"];
+const SECTION_ORDER = ["documents", "therapies", "medications", "problems", "procedures", "observations", "parameters", "dicom", "timeline"];
 function text(value) {
   return value === null || value === undefined ? "" : String(value);
 }
@@ -553,20 +575,14 @@ function renderDicomStudies(studies) {
 }
 
 function observationSectionForSeries(series) {
-  return OBSERVATION_SECTION_BY_ID[text(series.id).toLowerCase()] || "parameters";
+  return "parameters";
 }
 
 function renderObservationSections(clinical) {
   const series = clinical.observation_series || [];
   const points = clinical.observation_points || [];
   const bySeries = new Map(series.map((item) => [item.id, item]));
-  const grouped = {
-    weight: [],
-    pressure: [],
-    glucose: [],
-    inr: [],
-    parameters: [],
-  };
+  const grouped = {parameters: []};
   points.forEach((point) => {
     const itemSeries = bySeries.get(point.series_id) || {id: point.series_id, name: point.series_id};
     grouped[observationSectionForSeries(itemSeries)].push({series: itemSeries, point});
@@ -599,6 +615,7 @@ function renderParameterSection(target, items) {
   const filters = {from: "", to: "", unit: "", category: "", qualified: "all", order: "desc"};
   const units = [...new Set(items.map(({point}) => point.normalized_unit || point.raw_unit).filter(Boolean))].sort();
   const categories = [...new Set(items.map(({point}) => point.document_category).filter(Boolean))].sort();
+  const detailPanel = document.querySelector("#parameter-detail");
   target.innerHTML = `<h2>Parametri</h2>
     <label class="parameter-search">Cerca parametro o sinonimo
       <input type="search" data-parameter-search autocomplete="off">
@@ -615,6 +632,17 @@ function renderParameterSection(target, items) {
   const search = target.querySelector("[data-parameter-search]");
   const list = target.querySelector(".parameter-list");
   const content = target.querySelector(".parameter-content");
+  const layout = target.querySelector(".parameter-layout");
+  const detailHeading = document.createElement("h2");
+  detailHeading.textContent = "Dettaglio parametro";
+  const arrange = () => {
+    if (document.body.dataset.layout === "dual") {
+      detailPanel.replaceChildren(detailHeading, content);
+      return;
+    }
+    layout.appendChild(content);
+    detailPanel.replaceChildren();
+  };
   const render = () => {
     const normalized = normalizeSearchText(query);
     const visible = series.filter((item) => parameterSearchText(item).includes(normalized));
@@ -639,7 +667,9 @@ function renderParameterSection(target, items) {
     filters[control.dataset.parameterFilter] = control.value;
     render();
   }));
+  window.addEventListener("sanikeylayoutchange", arrange);
   render();
+  arrange();
 }
 
 function parameterSearchText(series) {
@@ -668,7 +698,7 @@ function renderSelectedParameter(target, items, seriesId, filters) {
       `<tr tabindex="0" data-parameter-point="${attr(point.id)}"><td>${escapeHtml(formatDate(point.date))}</td><td>${escapeHtml((point.qualifier || "") + (point.raw_value || point.value || ""))}</td><td>${escapeHtml(point.raw_unit || point.normalized_unit || "")}</td><td>${point.document_href ? `<a href="${attr(point.document_href)}" target="_blank" rel="noopener">Apri documento</a>` : escapeHtml(point.document_title || "")}</td><td>${escapeHtml(point.matched_label || "")}</td><td>${escapeHtml(point.source_reference || "")}</td></tr>`
     ).join("")}</tbody></table>`;
   const detail = target.querySelector(".parameter-detail");
-  const showPoint = (point) => { detail.innerHTML = renderParameterDetail(point); };
+  const showPoint = (point) => { detail.innerHTML = renderParameterDetail(point, series); };
   target.querySelectorAll("[data-parameter-point]").forEach((row) => {
     const point = selected.find(({point: item}) => item.id === row.dataset.parameterPoint).point;
     row.addEventListener("click", () => showPoint(point));
@@ -678,17 +708,32 @@ function renderSelectedParameter(target, items, seriesId, filters) {
   renderParameterChart(target.querySelector(".parameter-chart-host"), selected, showPoint);
 }
 
-function renderParameterDetail(point) {
-  const source = [point.document_title, point.matched_label && "Etichetta: " + point.matched_label, point.source_reference].filter(Boolean).join(" · ");
+function renderParameterDetail(point, series) {
+  const source = [pointOrigin(point), point.matched_label && "Etichetta: " + point.matched_label].filter(Boolean).join(" · ");
   const action = point.document_href ? `<p class="actions"><a class="primary-action" href="${attr(point.document_href)}" target="_blank" rel="noopener">Apri documento</a></p>` : "";
-  return `<h4>Dettaglio misurazione</h4><p>${escapeHtml(observationDisplayValue(point))}</p><p class="muted">${escapeHtml(source)}</p>${action}`;
+  const extended = `<p class="actions"><a class="primary-action" href="parameter-chart.html?series=${encodeURIComponent(series.id)}" target="_blank" rel="noopener">Apri grafico esteso</a></p>`;
+  return `<h4>Dettaglio misurazione</h4><p>${escapeHtml(observationDisplayValue(point, series.unit))}</p><p class="muted">${escapeHtml(source)}</p>${extended}${action}`;
 }
 
-function observationDisplayValue(point) {
+function observationDisplayValue(point, seriesUnit = "") {
   const raw = point.raw_value || point.value;
   const qualifier = point.qualifier || "";
-  const unit = point.raw_unit || point.normalized_unit || "";
+  const unit = point.raw_value ? "" : (point.raw_unit || point.normalized_unit || seriesUnit);
   return qualifier + raw + (unit ? " " + unit : "");
+}
+
+function pointOrigin(point) {
+  if (point.document_href) {
+    const fileName = decodeURIComponent(text(point.document_href).split("/").pop());
+    return "Documento: " + fileName;
+  }
+  if (point.source_reference) {
+    return "Origine: " + point.source_reference;
+  }
+  if (point.source_kind === "curated-observation") {
+    return "Origine: osservazione curata";
+  }
+  return "Origine: non disponibile";
 }
 
 function renderObservationSource(point) {
@@ -709,8 +754,9 @@ function renderParameterChart(target, items, onPointSelected) {
   if (typeof Chart === "undefined") {
     return;
   }
+  const bloodPressure = items[0] && items[0].series.value_type === "blood_pressure";
   const numeric = items.filter(({point}) => Number.isFinite(Number(point.numeric_value)));
-  if (!numeric.length) {
+  if (!bloodPressure && !numeric.length) {
     return;
   }
   const canvas = document.createElement("canvas");
@@ -718,35 +764,10 @@ function renderParameterChart(target, items, onPointSelected) {
   canvas.setAttribute("role", "img");
   canvas.setAttribute("aria-label", "Grafico temporale dei parametri disponibili");
   target.appendChild(canvas);
-  const grouped = new Map();
-  numeric.forEach(({series, point}) => {
-    const key = series.id + "|" + (point.normalized_unit || point.raw_unit || "");
-    const entries = grouped.get(key) || {label: series.name || series.id, points: []};
-    entries.points.push(point);
-    grouped.set(key, entries);
-  });
-  const datasets = [];
-  grouped.forEach((entry) => {
-    const regular = entry.points.filter((point) => !point.qualifier);
-    const qualified = entry.points.filter((point) => point.qualifier);
-    if (regular.length) {
-      datasets.push({
-        label: entry.label,
-        data: regular.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point})),
-        borderWidth: 2,
-        tension: 0.15,
-      });
-    }
-    if (qualified.length) {
-      datasets.push({
-        label: entry.label + " (qualificati)",
-        data: qualified.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point})),
-        showLine: false,
-        pointStyle: "triangle",
-        pointRadius: 6,
-      });
-    }
-  });
+  const datasets = bloodPressure ? bloodPressureDatasets(items) : numericDatasets(numeric);
+  if (!datasets.length) {
+    return;
+  }
   new Chart(canvas, {
     type: "line",
     data: {datasets},
@@ -762,7 +783,9 @@ function renderParameterChart(target, items, onPointSelected) {
       plugins: {
         tooltip: {
           callbacks: {
-            label: (context) => context.dataset.label + ": " + context.formattedValue,
+            title: (contexts) => contexts.length ? formatDate(contexts[0].raw.point.date) : "",
+            label: (context) => chartPointLabel(context.raw),
+            afterLabel: (context) => pointOrigin(context.raw.point),
           },
         },
       },
@@ -770,10 +793,78 @@ function renderParameterChart(target, items, onPointSelected) {
         if (!elements.length) { return; }
         const element = elements[0];
         const point = chart.data.datasets[element.datasetIndex].data[element.index].point;
-        if (point) { onPointSelected(point); }
+        if (!point) { return; }
+        if (point.document_href) {
+          window.open(point.document_href, "_blank", "noopener");
+          return;
+        }
+        onPointSelected(point);
       },
     },
   });
+}
+
+function numericDatasets(numeric) {
+  const grouped = new Map();
+  numeric.forEach(({series, point}) => {
+    const unit = point.normalized_unit || point.raw_unit || series.unit || "";
+    const key = series.id + "|" + unit;
+    const name = series.name || series.id;
+    const label = unit && unit !== series.unit ? name + " (" + unit + ")" : name;
+    const entries = grouped.get(key) || {label, series, points: []};
+    entries.points.push(point);
+    grouped.set(key, entries);
+  });
+  const datasets = [];
+  grouped.forEach((entry) => {
+    const regular = entry.points.filter((point) => !point.qualifier);
+    const qualified = entry.points.filter((point) => point.qualifier);
+    if (regular.length) {
+      datasets.push({
+        label: entry.label,
+        data: regular.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point, series: entry.series})),
+        borderWidth: 2,
+        tension: 0.15,
+      });
+    }
+    if (qualified.length) {
+      datasets.push({
+        label: entry.label + " (qualificati)",
+        data: qualified.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point, series: entry.series})),
+        showLine: false,
+        pointStyle: "triangle",
+        pointRadius: 6,
+      });
+    }
+  });
+  return datasets;
+}
+
+function bloodPressureDatasets(items) {
+  const components = [
+    {field: "systolic", label: "Sistolica", color: "#1d4ed8"},
+    {field: "diastolic", label: "Diastolica", color: "#dc2626"},
+    {field: "pulse", label: "Polso", color: "#15803d"},
+  ];
+  return components.map((component) => {
+    const data = items.filter(({point}) => Number.isFinite(Number(point[component.field])))
+      .map(({series, point}) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point[component.field]), point, series, component}));
+    return data.length ? {
+      label: component.label,
+      data,
+      borderColor: component.color,
+      backgroundColor: component.color,
+      borderWidth: 2,
+      tension: 0.15,
+    } : null;
+  }).filter(Boolean);
+}
+
+function chartPointLabel(raw) {
+  if (raw.component) {
+    return raw.component.label + ": " + raw.point[raw.component.field] + (raw.series.unit ? " " + raw.series.unit : "");
+  }
+  return observationDisplayValue(raw.point, raw.series.unit);
 }
 
 function configureObservationNavigation(grouped) {
@@ -782,6 +873,9 @@ function configureObservationNavigation(grouped) {
       control.hidden = !items.length;
     });
     document.querySelector(`#${section}`).hidden = !items.length;
+    if (section === "parameters") {
+      document.querySelector("#parameter-detail").hidden = !items.length;
+    }
   });
 }
 
@@ -1370,6 +1464,174 @@ try {
 """
 
 
+def _extended_chart_js() -> str:
+    """Render JavaScript for the standalone extended parameter charts.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    str
+        Offline JavaScript source.
+    """
+
+    return r"""function extendedText(value) {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function extendedEscape(value) {
+  return extendedText(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
+function extendedDate(value) {
+  const match = extendedText(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : extendedText(value);
+}
+
+function extendedOrigin(point) {
+  if (point.document_href) {
+    return "Documento: " + decodeURIComponent(extendedText(point.document_href).split("/").pop());
+  }
+  if (point.source_reference) {
+    return "Origine: " + point.source_reference;
+  }
+  return point.source_kind === "curated-observation" ? "Origine: osservazione curata" : "Origine: non disponibile";
+}
+
+function extendedPointLabel(raw) {
+  if (raw.component) {
+    return raw.component.label + ": " + raw.point[raw.component.field] + (raw.series.unit ? " " + raw.series.unit : "");
+  }
+  const value = raw.point.raw_value || raw.point.value;
+  const unit = raw.point.raw_value ? "" : (raw.point.raw_unit || raw.point.normalized_unit || raw.series.unit || "");
+  return value + (unit ? " " + unit : "");
+}
+
+function extendedChartOptions(units) {
+  const scales = {
+    x: {type: "linear", ticks: {callback: (value) => new Date(Number(value)).toLocaleDateString("it-IT")}},
+    y: {type: "linear", position: "left", title: {display: Boolean(units[0]), text: units[0] || "Valore"}},
+  };
+  if (units[1]) {
+    scales.y1 = {type: "linear", position: "right", title: {display: true, text: units[1]}, grid: {drawOnChartArea: false}};
+  }
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales,
+    plugins: {tooltip: {callbacks: {
+      title: (contexts) => contexts.length ? extendedDate(contexts[0].raw.point.date) : "",
+      label: (context) => extendedPointLabel(context.raw),
+      afterLabel: (context) => extendedOrigin(context.raw.point),
+    }}},
+    onClick: (_event, elements, chart) => {
+      if (!elements.length) { return; }
+      const point = chart.data.datasets[elements[0].datasetIndex].data[elements[0].index].point;
+      if (point && point.document_href) {
+        window.open(point.document_href, "_blank", "noopener");
+      }
+    },
+  };
+}
+
+function appendExtendedChart(target, title, datasets, units) {
+  const card = document.createElement("section");
+  card.className = "extended-chart-card";
+  card.innerHTML = `<h2>${extendedEscape(title)}</h2>`;
+  const canvas = document.createElement("canvas");
+  canvas.className = "extended-parameter-chart";
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute("aria-label", title);
+  card.appendChild(canvas);
+  target.appendChild(card);
+  new Chart(canvas, {type: "line", data: {datasets}, options: extendedChartOptions(units)});
+}
+
+function renderPressureChart(target, series, points) {
+  const components = [
+    {field: "systolic", label: "Sistolica", color: "#1d4ed8"},
+    {field: "diastolic", label: "Diastolica", color: "#dc2626"},
+    {field: "pulse", label: "Polso", color: "#15803d"},
+  ];
+  const datasets = components.map((component) => {
+    const data = points.filter((point) => Number.isFinite(Number(point[component.field])))
+      .map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point[component.field]), point, series, component}));
+    return data.length ? {label: component.label, data, borderColor: component.color, backgroundColor: component.color, borderWidth: 2, tension: 0.15} : null;
+  }).filter(Boolean);
+  if (datasets.length) {
+    appendExtendedChart(target, series.name || series.id, datasets, [series.unit || "mmHg"]);
+  }
+}
+
+function renderNumericCharts(target, entries) {
+  const byUnit = new Map();
+  entries.forEach((entry) => {
+    const unit = entry.series.unit || "Senza unita'";
+    const group = byUnit.get(unit) || [];
+    group.push(entry);
+    byUnit.set(unit, group);
+  });
+  const unitGroups = [...byUnit.entries()];
+  const chartGroups = unitGroups.length <= 2 ? [unitGroups] : unitGroups.map((group) => [group]);
+  const colors = ["#7c3aed", "#ea580c", "#0f766e", "#be123c", "#0369a1"];
+  chartGroups.forEach((chartGroup) => {
+    const units = chartGroup.map(([unit]) => unit);
+    const datasets = chartGroup.flatMap(([unit, group], unitIndex) => group.map((entry, index) => ({
+      label: entry.series.name || entry.series.id,
+      yAxisID: unitIndex ? "y1" : "y",
+      data: entry.points.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point, series: entry.series})),
+      borderColor: colors[index % colors.length],
+      backgroundColor: colors[index % colors.length],
+      borderWidth: 2,
+      tension: 0.15,
+    })));
+    const title = chartGroup.flatMap(([, group]) => group.map((entry) => entry.series.name || entry.series.id)).join(" · ");
+    appendExtendedChart(target, title, datasets, units);
+  });
+}
+
+function main() {
+  const clinical = window.SANIKEY_DATA && window.SANIKEY_DATA.clinical || {};
+  const series = (clinical.observation_series || []).slice().sort((left, right) => extendedText(left.name || left.id).localeCompare(extendedText(right.name || right.id), "it"));
+  const points = clinical.observation_points || [];
+  const requested = new URLSearchParams(window.location.search).get("series");
+  const selected = new Set(series.some((item) => item.id === requested) ? [requested] : series.slice(0, 1).map((item) => item.id));
+  const seriesTarget = document.querySelector("[data-extended-series]");
+  const chartTarget = document.querySelector("[data-extended-charts]");
+  const filters = {from: "", to: ""};
+  function render() {
+    seriesTarget.innerHTML = series.map((item) => `<label><input type="checkbox" value="${extendedEscape(item.id)}" ${selected.has(item.id) ? "checked" : ""}> ${extendedEscape(item.name || item.id)}</label>`).join("");
+    seriesTarget.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => {
+      input.checked ? selected.add(input.value) : selected.delete(input.value);
+      render();
+    }));
+    chartTarget.replaceChildren();
+    const entries = series.filter((item) => selected.has(item.id)).map((item) => ({
+      series: item,
+      points: points.filter((point) => point.series_id === item.id && (!filters.from || point.date >= filters.from) && (!filters.to || point.date <= filters.to)),
+    }));
+    entries.filter((entry) => entry.series.value_type === "blood_pressure").forEach((entry) => renderPressureChart(chartTarget, entry.series, entry.points));
+    const numeric = entries.map((entry) => ({...entry, points: entry.points.filter((point) => Number.isFinite(Number(point.numeric_value)))})).filter((entry) => entry.series.value_type !== "blood_pressure" && entry.points.length);
+    renderNumericCharts(chartTarget, numeric);
+    if (!chartTarget.children.length) {
+      chartTarget.innerHTML = '<p class="muted">Nessun punto grafico nel periodo selezionato.</p>';
+    }
+  }
+  document.querySelectorAll("[data-extended-filter]").forEach((input) => input.addEventListener("input", () => {
+    filters[input.dataset.extendedFilter] = input.value;
+    render();
+  }));
+  render();
+}
+
+if (typeof Chart !== "undefined") {
+  main();
+}
+"""
+
+
 def _ui_helper_js() -> str:
     """Render the vendored tab helper JavaScript.
 
@@ -1395,7 +1657,7 @@ def _ui_helper_js() -> str:
   }
 
   function fallbackSection(excluded) {
-    return ["documents", "timeline", "summary", "therapies", "weight", "pressure", "glucose", "inr", "parameters", "dicom", "advanced"]
+    return ["documents", "timeline", "summary", "therapies", "parameters", "dicom", "advanced"]
       .find((section) => section !== excluded && isSectionAvailable(section)) || "documents";
   }
 
@@ -1410,6 +1672,12 @@ def _ui_helper_js() -> str:
 
   function showSection(name, target = "left") {
     const selected = normalizeSection(name);
+    if (selected === "parameters" && isDualLayout()) {
+      state.left = "parameters";
+      state.right = normalizeSection("parameter-detail");
+      applyPanes();
+      return;
+    }
     if (!isDualLayout() || target !== "right") {
       if (state.right === selected) {
         state.right = fallbackSection(selected);
@@ -1429,6 +1697,12 @@ def _ui_helper_js() -> str:
     const dual = isDualLayout();
     state.left = normalizeSection(state.left);
     state.right = normalizeSection(state.right);
+    if (dual && state.left === "parameters") {
+      state.right = normalizeSection("parameter-detail");
+    }
+    if (dual && state.right === "parameter-detail" && state.left !== "parameters") {
+      state.right = fallbackSection(state.left);
+    }
     if (state.left === state.right) {
       state.right = fallbackSection(state.left);
     }
@@ -1449,11 +1723,12 @@ def _ui_helper_js() -> str:
       const selected = button.dataset.sectionButton;
       const target = button.dataset.paneTarget || "left";
       const active = target === "right"
-        ? dual && state.right === selected
+        ? dual && (state.right === selected || (selected === "parameters" && state.left === selected && state.right === "parameter-detail"))
         : state.left === selected;
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-selected", active ? "true" : "false");
     });
+    window.dispatchEvent(new CustomEvent("sanikeylayoutchange", {detail: {dual}}));
   }
 
   function setupSections({defaultSection = "documents", defaultRight = "timeline"} = {}) {
@@ -1989,6 +2264,50 @@ dd {
   padding-left: 0.75rem;
 }
 
+.extended-chart-main {
+  margin: 0 auto;
+  max-width: 110rem;
+  padding: 1rem;
+}
+
+.extended-chart-filters,
+.extended-series-list {
+  border: 1px solid var(--border);
+  margin: 1rem 0;
+  padding: 0.75rem;
+}
+
+.extended-chart-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.extended-chart-filters label,
+.extended-series-list label {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+[data-extended-series] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.extended-chart-card {
+  border: 1px solid var(--border);
+  margin: 1rem 0;
+  padding: 1rem;
+}
+
+.extended-parameter-chart {
+  display: block;
+  height: min(68dvh, 44rem) !important;
+  max-width: 100%;
+  width: 100% !important;
+}
+
 .observation-table tr[data-parameter-point] {
   cursor: pointer;
 }
@@ -2042,7 +2361,7 @@ body[data-density="compact"] md-text-button {
   body[data-layout="dual"] main {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     max-width: none;
-    min-height: 200dvh;
+    min-height: 800dvh;
     width: 90%;
   }
 
@@ -2062,9 +2381,13 @@ body[data-density="compact"] md-text-button {
 
   body[data-layout="dual"] [data-pane-role="left"],
   body[data-layout="dual"] [data-pane-role="right"] {
-    height: 200dvh;
-    min-height: 0;
+    height: 800dvh;
+    min-height: 800dvh;
     overflow: auto;
+  }
+
+  body[data-layout="dual"] #parameters .parameter-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

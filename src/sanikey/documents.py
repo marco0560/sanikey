@@ -41,6 +41,25 @@ TESSERACT_MEDICAL_USER_WORDS = (
 
 
 @dataclass(frozen=True)
+class TextPageSpan:
+    """Map one one-based PDF page to an extracted-text character interval.
+
+    Parameters
+    ----------
+    page_number : int
+        One-based PDF page number.
+    character_start : int
+        Inclusive character offset in the extracted text.
+    character_end : int
+        Exclusive character offset in the extracted text.
+    """
+
+    page_number: int
+    character_start: int
+    character_end: int
+
+
+@dataclass(frozen=True)
 class ExtractedText:
     """Text extracted from one document.
 
@@ -52,11 +71,14 @@ class ExtractedText:
         Extracted text content.
     warnings : tuple[str, ...]
         Non-fatal extraction warnings.
+    page_spans : tuple[TextPageSpan, ...]
+        Reliable PDF-page character intervals, when available.
     """
 
     document_id: str
     text: str
     warnings: tuple[str, ...] = ()
+    page_spans: tuple[TextPageSpan, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -712,7 +734,7 @@ def _extract_pdf_text_with_pymupdf(document: DocumentRecord) -> ExtractedText | 
         fitz.TOOLS.mupdf_display_errors(False)
         fitz.TOOLS.mupdf_display_warnings(False)
         with fitz.open(document.path) as pdf:
-            text = "\n".join(page.get_text() for page in pdf)
+            page_texts = tuple(page.get_text() for page in pdf)
     except (fitz.FileDataError, RuntimeError, ValueError) as exc:
         return ExtractedText(
             document_id=document.document_id,
@@ -725,7 +747,17 @@ def _extract_pdf_text_with_pymupdf(document: DocumentRecord) -> ExtractedText | 
     finally:
         fitz.TOOLS.mupdf_display_errors(display_errors)
         fitz.TOOLS.mupdf_display_warnings(display_warnings)
-    return ExtractedText(document_id=document.document_id, text=text)
+    text = "\n".join(page_texts)
+    offset = 0
+    page_spans: list[TextPageSpan] = []
+    for page_number, page_text in enumerate(page_texts, start=1):
+        page_spans.append(TextPageSpan(page_number, offset, offset + len(page_text)))
+        offset += len(page_text) + 1
+    return ExtractedText(
+        document_id=document.document_id,
+        text=text,
+        page_spans=tuple(page_spans),
+    )
 
 
 def _has_sufficient_pdf_text(text: str) -> bool:

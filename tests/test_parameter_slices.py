@@ -7,7 +7,11 @@ from pathlib import Path
 
 from sanikey.documents import ExtractedText
 from sanikey.models import DocumentRecord
-from sanikey.parameter_slices import DiscoverySettings, discover_candidates
+from sanikey.parameter_slices import (
+    DiscoverySettings,
+    discover_candidates,
+    discover_configured_candidates,
+)
 
 
 def _document(
@@ -38,6 +42,34 @@ def _document(
         sha256=document_id * 8,
         date=document_date,
     )
+
+
+def test_configured_discovery_skips_unconfigured_numeric_lines() -> None:
+    """Verify configured extraction ignores a telephone-number suffix.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    result = discover_configured_candidates(
+        (_document("doc-a"),),
+        (
+            ExtractedText(
+                document_id="doc-a",
+                text="Telefono segreteria 02 12345627\nHb: 13.7 g/dL\n",
+            ),
+        ),
+        accepted_labels=("Hb", "emoglobina"),
+        settings=DiscoverySettings(),
+    )
+
+    assert [item.normalized_label for item in result.candidates] == ["hb"]
+    assert result.proposed_groups == ()
 
 
 def test_discovery_preserves_provenance_and_parses_supported_numbers() -> None:
@@ -79,6 +111,7 @@ def test_discovery_preserves_provenance_and_parses_supported_numbers() -> None:
     assert emoglobina.parsed_value == Decimal("13.7")
     assert emoglobina.raw_unit == "g/dL"
     assert emoglobina.document_href == "../documents/report.txt"
+    assert emoglobina.document_name == "doc-a.txt"
     assert emoglobina.line_number == 1
     assert emoglobina.character_start == 0
     assert emoglobina.original_line == "Emoglobina 13,7 g/dL"

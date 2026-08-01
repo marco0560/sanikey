@@ -36,6 +36,7 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     result = build_frontend(person)
 
     assert result.index.is_file()
+    assert result.extended_chart.is_file()
     assert result.script.is_file()
     assert result.stylesheet.is_file()
     assert result.helper.is_file()
@@ -52,6 +53,19 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert 'data-pane-target="right"' in result.index.read_text(encoding="utf-8")
     assert "data-therapy-control hidden" in result.index.read_text(encoding="utf-8")
     assert "data-dicom-control hidden" in result.index.read_text(encoding="utf-8")
+    assert 'data-section-button="parameters"' in result.index.read_text(
+        encoding="utf-8"
+    )
+    assert 'id="parameter-detail"' in result.index.read_text(encoding="utf-8")
+    assert (
+        'data-section-button="parameters" data-pane-target="right"'
+        not in result.index.read_text(encoding="utf-8")
+    )
+    for legacy_section in ("weight", "pressure", "glucose", "inr"):
+        assert f'data-section-button="{legacy_section}"' not in result.index.read_text(
+            encoding="utf-8"
+        )
+        assert f'id="{legacy_section}"' not in result.index.read_text(encoding="utf-8")
     assert "Aiuto ricerca base" in result.index.read_text(encoding="utf-8")
     assert "Ricerca avanzata" in result.index.read_text(encoding="utf-8")
     assert "search-mode-control" in result.index.read_text(encoding="utf-8")
@@ -59,6 +73,10 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert 'id="usb-info-button"' in result.index.read_text(encoding="utf-8")
     assert 'id="usb-info-dialog"' in result.index.read_text(encoding="utf-8")
     script = result.script.read_text(encoding="utf-8").lower()
+    extended_chart = result.extended_chart.read_text(encoding="utf-8").lower()
+    extended_script = (
+        (result.web_dir / "parameter-chart.js").read_text(encoding="utf-8").lower()
+    )
     helper = result.helper.read_text(encoding="utf-8").lower()
     material = result.material_script.read_text(encoding="utf-8").lower()
     index = result.index.read_text(encoding="utf-8").lower()
@@ -142,6 +160,24 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "supporto originale per verifica tecnica" in script
     assert "renderclinicaldashboard" in script
     assert "renderparametersection" in script
+    assert 'document.queryselector("#parameter-detail")' in script
+    assert "sanikeylayoutchange" in script
+    assert "function pointorigin(point)" in script
+    assert '"documento: " + filename' in script
+    assert '"origine: " + point.source_reference' in script
+    assert "point.normalized_unit || point.raw_unit || series.unit" in script
+    assert "afterlabel: (context) => pointorigin(context.raw.point)" in script
+    assert "function bloodpressuredatasets(items)" in script
+    assert 'label: "sistolica"' in script
+    assert 'label: "diastolica"' in script
+    assert 'label: "polso"' in script
+    assert "apri grafico esteso" in script
+    assert "parameter-chart.html?series=" in script
+    assert 'script src="parameter-chart.js"' in extended_chart
+    assert "function rendernumericcharts(target, entries)" in extended_script
+    assert "scales.y1" in extended_script
+    assert "function renderpressurechart(target, series, points)" in extended_script
+    assert "observation_section_by_id" not in script
     assert "parametersearchtext" in script
     assert "data-parameter-series" in script
     assert "data-parameter-point" in script
@@ -208,11 +244,11 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert '[data-pane-role="left"]' in desktop_css
     assert '[data-pane-role="right"]' in desktop_css
     assert 'body[data-layout="dual"] {' in desktop_css
-    assert "min-height: 200dvh" in desktop_css
-    assert "height: 200dvh" in desktop_css
+    assert "min-height: 800dvh" in desktop_css
+    assert "height: 800dvh" in desktop_css
+    assert "#parameters .parameter-layout" in desktop_css
     assert "max-width: none" in desktop_css
     assert "width: 90%" in desktop_css
-    assert "min-height: 0" in desktop_css
     mobile_css = stylesheet.split("@media (max-width: 44rem)", 1)[1].split(
         "@media print", 1
     )[0]

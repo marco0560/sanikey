@@ -1206,6 +1206,9 @@ def test_extract_text_reads_synthetic_pdf_with_pymupdf(tmp_path: Path) -> None:
 
     assert "Synthetic non-sensitive PDF text" in extracted.text
     assert extracted.warnings == ()
+    assert [
+        (item.page_number, item.character_start) for item in extracted.page_spans
+    ] == [(1, 0)]
     assert document_page_count(document) == 1
 
 

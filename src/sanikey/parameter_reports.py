@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -59,7 +60,35 @@ def write_parameter_reports(
     )
     if result is None:
         return candidates, None, None, None
-    extraction = reports / "parameter-extraction.json"
+    export, script = write_parameter_extraction_reports(build_root, result)
+    return candidates, None, export, script
+
+
+def write_parameter_extraction_reports(
+    build_root: Path,
+    result: ParameterBuildResult,
+) -> tuple[Path, Path]:
+    """Write only the reports and exports from configured parameter rules.
+
+    Parameters
+    ----------
+    build_root : pathlib.Path
+        Patient generated-artifact root.
+    result : sanikey.parameter_rules.ParameterBuildResult
+        Curated rule result to export.
+
+    Returns
+    -------
+    tuple[pathlib.Path, pathlib.Path, pathlib.Path]
+        JSON export and JavaScript export.
+    """
+
+    reports = build_root / "reports"
+    exports = build_root / "exports"
+    data = build_root / "web" / "data"
+    reports.mkdir(parents=True, exist_ok=True)
+    exports.mkdir(parents=True, exist_ok=True)
+    data.mkdir(parents=True, exist_ok=True)
     export = exports / "parameter-slices.json"
     script = data / "parameter-slices.js"
     payload = {
@@ -68,7 +97,6 @@ def write_parameter_reports(
         "points": result.points,
         "decisions": result.decisions,
     }
-    _write_json(extraction, {"schema_version": "1.0", "decisions": result.decisions})
     _write_json(export, payload)
     script.write_text(
         "window.SANIKEY_PARAMETER_SLICES = "
@@ -81,7 +109,131 @@ def write_parameter_reports(
         + ";\n",
         encoding="utf-8",
     )
-    return candidates, extraction, export, script
+    return export, script
+
+
+def write_parameter_rejections(
+    build_root: Path,
+    discovery: DiscoveryResult,
+    result: ParameterBuildResult,
+    extra: tuple[dict[str, object], ...] = (),
+) -> tuple[Path, Path]:
+    """Write local machine- and human-readable rejected-parameter diagnostics.
+
+    Parameters
+    ----------
+    build_root : pathlib.Path
+        Patient generated-artifact root.
+    discovery : sanikey.parameter_slices.DiscoveryResult
+        Candidates with document provenance.
+    result : sanikey.parameter_rules.ParameterBuildResult
+        Rule decisions to filter for rejected candidates.
+
+    Returns
+    -------
+    tuple[pathlib.Path, pathlib.Path]
+        JSON and tabular text reports, both local-only build artefacts.
+    """
+
+    reports = build_root / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    candidates = {item.stable_id: item for item in discovery.candidates}
+    rows: list[dict[str, object]] = [
+        {
+            "candidate_id": decision.candidate_id,
+            "parameter": decision.rule_id,
+            "document": candidate.document_name,
+            "line": candidate.line_number,
+            "page": candidate.page_number,
+            "page_label": candidate.page_label,
+            "context": candidate.context,
+            "value": candidate.raw_value,
+            "reason_code": decision.reason_code,
+        }
+        for decision in result.decisions
+        if (candidate := candidates.get(decision.candidate_id))
+    ]
+    rows.extend(
+        {
+            "page": None,
+            "page_label": "non disponibile",
+            "context": "",
+            **row,
+        }
+        for row in extra
+    )
+    accepted = [row for row in rows if str(row["reason_code"]).startswith("ACCEPTED_")]
+    rejected = [
+        row for row in rows if not str(row["reason_code"]).startswith("ACCEPTED_")
+    ]
+    accepted_json, accepted_text = _write_parameter_decision_report(
+        reports, "accepted", accepted
+    )
+    rejected_json, rejected_text = _write_parameter_decision_report(
+        reports, "rejected", rejected
+    )
+    return rejected_json, rejected_text
+
+
+def _write_parameter_decision_report(
+    reports: Path, status: str, rows: list[dict[str, object]]
+) -> tuple[Path, Path]:
+    """Write one machine- and human-readable parameter decision report.
+
+    Parameters
+    ----------
+    reports : pathlib.Path
+        Local reports directory.
+    status : str
+        Decision status, either ``accepted`` or ``rejected``.
+    rows : list[dict[str, object]]
+        Render-ready decision rows.
+
+    Returns
+    -------
+    tuple[pathlib.Path, pathlib.Path]
+        JSON and text report paths.
+    """
+
+    json_path = reports / f"parameter-{status}.json"
+    text_path = reports / f"parameter-{status}.txt"
+    _write_json(json_path, {"schema_version": "1.0", status: rows})
+    headings = (
+        "Parametro",
+        "Documento",
+        "Pagina",
+        "Riga",
+        "Valore",
+        "Contesto",
+        "Ragione",
+    )
+    values = [
+        headings,
+        *[
+            (
+                row["parameter"],
+                row["document"],
+                row["page_label"],
+                str(row["line"]),
+                row["value"],
+                row["context"],
+                row["reason_code"],
+            )
+            for row in rows
+        ],
+    ]
+    widths = [
+        max(len(str(row[index])) for row in values) for index in range(len(headings))
+    ]
+    text_path.write_text(
+        "\n".join(
+            " | ".join(str(cell).ljust(widths[index]) for index, cell in enumerate(row))
+            for row in values
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return json_path, text_path
 
 
 def _render_proposed_rules(groups: tuple[CandidateGroup, ...]) -> str:
@@ -101,6 +253,7 @@ def _render_proposed_rules(groups: tuple[CandidateGroup, ...]) -> str:
     lines = [
         "# Proposte determinate: revisionare prima di copiare in parameters.toml.",
         "# Nessuna regola qui generata e' abilitata automaticamente.",
+        f'generated_at = "{datetime.now().astimezone().isoformat(timespec="seconds")}"',
     ]
     for group in groups:
         candidates = group.candidates

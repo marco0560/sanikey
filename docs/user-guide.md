@@ -651,6 +651,17 @@ data/UID quando disponibili e numero di istanze. Gli studi senza viewer HTML
 sono segnalati come anomalie, mentre non viene mostrata la lista di ogni singola
 slice. Il riepilogo tecnico con conteggi e' in fondo alla sintesi clinica.
 
+Quando sono disponibili serie longitudinali, la sezione `Parametri` comprende
+parametri estratti dai documenti, peso e pressione, osservazioni curate e serie
+importate da fogli CSV o Excel. Sugli schermi larghi apre l'elenco delle serie
+nella scheda sinistra e, nella destra, grafico, punti e documenti della serie
+selezionata. Sugli schermi stretti mantiene la consultazione in una sola
+scheda. Il clic su un punto con documento sorgente apre direttamente l'originale.
+Il riquadro informativo dei punti indica sempre l'origine: nome del PDF per i
+punti estratti, oppure file e foglio CSV/Excel per quelli importati.
+Per una serie di pressione arteriosa, il grafico mostra sullo stesso asse le
+linee `Sistolica`, `Diastolica` e, quando presente, `Polso`.
+
 ### Personalizzare la Consultazione
 
 L'aspetto e il comportamento iniziale del frontend possono essere configurati in

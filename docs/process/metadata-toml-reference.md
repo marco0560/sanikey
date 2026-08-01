@@ -412,11 +412,18 @@ pattern = '^(?P<systolic>\d+)/(?P<diastolic>\d+)\s+(?P<pulse>\d+)$'
 
 ## `parameters.toml`
 
-Definisce la discovery deterministica e le regole curate per ricavare serie
-longitudinali dal testo già estratto. È opzionale: se assente, `build-patient`
-non ricava parametri. Le proposte prodotte in
-`reports/parameter-rules.proposed.toml` restano sempre disabilitate e vanno
-revisionate prima di essere copiate qui.
+`config/parameters.toml` definisce le regole curate comuni per ricavare serie
+longitudinali dal testo già estratto ed è obbligatorio quando sono usati i
+parametri. `<patient>/metadata/parameters.toml` è opzionale: aggiunge regole
+specifiche o sostituisce integralmente una regola comune con lo stesso ID. La
+sezione `[discovery]` locale, se presente, sostituisce integralmente quella
+comune. Le build cercano solo i termini e gli alias della configurazione
+effettiva. La proposta di nuove
+etichette si esegue esplicitamente con `discover-parameters`: il file locale
+`reports/parameter-rules.proposed.toml`, datato in ora locale con fuso orario,
+resta sempre disabilitato e va revisionato prima di essere copiato qui.
+Ogni build produce anche `reports/parameter-accepted.{json,txt}` e
+`reports/parameter-rejected.{json,txt}`; non è richiesto alcun flag di debug.
 
 ```toml
 [discovery]

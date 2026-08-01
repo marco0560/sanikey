@@ -180,6 +180,12 @@ name = "Peso"
 value_type = "numeric"
 unit = "kg"
 synonyms = ["massa corporea"]
+
+[[series]]
+id = "pressione"
+name = "Pressione arteriosa"
+value_type = "blood_pressure"
+unit = "mmHg"
 """,
         encoding="utf-8",
     )
@@ -191,6 +197,19 @@ observation_date = "2026-01-02"
 source_type = "csv"
 source_reference = "peso.csv:2"
 numeric_value = 70.5
+""",
+        encoding="utf-8",
+    )
+    (observations / "pressione.toml").write_text(
+        """[[point]]
+id = "pressione-2026-01-02"
+series_id = "pressione"
+observation_date = "2026-01-02"
+source_type = "csv"
+source_reference = "pressione.csv:2"
+systolic = 120
+diastolic = 80
+pulse = 60
 """,
         encoding="utf-8",
     )
@@ -209,11 +228,27 @@ numeric_value = 70.5
     payload = json.loads(
         script.removeprefix("window.SANIKEY_DATA = ").removesuffix(";\n")
     )
-    series = payload["clinical"]["observation_series"][0]
+    series = next(
+        item
+        for item in payload["clinical"]["observation_series"]
+        if item["id"] == "peso"
+    )
     assert series["synonyms"] == ["massa corporea"]
     assert series["text"] == "Peso massa corporea numeric kg"
-    point_payload = payload["clinical"]["observation_points"][0]
+    point_payload = next(
+        item
+        for item in payload["clinical"]["observation_points"]
+        if item["series_id"] == "peso"
+    )
     assert point_payload["numeric_value"] == 70.5
+    pressure_payload = next(
+        item
+        for item in payload["clinical"]["observation_points"]
+        if item["series_id"] == "pressione"
+    )
+    assert pressure_payload["systolic"] == 120
+    assert pressure_payload["diastolic"] == 80
+    assert pressure_payload["pulse"] == 60
 
 
 def test_generate_exports_writes_advanced_search_dictionary_and_warning(

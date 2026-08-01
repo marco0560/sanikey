@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
@@ -101,6 +101,8 @@ class ParameterCandidate:
         Relative link to the exported original document.
     document_title : str
         Source document title.
+    document_name : str
+        Full source filename, including its extension.
     document_category : str
         Source document category.
     source_text_digest : str
@@ -131,6 +133,12 @@ class ParameterCandidate:
         Text after the recognized sequence on the same line.
     reason_code : str | None
         Parse rejection reason, when the numeric token is not usable.
+    page_number : int | None
+        One-based source PDF page when the extraction provides a reliable map.
+    context : str
+        Candidate line with one preceding and one following extracted line.
+    page_label : str
+        Human-readable page status for paginated and non-paginated sources.
     """
 
     stable_id: str
@@ -138,6 +146,7 @@ class ParameterCandidate:
     document_date: str | None
     document_href: str | None
     document_title: str
+    document_name: str
     document_category: str
     source_text_digest: str
     line_number: int
@@ -153,6 +162,10 @@ class ParameterCandidate:
     prefix_context: str
     suffix_context: str
     reason_code: str | None = None
+    page_number: int | None = None
+    context: str = ""
+    page_label: str = "non applicabile"
+    section_specimen: str | None = None
 
 
 @dataclass(frozen=True)
@@ -253,6 +266,7 @@ def discover_candidates(
     *,
     document_hrefs: Mapping[str, str] | None = None,
     settings: DiscoverySettings = DiscoverySettings(),
+    accepted_labels: frozenset[str] | None = None,
 ) -> DiscoveryResult:
     """Discover deterministic parameter candidates from existing extracted text.
 
@@ -266,6 +280,9 @@ def discover_candidates(
         Optional relative links keyed by document id.
     settings : DiscoverySettings, optional
         Candidate and proposal thresholds.
+    accepted_labels : frozenset[str] | None, optional
+        Normalized labels allowed to enter the result. ``None`` retains generic
+        discovery for proposing new parameters.
 
     Returns
     -------
@@ -327,8 +344,29 @@ def discover_candidates(
                     line_offsets,
                     settings,
                 )
-            if candidate is not None:
-                candidates.append(candidate)
+            if candidate is not None and (
+                accepted_labels is None or candidate.normalized_label in accepted_labels
+            ):
+                page_number = _page_number(
+                    extracted.page_spans, candidate.character_start
+                )
+                candidates.append(
+                    replace(
+                        candidate,
+                        page_number=page_number,
+                        context=_line_context(lines, candidate.line_number - 1),
+                        page_label=(
+                            str(page_number)
+                            if page_number is not None
+                            else "non disponibile"
+                            if document.path.suffix.casefold() == ".pdf"
+                            else "non applicabile"
+                        ),
+                        section_specimen=_section_specimen(
+                            lines, candidate.line_number - 1
+                        ),
+                    )
+                )
     ordered_candidates = tuple(
         sorted(
             candidates,
@@ -346,6 +384,51 @@ def discover_candidates(
         candidates=ordered_candidates,
         proposed_groups=groups,
         analyzed_lines=analyzed_lines,
+    )
+
+
+def discover_configured_candidates(
+    documents: tuple[DocumentRecord, ...],
+    extracted_text: tuple[ExtractedText, ...],
+    *,
+    accepted_labels: tuple[str, ...],
+    document_hrefs: Mapping[str, str] | None = None,
+    settings: DiscoverySettings = DiscoverySettings(),
+) -> DiscoveryResult:
+    """Discover candidates whose labels match configured terms or aliases.
+
+    Parameters
+    ----------
+    documents : tuple[sanikey.models.DocumentRecord, ...]
+        Documents associated with the extracted text.
+    extracted_text : tuple[sanikey.documents.ExtractedText, ...]
+        Text records already produced by the normal extraction pipeline.
+    accepted_labels : tuple[str, ...]
+        Curator-configured terms and aliases accepted before numeric evaluation.
+    document_hrefs : collections.abc.Mapping[str, str] | None, optional
+        Optional relative links keyed by document id.
+    settings : DiscoverySettings, optional
+        Candidate safeguards retained for compatible table parsing.
+
+    Returns
+    -------
+    DiscoveryResult
+        Candidates limited to known labels; proposal groups are intentionally
+        empty because proposing new labels belongs to ``discover-parameters``.
+    """
+
+    known_labels = frozenset(normalize_label(item) for item in accepted_labels)
+    discovery = discover_candidates(
+        documents,
+        extracted_text,
+        document_hrefs=document_hrefs,
+        settings=settings,
+        accepted_labels=known_labels,
+    )
+    return DiscoveryResult(
+        candidates=discovery.candidates,
+        proposed_groups=(),
+        analyzed_lines=discovery.analyzed_lines,
     )
 
 
@@ -367,6 +450,76 @@ def normalize_label(value: str) -> str:
     normalized = _TRAILING_SEPARATOR_RE.sub("", normalized)
     normalized = _SPACE_RE.sub(" ", normalized.strip())
     return normalized.casefold()
+
+
+def _page_number(page_spans: tuple[object, ...], character_offset: int) -> int | None:
+    """Return the PDF page containing an extracted-text character offset.
+
+    Parameters
+    ----------
+    page_spans : tuple[object, ...]
+        Page spans exposed by the extraction result.
+    character_offset : int
+        Zero-based candidate offset in the extracted text.
+
+    Returns
+    -------
+    int | None
+        One-based page number, or ``None`` when the source is not paginated.
+    """
+
+    for span in page_spans:
+        start = getattr(span, "character_start", -1)
+        end = getattr(span, "character_end", -1)
+        if start <= character_offset < end:
+            return getattr(span, "page_number", None)
+    return None
+
+
+def _line_context(lines: list[str], index: int) -> str:
+    """Render one source line with its immediate textual neighbours.
+
+    Parameters
+    ----------
+    lines : list[str]
+        All lines from one extracted document.
+    index : int
+        Zero-based candidate line index.
+
+    Returns
+    -------
+    str
+        Non-empty neighbouring lines joined with a visible separator.
+    """
+
+    return " ⟪ ".join(
+        item.strip() for item in lines[max(0, index - 1) : index + 2] if item.strip()
+    )
+
+
+def _section_specimen(lines: list[str], index: int) -> str | None:
+    """Return the nearest preceding explicit urine or serum section.
+
+    Parameters
+    ----------
+    lines : list[str]
+        Extracted source lines.
+    index : int
+        Zero-based candidate line index.
+
+    Returns
+    -------
+    str | None
+        ``"urine"``, ``"serum"``, or ``None`` when no section is explicit.
+    """
+
+    for line in reversed(lines[: index + 1]):
+        normalized = normalize_label(line)
+        if normalized.startswith("u-esame") or "esame urine" in normalized:
+            return "urine"
+        if normalized.startswith("s-esame") or "esami ematici" in normalized:
+            return "serum"
+    return None
 
 
 def _candidate_from_line(
@@ -426,6 +579,7 @@ def _candidate_from_line(
         document_date=source.document.date,
         document_href=source.document_href,
         document_title=source.document.title,
+        document_name=source.document.path.name,
         document_category=source.document.category,
         source_text_digest=source.text_digest,
         line_number=line_number,
@@ -521,6 +675,7 @@ def _candidate_from_stacked_cells(
         document_date=source.document.date,
         document_href=source.document_href,
         document_title=source.document.title,
+        document_name=source.document.path.name,
         document_category=source.document.category,
         source_text_digest=source.text_digest,
         line_number=line_number,
@@ -618,6 +773,7 @@ def _candidate_from_unit_reference_value_cells(
         document_date=source.document.date,
         document_href=source.document_href,
         document_title=source.document.title,
+        document_name=source.document.path.name,
         document_category=source.document.category,
         source_text_digest=source.text_digest,
         line_number=label_index + 1,
@@ -728,6 +884,7 @@ def _candidate_from_described_value_cells(
                 document_date=source.document.date,
                 document_href=source.document_href,
                 document_title=source.document.title,
+                document_name=source.document.path.name,
                 document_category=source.document.category,
                 source_text_digest=source.text_digest,
                 line_number=label_index + 1,

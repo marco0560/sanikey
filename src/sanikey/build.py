@@ -6,11 +6,12 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from .database import build_database
 from .dicom import generate_dicom_previews, prepare_dicom_media
-from .documents import ExtractedText, extract_text
+from .documents import ExtractedText, TextPageSpan, extract_text
 from .errors import ConfigError
 from .exports import generate_exports
 from .frontend import build_frontend
@@ -22,14 +23,18 @@ from .inspection import (
 from .leaflets import LeafletDownloadResult, download_confirmed_leaflets
 from .metadata import load_curated_metadata
 from .observation_imports import ensure_observation_imports_current
-from .parameter_reports import write_parameter_reports
+from .parameter_reports import (
+    write_parameter_extraction_reports,
+    write_parameter_rejections,
+)
 from .parameter_rules import (
     build_parameter_slices,
-    load_parameter_rules,
+    load_patient_parameter_rules,
     merge_parameter_observations,
 )
-from .parameter_slices import discover_candidates
+from .parameter_slices import discover_configured_candidates
 from .rendering import prepare_consultation_documents
+from .vital_signs import extract_vital_signs, merge_vital_signs
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -146,6 +151,7 @@ def build_patient(
     *,
     mode: str = "incremental",
     force_pdf_ocr: bool = False,
+    parameter_debug: bool = False,
     progress: ProgressReporter | None = None,
 ) -> PatientBuildResult:
     """Build generated artefacts for one patient.
@@ -159,6 +165,8 @@ def build_patient(
     force_pdf_ocr : bool, optional
         Whether scanned PDFs with sufficient text should be reprocessed with
         OCRmyPDF.
+    parameter_debug : bool, optional
+        Whether rejected parameter diagnostics should be written locally.
     progress : ProgressReporter | None, optional
         Progress reporter for long build steps.
 
@@ -211,14 +219,26 @@ def build_patient(
     )
     extracted = extracted_result.items
     parameters_path = person.metadata_directory / "parameters.toml"
-    if parameters_path.exists():
-        parameter_rules = load_parameter_rules(
+    common_parameters_path = (
+        person.search.dictionary.parent / "parameters.toml"
+        if person.search.dictionary is not None
+        else parameters_path.parent / "parameters.common.toml"
+    )
+    if parameters_path.exists() or common_parameters_path.exists():
+        parameter_rules = load_patient_parameter_rules(
+            common_parameters_path,
             parameters_path,
             person.search.dictionary_data,
         )
-        parameter_discovery = discover_candidates(
+        parameter_discovery = discover_configured_candidates(
             documents,
             extracted,
+            accepted_labels=tuple(
+                synonym
+                for rule in parameter_rules.rules
+                if rule.enabled
+                for synonym in rule.synonyms
+            ),
             document_hrefs=_parameter_document_hrefs(person, documents),
             settings=parameter_rules.discovery,
         )
@@ -227,11 +247,20 @@ def build_patient(
             parameter_rules,
         )
         metadata = merge_parameter_observations(metadata, parameter_result)
-        write_parameter_reports(
+        write_parameter_extraction_reports(person.local_build, parameter_result)
+    vital_signs = extract_vital_signs(
+        documents,
+        extracted,
+        document_hrefs=_parameter_document_hrefs(person, documents),
+    )
+    if parameters_path.exists() or common_parameters_path.exists():
+        write_parameter_rejections(
             person.local_build,
             parameter_discovery,
             parameter_result,
+            vital_signs.rejections,
         )
+    metadata = merge_vital_signs(metadata, vital_signs)
     render_result = prepare_consultation_documents(person, documents)
     inspection_warnings = tuple(
         warning
@@ -390,6 +419,7 @@ def build_all(
     *,
     mode: str = "incremental",
     force_pdf_ocr: bool = False,
+    parameter_debug: bool = False,
     progress: ProgressReporter | None = None,
 ) -> tuple[PatientBuildResult, ...]:
     """Build all enabled patients.
@@ -403,6 +433,8 @@ def build_all(
     force_pdf_ocr : bool, optional
         Whether scanned PDFs with sufficient text should be reprocessed with
         OCRmyPDF.
+    parameter_debug : bool, optional
+        Whether rejected parameter diagnostics should be written locally.
     progress : ProgressReporter | None, optional
         Progress reporter for long build steps.
 
@@ -417,6 +449,7 @@ def build_all(
             person,
             mode=mode,
             force_pdf_ocr=force_pdf_ocr,
+            parameter_debug=parameter_debug,
             progress=progress,
         )
         for person in config.enabled_people()
@@ -669,14 +702,36 @@ def _cached_extracted_text(
         return None
     text = entry.get("text")
     warnings = entry.get("warnings")
+    page_spans = entry.get("page_spans")
     if not isinstance(text, str) or not isinstance(warnings, list):
         return None
     if not all(isinstance(warning, str) for warning in warnings):
         return None
+    if page_spans is None:
+        if document.path.suffix.casefold() == ".pdf":
+            return None
+        page_spans = []
+    if not isinstance(page_spans, list):
+        return None
+    spans: list[TextPageSpan] = []
+    for item in page_spans:
+        if not isinstance(item, dict):
+            return None
+        page_number = item.get("page_number")
+        character_start = item.get("character_start")
+        character_end = item.get("character_end")
+        if (
+            not isinstance(page_number, int)
+            or not isinstance(character_start, int)
+            or not isinstance(character_end, int)
+        ):
+            return None
+        spans.append(TextPageSpan(page_number, character_start, character_end))
     return ExtractedText(
         document_id=document.document_id,
         text=text,
         warnings=tuple(warnings),
+        page_spans=tuple(spans),
     )
 
 
@@ -703,6 +758,14 @@ def _extraction_cache_entry(
         **_document_cache_identity(document),
         "text": extracted.text,
         "warnings": list(extracted.warnings),
+        "page_spans": [
+            {
+                "page_number": item.page_number,
+                "character_start": item.character_start,
+                "character_end": item.character_end,
+            }
+            for item in extracted.page_spans
+        ],
     }
 
 
