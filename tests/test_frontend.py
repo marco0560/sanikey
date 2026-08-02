@@ -210,6 +210,15 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert ".header-branding" in stylesheet
     assert ".header-branding {\n  align-items: baseline;" in stylesheet
     assert "transform: translatey(-1.35rem);" in stylesheet
+    assert "@media (max-width: 64rem)" in stylesheet
+    assert (
+        "grid-template-columns: minmax(15rem, 0.85fr) minmax(19rem, 1.15fr);"
+        in stylesheet
+    )
+    assert "width: 8.5rem;" in stylesheet
+    assert "transform: translatey(-1.1rem);" in stylesheet
+    assert "width: 7.5rem;" in stylesheet
+    assert "transform: none;" in stylesheet
     assert ".footer-repository" in stylesheet
     assert ".footer-logo" in stylesheet
     assert ".dialog-close" in stylesheet

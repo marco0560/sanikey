@@ -2391,6 +2391,38 @@ body[data-density="compact"] md-text-button {
   }
 }
 
+@media (max-width: 64rem) {
+  header {
+    gap: 0.75rem;
+    grid-template-columns: minmax(15rem, 0.85fr) minmax(19rem, 1.15fr);
+    padding: 0.75rem;
+  }
+
+  .header-primary {
+    gap: 0.5rem;
+  }
+
+  h1 {
+    font-size: 1.35rem;
+  }
+
+  .header-logo {
+    width: 8.5rem;
+  }
+
+  .header-branding {
+    gap: 0.5rem;
+  }
+
+  .header-branding p {
+    transform: translateY(-1.1rem);
+  }
+
+  .header-actions {
+    gap: 0.3rem;
+  }
+}
+
 @media (max-width: 44rem) {
   .parameter-layout {
     grid-template-columns: 1fr;
@@ -2399,6 +2431,19 @@ body[data-density="compact"] md-text-button {
   header {
     align-items: stretch;
     grid-template-columns: 1fr;
+    padding: 0.65rem;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+  }
+
+  .header-logo {
+    width: 7.5rem;
+  }
+
+  .header-branding p {
+    transform: none;
   }
 
   .search-toolbar,
