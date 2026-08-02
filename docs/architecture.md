@@ -78,8 +78,6 @@ struttura USB.
 - `usb.py`: esporta e valida la struttura USB.
   Controlla anche link frontend relativi, UUID/fstype/spazio dei target fisici
   configurati e copia con `rsync` quando disponibile.
-- `proposals.py`: scaffold sperimentale per proposte non autorevoli; non
-  analizza documenti e non promuove metadati curati.
 - `cli.py`: espone l'interfaccia a riga di comando.
 
 ## Modello di Paziente Configurato

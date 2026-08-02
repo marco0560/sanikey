@@ -909,14 +909,6 @@ def test_direct_content_runners_cover_success_paths(
 
     monkeypatch.setattr(
         cli,
-        "generate_manual_proposals",
-        lambda _path: (SimpleNamespace(id="p1"),),
-    )
-    assert cli.run_generate_proposals(args) == 0
-    assert "proposte=1" in capsys.readouterr().out
-
-    monkeypatch.setattr(
-        cli,
         "generate_exports",
         lambda *_args: SimpleNamespace(data_dir=tmp_path / "data"),
     )
@@ -1055,36 +1047,6 @@ def test_direct_runner_error_branches_and_update_archive(
                 patient="missing",
                 mode="incremental",
                 no_progress=True,
-            )
-        )
-        == 1
-    )
-    assert "paziente non trovato" in capsys.readouterr().out
-
-    monkeypatch.setattr(
-        cli,
-        "review_proposal",
-        lambda *_args: SimpleNamespace(id="proposal-1", status="approved"),
-    )
-    assert (
-        cli.run_review_proposal(
-            argparse.Namespace(
-                config=tmp_path / "accounts.toml",
-                patient="patient-a",
-                proposal_id="proposal-1",
-                status="approved",
-            )
-        )
-        == 0
-    )
-    assert "proposta=proposal-1 stato=approved" in capsys.readouterr().out
-    assert (
-        cli.run_review_proposal(
-            argparse.Namespace(
-                config=tmp_path / "accounts.toml",
-                patient="missing",
-                proposal_id="proposal-1",
-                status="approved",
             )
         )
         == 1
@@ -2907,53 +2869,6 @@ usb_uuid = "1A2B-3C4D"
     assert "Traceback" not in result.stderr
 
 
-def test_generate_proposals_subcommand_runs(tmp_path: Path) -> None:
-    """Verify generate-proposals writes proposal storage.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Temporary directory provided by pytest.
-
-    Returns
-    -------
-    None
-    """
-
-    metadata = tmp_path / "metadata"
-    config_path = tmp_path / "accounts.toml"
-    config_path.write_text(
-        f"""
-[global]
-config_version = 1
-
-[[person]]
-id = "patient-a"
-display_name = "Patient A"
-source_documents = "{tmp_path / "source"}"
-metadata_directory = "{metadata}"
-local_build = "{tmp_path / "generated"}"
-usb_uuid = "1A2B-3C4D"
-""",
-        encoding="utf-8",
-    )
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            MODULE,
-            "generate-proposals",
-            str(config_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    assert "proposte=1" in result.stdout
-    assert (metadata / "proposed" / "proposals.toml").is_file()
-
-
 def test_generate_exports_subcommand_runs(tmp_path: Path) -> None:
     """Verify generate-exports writes frontend JSON data.
 
@@ -3171,49 +3086,6 @@ usb_uuid = "1A2B-3C4D"
     assert "usb=" in result.stdout
     assert result.stderr == ""
     assert (target / "index.html").is_file()
-
-
-def test_list_patients_wrapper_script_runs(tmp_path: Path) -> None:
-    """Verify compatibility scripts delegate to the package CLI.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Temporary directory provided by pytest.
-
-    Returns
-    -------
-    None
-    """
-
-    config_path = tmp_path / "accounts.toml"
-    config_path.write_text(
-        f"""
-[global]
-config_version = 1
-
-[[person]]
-id = "patient-a"
-display_name = "Patient A"
-source_documents = "{tmp_path / "source"}"
-metadata_directory = "{tmp_path / "metadata"}"
-local_build = "{tmp_path / "generated"}"
-usb_uuid = "1A2B-3C4D"
-""",
-        encoding="utf-8",
-    )
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/list_patients.py",
-            str(config_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    assert "patient-a" in result.stdout
 
 
 def test_resolve_medication_leaflets_preserves_verified_reference(

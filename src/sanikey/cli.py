@@ -53,7 +53,6 @@ from .parameter_rules import (
 from .parameter_slices import discover_candidates, discover_configured_candidates
 from .privacy import validate_privacy
 from .progress import ProgressDots
-from .proposals import generate_manual_proposals, review_proposal
 from .usb import export_usb, validate_usb
 
 if TYPE_CHECKING:
@@ -373,26 +372,6 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(update_parser)
     update_parser.add_argument("-p", "--patient", help="Aggiorna solo un id paziente")
     update_parser.set_defaults(func=run_update_archive)
-
-    proposals_parser = subparsers.add_parser(
-        "generate-proposals",
-        help="Sperimentale: genera un segnaposto per revisione manuale",
-        description="Sperimentale: genera un segnaposto non operativo per revisione.",
-    )
-    _add_config_arguments(proposals_parser)
-    proposals_parser.add_argument("-p", "--patient", help="Elabora solo un id paziente")
-    proposals_parser.set_defaults(func=run_generate_proposals)
-
-    review_parser = subparsers.add_parser(
-        "review-proposal",
-        help="Sperimentale: cambia lo stato di una proposta salvata",
-        description="Sperimentale: cambia lo stato senza promuovere metadati curati.",
-    )
-    _add_config_arguments(review_parser, allow_config_flag=True)
-    review_parser.add_argument("patient")
-    review_parser.add_argument("proposal_id")
-    review_parser.add_argument("status", choices=("approved", "rejected"))
-    review_parser.set_defaults(func=run_review_proposal)
 
     leaflet_parser = subparsers.add_parser(
         "resolve-medication-leaflets",
@@ -1730,63 +1709,6 @@ def run_update_archive(args: argparse.Namespace) -> int:
     args.mode = "incremental"
     args.patient = str(args.patient)
     return run_build_patient(args)
-
-
-def run_generate_proposals(args: argparse.Namespace) -> int:
-    """Generate deterministic manual-review proposals.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Parsed command arguments.
-
-    Returns
-    -------
-    int
-        Process exit status.
-    """
-
-    try:
-        config = load_accounts(_config_path(args))
-        for person in _selected_people(config, args.patient):
-            proposals = generate_manual_proposals(person.metadata_directory)
-            print(f"paziente={person.id} proposte={len(proposals)}")
-    except SaniKeyError as exc:
-        print(f"ERRORE: {exc}")
-        return 1
-    return 0
-
-
-def run_review_proposal(args: argparse.Namespace) -> int:
-    """Approve or reject one stored proposal.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Parsed command arguments.
-
-    Returns
-    -------
-    int
-        Process exit status.
-    """
-
-    try:
-        config = load_accounts(_config_path(args))
-        selected = _selected_people(config, args.patient)
-        if not selected:
-            print(f"ERRORE: paziente non trovato o disabilitato: {args.patient}")
-            return 1
-        updated = review_proposal(
-            selected[0].metadata_directory,
-            args.proposal_id,
-            args.status,
-        )
-        print(f"proposta={updated.id} stato={updated.status}")
-    except SaniKeyError as exc:
-        print(f"ERRORE: {exc}")
-        return 1
-    return 0
 
 
 def run_resolve_medication_leaflets(  # noqa: C901, PLR0912

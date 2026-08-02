@@ -33,13 +33,6 @@ prototipi e limiti da conoscere prima di una consegna. Il percorso consigliato
   tabelle generiche, range, coppie pressione, etichette su righe diverse o
   date interne ai documenti.
 
-## Non usare nel flusso di consegna
-
-`generate-proposals` e `review-proposal` sono uno scaffold sperimentale:
-producono e cambiano lo stato di segnaposto, non analizzano documenti e non
-aggiornano metadati clinici. Non sono una funzione di assistenza clinica e non
-vanno usati per preparare una chiavetta destinata alla consultazione.
-
 FHIR e HL7, integrazioni online e un viewer DICOM generale sono direzioni
 future documentate nelle specifiche e nelle ADR; non sono promesse di questa
 release.

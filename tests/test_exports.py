@@ -10,7 +10,6 @@ from sanikey.dicom import DicomStudy
 from sanikey.documents import ExtractedText, scan_documents
 from sanikey.exports import generate_exports
 from sanikey.metadata import load_curated_metadata
-from sanikey.proposals import generate_manual_proposals
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -370,41 +369,6 @@ def test_generate_exports_writes_dicom_html_viewer_payload(
             "study_id": "study-a",
         }
     ]
-
-
-def test_generate_exports_excludes_unapproved_proposals(tmp_path: Path) -> None:
-    """Verify standard exports ignore non-authoritative proposals.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Temporary directory provided by pytest.
-
-    Returns
-    -------
-    None
-    """
-
-    person = _person(tmp_path)
-    person.source_documents.mkdir(parents=True)
-    (person.source_documents / "20260102 Report.txt").write_text(
-        "synthetic",
-        encoding="utf-8",
-    )
-    generate_manual_proposals(person.metadata_directory)
-
-    result = generate_exports(
-        person,
-        scan_documents(person),
-        load_curated_metadata(person.metadata_directory),
-    )
-
-    exported_text = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in (result.documents, result.search, result.timeline, result.summary)
-    )
-    assert "Manual review placeholder" not in exported_text
-    assert "manual-test-provider" not in exported_text
 
 
 def test_generate_exports_indexes_curated_metadata_and_therapy_intervals(

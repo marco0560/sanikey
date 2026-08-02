@@ -30,8 +30,6 @@ not_in_nav: |
   /decisions/adr-advanced-offline-search.md
   /decisions/adr-consultation-artifact-visibility.md
   /decisions/adr-consultation-host-compatibility.md
-  /decisions/adr-cornerstone3d-offline-spike.md
-  /decisions/adr-dwv-offline-spike.md
   /decisions/adr-explicit-ingestion-patterns.md
   /decisions/adr-federated-clinical-search-ui.md
   /decisions/adr-frontend-consultation-ui.md
@@ -43,6 +41,7 @@ not_in_nav: |
   /decisions/adr-usb-consultation-hardening.md
   /decisions/adr-usb-uuid-global-default.md
   /process/dicom-treatment.md
+  /process/repository-cleanup-2026-08-02.md
 
 nav:
   - Pagina iniziale: index.md
@@ -62,15 +61,9 @@ nav:
       - Architettura: architecture.md
       - Script: scripts.md
       - Contribuire: CONTRIBUTING.md
-      - Implementazione iniziale: process/initial-implementation.md
-      - Piano SaniKey Desktop: process/sanikey-desktop-implementation-plan.md
-      - Piano slice longitudinali: process/longitudinal-clinical-parameter-slices-implementation-plan.md
-      - Stato dei test: process/stato-dei-test.md
       - Verifica end-to-end con dati reali: process/end-to-end-real-data-verification.md
       - Riferimento metadati TOML: process/metadata-toml-reference.md
   - Riferimento tecnico:
-      - Specifica alto livello: sanikey-high-level-spec.md
-      - Specifica dettagliata: sanikey-detailed-spec.md
       - Decisioni iniziali: decisions/decisioni-iniziali.md
       - Indice decisioni: decisions/index.md
   - Rilascio:
