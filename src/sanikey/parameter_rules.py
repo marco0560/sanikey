@@ -366,7 +366,7 @@ def merge_parameter_observations(
     metadata: CuratedMetadata,
     result: ParameterBuildResult,
 ) -> CuratedMetadata:
-    """Append compatible derived observations without overwriting curated data.
+    """Integrate compatible derived parameters into imported named series.
 
     Parameters
     ----------
@@ -383,24 +383,124 @@ def merge_parameter_observations(
     Raises
     ------
     ConfigError
-        If a series id conflicts with incompatible curated fields.
+        If a series id conflicts with incompatible curated fields or a
+        same-name integration has more than one compatible target.
     """
 
     existing = {item.id: item for item in metadata.observation_series}
     additions: list[ObservationSeries] = []
+    replacements: dict[str, str] = {}
     for series in result.series:
         old = existing.get(series.id)
         if old is None:
-            additions.append(series)
-        elif old.value_type != series.value_type or old.unit != series.unit:
+            targets = _same_name_series(metadata.observation_series, series)
+            if len(targets) == 1:
+                replacements[series.id] = targets[0].id
+            elif len(targets) > 1:
+                raise ConfigError(
+                    f"serie osservazioni ambigua per parametro: {series.name}"
+                )
+            else:
+                additions.append(series)
+        elif not _series_compatible(old, series):
             raise ConfigError(
                 f"serie osservazioni incompatibile per parametro: {series.id}"
             )
     return replace(
         metadata,
         observation_series=tuple((*metadata.observation_series, *additions)),
-        observation_points=tuple((*metadata.observation_points, *result.points)),
+        observation_points=tuple(
+            (
+                *metadata.observation_points,
+                *(
+                    replace(
+                        point,
+                        series_id=replacements.get(point.series_id, point.series_id),
+                    )
+                    for point in result.points
+                ),
+            )
+        ),
     )
+
+
+def _same_name_series(
+    existing: tuple[ObservationSeries, ...],
+    derived: ObservationSeries,
+) -> tuple[ObservationSeries, ...]:
+    """Return existing series compatible with a derived series name.
+
+    Parameters
+    ----------
+    existing : tuple[sanikey.models.ObservationSeries, ...]
+        Existing imported or curated observation series.
+    derived : sanikey.models.ObservationSeries
+        Derived parameter series seeking an integration target.
+
+    Returns
+    -------
+    tuple[sanikey.models.ObservationSeries, ...]
+        Compatible existing series with the same normalized display name.
+    """
+
+    normalized_name = normalize_label(derived.name)
+    return tuple(
+        item
+        for item in existing
+        if normalize_label(item.name) == normalized_name
+        and _series_compatible(item, derived)
+    )
+
+
+def _series_compatible(
+    left: ObservationSeries,
+    right: ObservationSeries,
+) -> bool:
+    """Check whether two observation series can share one point collection.
+
+    Parameters
+    ----------
+    left : sanikey.models.ObservationSeries
+        First series.
+    right : sanikey.models.ObservationSeries
+        Second series.
+
+    Returns
+    -------
+    bool
+        Whether value type and normalized units are compatible.
+
+    Notes
+    -----
+    Derived points are already converted by their parameter rule before this
+    comparison.  This function therefore accepts typography-only unit variants
+    but does not infer a clinical conversion.
+    """
+
+    return left.value_type == right.value_type and _units_compatible(
+        left.unit, right.unit
+    )
+
+
+def _units_compatible(left: str | None, right: str | None) -> bool:
+    """Compare optional measurement units without case sensitivity.
+
+    Parameters
+    ----------
+    left : str | None
+        First optional unit.
+    right : str | None
+        Second optional unit.
+
+    Returns
+    -------
+    bool
+        Whether both units are absent or have the same normalized key.
+    """
+
+    if left is None or right is None:
+        return left is right
+    return _unit_key(left) == _unit_key(right)
 
 
 def _discovery(value: Any, path: Path) -> DiscoverySettings:
@@ -688,18 +788,21 @@ def _value_and_unit(
         if rule.unit_policy == "required":
             return None, candidate.parsed_value, "REJECTED_MISSING_UNIT"
         return rule.assumed_unit, candidate.parsed_value, None
-    if rule.units and unit not in rule.units:
+    configured_units = {_unit_key(item): item for item in rule.units}
+    configured_unit = configured_units.get(_unit_key(unit))
+    if rule.units and configured_unit is None:
         return None, candidate.parsed_value, "REJECTED_UNKNOWN_UNIT"
     for conversion in rule.conversions:
-        if unit == conversion.from_unit:
+        if _unit_key(unit) == _unit_key(conversion.from_unit):
             return (
                 conversion.to_unit,
                 candidate.parsed_value * conversion.multiplier + conversion.offset,
                 None,
             )
-    if rule.canonical_unit and unit != rule.canonical_unit:
+    output_unit = configured_unit or unit
+    if rule.canonical_unit and _unit_key(output_unit) != _unit_key(rule.canonical_unit):
         return None, candidate.parsed_value, "REJECTED_UNKNOWN_UNIT"
-    return unit, candidate.parsed_value, None
+    return output_unit, candidate.parsed_value, None
 
 
 def _point(
@@ -1089,6 +1192,23 @@ def _unit(value: str) -> str:
     """
 
     return " ".join(unicodedata.normalize("NFKC", value).split())
+
+
+def _unit_key(value: str) -> str:
+    """Build a case-insensitive comparison key for a measurement unit.
+
+    Parameters
+    ----------
+    value : str
+        Unit value whose typography has already been normalized or is raw.
+
+    Returns
+    -------
+    str
+        Unicode-normalized, case-insensitive unit comparison key.
+    """
+
+    return _unit(value).casefold()
 
 
 def _optional_unit(value: Any, path: Path, key: str) -> str | None:

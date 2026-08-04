@@ -124,6 +124,37 @@ def test_discovery_preserves_provenance_and_parses_supported_numbers() -> None:
     assert azotemia.raw_unit == "ma /AL"
 
 
+def test_discovery_recognizes_complete_urine_exam_heading() -> None:
+    """Verify complete urine-exam headings classify following values as urine.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    result = discover_candidates(
+        (_document("doc-a"),),
+        (
+            ExtractedText(
+                document_id="doc-a",
+                text="ESAME COMPLETO DELLE URINE\nGlucosio 500 mg/dl\n",
+            ),
+        ),
+        settings=DiscoverySettings(
+            min_occurrences=1,
+            min_distinct_documents=1,
+            min_distinct_dates=1,
+        ),
+    )
+
+    assert result.candidates[0].normalized_label == "glucosio"
+    assert result.candidates[0].section_specimen == "urine"
+
+
 def test_discovery_reports_ambiguous_single_separator_numbers() -> None:
     """Verify ambiguous numeric tokens are never interpreted silently.
 
@@ -186,6 +217,39 @@ def test_discovery_recognizes_stacked_table_cells_with_exponent_unit() -> None:
     assert candidate.raw_value == "159"
     assert candidate.raw_unit == "x10^3/mmc"
     assert candidate.original_line == "PLT (Piastrine)\n    159\n\nx10^3/mmc 140-440"
+
+
+def test_discovery_recognizes_asterisked_stacked_value() -> None:
+    """Verify anomaly asterisks do not prevent stacked-value recognition.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    result = discover_candidates(
+        (_document("doc-a"),),
+        (
+            ExtractedText(
+                document_id="doc-a",
+                text="GLICEMIA\n*   120\nmg/dl\n70 - 100\n",
+            ),
+        ),
+        settings=DiscoverySettings(
+            min_occurrences=1,
+            min_distinct_documents=1,
+            min_distinct_dates=1,
+        ),
+    )
+
+    candidate = result.candidates[0]
+    assert candidate.normalized_label == "glicemia"
+    assert candidate.raw_value == "120"
+    assert candidate.raw_unit == "mg/dl"
 
 
 def test_discovery_recognizes_label_unit_reference_value_table_cells() -> None:

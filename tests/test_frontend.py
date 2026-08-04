@@ -46,6 +46,11 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
         result.web_dir / "assets" / "sanikey-logo-horizontal-transparent.svg"
     ).is_file()
     assert "Patient A" in result.index.read_text(encoding="utf-8")
+    assert (
+        "<h1>Patient A</h1>\n"
+        '          <button class="header-logo-button"'
+        in result.index.read_text(encoding="utf-8")
+    )
     assert 'data-section-button="documents"' in result.index.read_text(encoding="utf-8")
     assert 'data-section-button="summary"' in result.index.read_text(encoding="utf-8")
     assert 'data-section-button="therapies"' in result.index.read_text(encoding="utf-8")
@@ -208,17 +213,18 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert ".header-logo" in stylesheet
     assert ".header-logo-button" in stylesheet
     assert ".header-branding" in stylesheet
-    assert ".header-branding {\n  align-items: baseline;" in stylesheet
-    assert "transform: translatey(-1.35rem);" in stylesheet
+    assert ".nav-control md-text-button" in stylesheet
+    assert "min-height: 2rem;" in stylesheet
+    assert "width: 2rem;" in stylesheet
+    assert ".header-branding {\n  align-items: center;" in stylesheet
+    assert "width: 8.1rem;" in stylesheet
     assert "@media (max-width: 64rem)" in stylesheet
     assert (
         "grid-template-columns: minmax(15rem, 0.85fr) minmax(19rem, 1.15fr);"
         in stylesheet
     )
-    assert "width: 8.5rem;" in stylesheet
-    assert "transform: translatey(-1.1rem);" in stylesheet
-    assert "width: 7.5rem;" in stylesheet
-    assert "transform: none;" in stylesheet
+    assert "width: 6.8rem;" in stylesheet
+    assert "width: 6rem;" in stylesheet
     assert ".footer-repository" in stylesheet
     assert ".footer-logo" in stylesheet
     assert ".dialog-close" in stylesheet
@@ -228,6 +234,11 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert ".badge" in stylesheet
     assert ".parameter-layout" in stylesheet
     assert ".parameter-filters" in stylesheet
+    assert 'input:not([type="checkbox"])' in stylesheet
+    assert 'input[type="checkbox"]' in stylesheet
+    assert "width: 1.1rem;" in stylesheet
+    assert '.extended-chart-filters input[type="date"]' in stylesheet
+    assert "width: 10rem;" in stylesheet
     assert "has-background-image" in stylesheet
     header_css = stylesheet.split("header {", 1)[1].split("\n}", 1)[0]
     assert "background: var(--surface)" in header_css

@@ -6,7 +6,12 @@ from pathlib import Path
 
 from sanikey.config import SearchDictionary
 from sanikey.documents import ExtractedText
-from sanikey.models import CuratedMetadata, DocumentRecord
+from sanikey.models import (
+    CuratedMetadata,
+    DocumentRecord,
+    ObservationPoint,
+    ObservationSeries,
+)
 from sanikey.parameter_rules import (
     build_parameter_slices,
     load_parameter_rules,
@@ -131,6 +136,121 @@ def test_rules_create_provenance_rich_point_with_explicit_conversion(
     assert point.document_href == "../documents/report.txt"
     assert point.rule_id == "emoglobina"
     assert result.decisions[-1].reason_code == "ACCEPTED_CONFIGURED_SYNONYM"
+
+
+def test_merge_integrates_same_name_series_after_rule_conversion(
+    tmp_path: Path,
+) -> None:
+    """Verify an imported series and a converted parameter share one target.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    path = tmp_path / "parameters.toml"
+    _rules(path)
+    rules = load_parameter_rules(
+        path,
+        SearchDictionary(terms={"emoglobina": ("Hb",)}),
+    )
+    candidates = discover_candidates(
+        (_document("doc-a"),),
+        (ExtractedText(document_id="doc-a", text="Hb: 137 g/l\n"),),
+        settings=DiscoverySettings(
+            min_occurrences=1,
+            min_distinct_documents=1,
+            min_distinct_dates=1,
+        ),
+    ).candidates
+    result = build_parameter_slices(candidates, rules)
+    imported = ObservationPoint(
+        id="excel-hb",
+        series_id="diario-emoglobina",
+        observation_date="2026-01-02",
+        source_type="spreadsheet",
+        source_reference="diario.xlsx",
+        numeric_value=13.7,
+    )
+    metadata = CuratedMetadata(
+        observation_series=(
+            ObservationSeries(
+                id="diario-emoglobina",
+                name="Emoglobina",
+                value_type="qualified-scalar",
+                unit="g/dL",
+            ),
+        ),
+        observation_points=(imported,),
+    )
+
+    merged = merge_parameter_observations(metadata, result)
+
+    assert merged.observation_series == metadata.observation_series
+    assert [point.series_id for point in merged.observation_points] == [
+        "diario-emoglobina",
+        "diario-emoglobina",
+    ]
+    assert merged.observation_points[1].numeric_value == 13.7
+    assert merged.observation_points[1].source_kind == "document-extraction"
+
+
+def test_rules_match_units_case_insensitively_and_keep_configured_typography(
+    tmp_path: Path,
+) -> None:
+    """Verify unit matching ignores capitalization while preserving rule output.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    path = tmp_path / "parameters.toml"
+    path.write_text(
+        """
+[parameters.glicemia]
+display_name = "Glicemia"
+term = "glicemia"
+version = 1
+value_type = "scalar"
+number_formats = ["integer"]
+unit_policy = "required"
+enabled = true
+units = ["mg/dl"]
+canonical_unit = "mg/dl"
+document_categories = ["Laboratorio"]
+""".strip(),
+        encoding="utf-8",
+    )
+    rules = load_parameter_rules(
+        path,
+        SearchDictionary(terms={"glicemia": ("GLUCOSIO",)}),
+    )
+    candidates = discover_candidates(
+        (_document("doc-a"),),
+        (ExtractedText(document_id="doc-a", text="GLUCOSIO 94 mg/dL\n"),),
+        settings=DiscoverySettings(
+            min_occurrences=1,
+            min_distinct_documents=1,
+            min_distinct_dates=1,
+        ),
+    ).candidates
+
+    result = build_parameter_slices(candidates, rules)
+
+    assert result.points[0].numeric_value == 94
+    assert result.points[0].raw_unit == "mg/dL"
+    assert result.points[0].normalized_unit == "mg/dl"
 
 
 def test_rules_reject_missing_document_date_and_keep_metadata_separate(

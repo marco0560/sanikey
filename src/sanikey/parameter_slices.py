@@ -24,7 +24,7 @@ _CANDIDATE_RE = re.compile(
     r"(?:\s*/\s*[A-Za-z%µμ][A-Za-z0-9%µμ._^*\-]*)?))?"
 )
 _STACKED_VALUE_RE = re.compile(
-    r"^\s*(?P<qualifier><=|>=|<|>)?\s*"
+    r"^\s*(?:\*\s*)?(?P<qualifier><=|>=|<|>)?\s*"
     r"(?P<number>\d{1,3}(?:[.,]\d{3})+[.,]\d+|\d+[.,]\d+|\d+)\s*$"
 )
 _STACKED_UNIT_RE = re.compile(
@@ -498,7 +498,7 @@ def _line_context(lines: list[str], index: int) -> str:
 
 
 def _section_specimen(lines: list[str], index: int) -> str | None:
-    """Return the nearest preceding explicit urine or serum section.
+    """Return the nearest preceding explicit urine or serum section heading.
 
     Parameters
     ----------
@@ -515,7 +515,9 @@ def _section_specimen(lines: list[str], index: int) -> str | None:
 
     for line in reversed(lines[: index + 1]):
         normalized = normalize_label(line)
-        if normalized.startswith("u-esame") or "esame urine" in normalized:
+        if normalized.startswith("u-esame") or (
+            normalized.startswith("esame") and "urine" in normalized
+        ):
             return "urine"
         if normalized.startswith("s-esame") or "esami ematici" in normalized:
             return "serum"

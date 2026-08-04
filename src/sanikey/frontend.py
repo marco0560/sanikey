@@ -173,11 +173,11 @@ def _index_html(person: PersonConfig) -> str:
   <header>
     <div class="header-primary">
       <div class="header-title">
-        <h1>{title}</h1>
         <div class="header-branding">
+          <h1>{title}</h1>
           <button class="header-logo-button" type="button" id="usb-info-button" aria-label="Apri informazioni tecniche della chiavetta"><img class="header-logo" src="assets/sanikey-logo-horizontal-transparent.svg" alt="SaniKey"></button>
-          <p>{subtitle}</p>
         </div>
+        <p>{subtitle}</p>
       </div>
       <nav class="header-actions" aria-label="Sezioni archivio">
         <span class="nav-control">
@@ -1954,7 +1954,7 @@ header p {
 .header-logo {
   display: block;
   height: auto;
-  width: 10.125rem;
+  width: 8.1rem;
 }
 
 .header-logo-button {
@@ -1970,16 +1970,9 @@ header p {
 }
 
 .header-branding {
-  align-items: baseline;
+  align-items: center;
   display: flex;
   gap: 0.75rem;
-}
-
-.header-branding p {
-  flex: 1;
-  margin: 0;
-  min-width: 0;
-  transform: translateY(-1.35rem);
 }
 
 .header-actions,
@@ -1995,6 +1988,19 @@ header p {
   align-items: center;
   display: inline-flex;
   gap: 0.25rem;
+}
+
+.nav-control md-text-button,
+.nav-control md-icon-button {
+  min-height: 2rem;
+}
+
+.nav-control md-text-button {
+  padding: 0.2rem 0.6rem;
+}
+
+.nav-control md-icon-button {
+  width: 2rem;
 }
 
 .nav-control[hidden] {
@@ -2041,12 +2047,21 @@ main {
   padding: 1rem;
 }
 
-input {
+input:not([type="checkbox"]) {
   border: 1px solid var(--border);
   border-radius: 6px;
   font: inherit;
   padding: 0.5rem;
   width: 100%;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+  height: 1.1rem;
+  margin: 0.1rem 0;
+  padding: 0;
+  width: 1.1rem;
 }
 
 .section-links {
@@ -2285,8 +2300,20 @@ dd {
 
 .extended-chart-filters label,
 .extended-series-list label {
+  align-items: center;
   display: inline-flex;
   gap: 0.35rem;
+}
+
+.extended-chart-filters input[type="date"] {
+  box-sizing: border-box;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  width: 10rem;
+}
+
+.extended-series-list label {
+  align-items: flex-start;
 }
 
 [data-extended-series] {
@@ -2407,15 +2434,11 @@ body[data-density="compact"] md-text-button {
   }
 
   .header-logo {
-    width: 8.5rem;
+    width: 6.8rem;
   }
 
   .header-branding {
     gap: 0.5rem;
-  }
-
-  .header-branding p {
-    transform: translateY(-1.1rem);
   }
 
   .header-actions {
@@ -2439,11 +2462,7 @@ body[data-density="compact"] md-text-button {
   }
 
   .header-logo {
-    width: 7.5rem;
-  }
-
-  .header-branding p {
-    transform: none;
+    width: 6rem;
   }
 
   .search-toolbar,
