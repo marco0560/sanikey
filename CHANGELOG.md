@@ -1,3 +1,10 @@
+## [0.10.1](https://github.com/marco0560/sanikey/compare/v0.10.0...v0.10.1) (2026-08-04)
+
+### Bug Fixes
+
+* **generation:** integrate longitudinal observations ([a5847e1](https://github.com/marco0560/sanikey/commit/a5847e10ece6a57424cb4737e41243ecd0ccae29))
+* **generation:** reduced upper frame elemens in small and medium screens ([44e53a4](https://github.com/marco0560/sanikey/commit/44e53a42c9b5cc58cd76552e651ed27bfc91c04d))
+
 ## [0.10.0](https://github.com/marco0560/sanikey/compare/v0.9.2...v0.10.0) (2026-08-01)
 
 ### Features
