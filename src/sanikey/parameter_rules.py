@@ -31,6 +31,7 @@ _FORMATS = {
 }
 _POLICIES = {"required", "allowed-but-unknown", "assume-configured-unit"}
 _TYPES = {"scalar", "qualified-scalar"}
+_SCALAR_VALUE_TYPES = frozenset({"numeric", "scalar", "qualified-scalar"})
 
 
 @dataclass(frozen=True)
@@ -477,9 +478,34 @@ def _series_compatible(
     but does not infer a clinical conversion.
     """
 
-    return left.value_type == right.value_type and _units_compatible(
-        left.unit, right.unit
-    )
+    return _value_types_compatible(
+        left.value_type, right.value_type
+    ) and _units_compatible(left.unit, right.unit)
+
+
+def _value_types_compatible(left: str, right: str) -> bool:
+    """Check whether two observation value types have the same chart semantics.
+
+    Parameters
+    ----------
+    left : str
+        First observation value type.
+    right : str
+        Second observation value type.
+
+    Returns
+    -------
+    bool
+        Whether both types are scalar numeric variants or are exactly equal.
+
+    Notes
+    -----
+    ``numeric``, ``scalar``, and ``qualified-scalar`` all use the numeric
+    point representation.  Blood pressure remains distinct because it stores
+    separate systolic and diastolic components.
+    """
+
+    return left == right or {left, right}.issubset(_SCALAR_VALUE_TYPES)
 
 
 def _units_compatible(left: str | None, right: str | None) -> bool:

@@ -1490,6 +1490,10 @@ function extendedDate(value) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : extendedText(value);
 }
 
+function extendedUnitKey(value) {
+  return extendedText(value).normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase("und");
+}
+
 function extendedOrigin(point) {
   if (point.document_href) {
     return "Documento: " + decodeURIComponent(extendedText(point.document_href).split("/").pop());
@@ -1569,24 +1573,30 @@ function renderNumericCharts(target, entries) {
   const byUnit = new Map();
   entries.forEach((entry) => {
     const unit = entry.series.unit || "Senza unita'";
-    const group = byUnit.get(unit) || [];
-    group.push(entry);
-    byUnit.set(unit, group);
+    const key = extendedUnitKey(unit);
+    const group = byUnit.get(key) || {unit, entries: []};
+    group.entries.push(entry);
+    byUnit.set(key, group);
   });
-  const unitGroups = [...byUnit.entries()];
+  const unitGroups = [...byUnit.values()].map((group) => [group.unit, group.entries]);
   const chartGroups = unitGroups.length <= 2 ? [unitGroups] : unitGroups.map((group) => [group]);
   const colors = ["#7c3aed", "#ea580c", "#0f766e", "#be123c", "#0369a1"];
+  let colorIndex = 0;
   chartGroups.forEach((chartGroup) => {
     const units = chartGroup.map(([unit]) => unit);
-    const datasets = chartGroup.flatMap(([unit, group], unitIndex) => group.map((entry, index) => ({
+    const datasets = chartGroup.flatMap(([unit, group], unitIndex) => group.map((entry) => {
+      const color = colors[colorIndex % colors.length];
+      colorIndex += 1;
+      return {
       label: entry.series.name || entry.series.id,
       yAxisID: unitIndex ? "y1" : "y",
       data: entry.points.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point, series: entry.series})),
-      borderColor: colors[index % colors.length],
-      backgroundColor: colors[index % colors.length],
+      borderColor: color,
+      backgroundColor: color,
       borderWidth: 2,
       tension: 0.15,
-    })));
+      };
+    }));
     const title = chartGroup.flatMap(([, group]) => group.map((entry) => entry.series.name || entry.series.id)).join(" · ");
     appendExtendedChart(target, title, datasets, units);
   });

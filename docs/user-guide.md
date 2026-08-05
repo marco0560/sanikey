@@ -662,6 +662,14 @@ punti estratti, oppure file e foglio CSV/Excel per quelli importati.
 Per una serie di pressione arteriosa, il grafico mostra sullo stesso asse le
 linee `Sistolica`, `Diastolica` e, quando presente, `Polso`.
 
+Una serie importata e un parametro estratto con lo stesso nome vengono mostrati
+insieme quando hanno una rappresentazione scalare compatibile e la stessa unità
+dopo la normalizzazione di maiuscole/minuscole e spazi; per esempio `mg/dL` e
+`mg/dl`. Le conversioni tra unità di scala diversa richiedono sempre una
+conversione esplicita nella regola del parametro. Se più fonti registrano un
+valore nella stessa data, la consultazione conserva tutti i punti e la loro
+provenienza.
+
 ### Personalizzare la Consultazione
 
 L'aspetto e il comportamento iniziale del frontend possono essere configurati in

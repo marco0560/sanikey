@@ -13,6 +13,7 @@ from sanikey.models import (
     ObservationSeries,
 )
 from sanikey.parameter_rules import (
+    _series_compatible,
     build_parameter_slices,
     load_parameter_rules,
     merge_parameter_observations,
@@ -182,7 +183,7 @@ def test_merge_integrates_same_name_series_after_rule_conversion(
             ObservationSeries(
                 id="diario-emoglobina",
                 name="Emoglobina",
-                value_type="qualified-scalar",
+                value_type="numeric",
                 unit="g/dL",
             ),
         ),
@@ -198,6 +199,29 @@ def test_merge_integrates_same_name_series_after_rule_conversion(
     ]
     assert merged.observation_points[1].numeric_value == 13.7
     assert merged.observation_points[1].source_kind == "document-extraction"
+
+
+def test_series_compatibility_groups_numeric_scalar_variants() -> None:
+    """Verify scalar observation representations share one series semantics.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    numeric = ObservationSeries("numeric", "Parametro", "numeric", "mg/dl")
+    scalar = ObservationSeries("scalar", "Parametro", "scalar", "mg/dl")
+    qualified = ObservationSeries("qualified", "Parametro", "qualified-scalar", "mg/dl")
+    pressure = ObservationSeries("pressure", "Parametro", "blood_pressure", "mg/dl")
+
+    assert _series_compatible(numeric, scalar)
+    assert _series_compatible(numeric, qualified)
+    assert _series_compatible(scalar, qualified)
+    assert not _series_compatible(numeric, pressure)
 
 
 def test_rules_match_units_case_insensitively_and_keep_configured_typography(

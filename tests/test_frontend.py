@@ -239,6 +239,10 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "width: 1.1rem;" in stylesheet
     assert '.extended-chart-filters input[type="date"]' in stylesheet
     assert "width: 10rem;" in stylesheet
+    assert "function extendedunitkey(value)" in extended_script
+    assert 'tolocalelowercase("und")' in extended_script
+    assert "let colorindex = 0;" in extended_script
+    assert "const color = colors[colorindex % colors.length];" in extended_script
     assert "has-background-image" in stylesheet
     header_css = stylesheet.split("header {", 1)[1].split("\n}", 1)[0]
     assert "background: var(--surface)" in header_css
