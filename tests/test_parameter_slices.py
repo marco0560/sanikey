@@ -72,6 +72,49 @@ def test_configured_discovery_skips_unconfigured_numeric_lines() -> None:
     assert result.proposed_groups == ()
 
 
+def test_configured_discovery_tracks_labels_and_section_specimens() -> None:
+    """Verify configured label mentions retain chemistry and urine context.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    result = discover_configured_candidates(
+        (_document("doc-a"),),
+        (
+            ExtractedText(
+                document_id="doc-a",
+                text=(
+                    "CHIMICA CLINICA\n"
+                    "Glicemia basale\nmg/dl\n(60-100)\n134\n"
+                    "URINE COMPLETE\n"
+                    "Glucosio\nmg/dl\n(0-10)\n0\n"
+                ),
+            ),
+        ),
+        accepted_labels=("glicemia basale", "glucosio"),
+        settings=DiscoverySettings(
+            min_occurrences=1,
+            min_distinct_documents=1,
+            min_distinct_dates=1,
+        ),
+    )
+
+    assert result.recognized_label_occurrences == (
+        ("glicemia basale", 1),
+        ("glucosio", 1),
+    )
+    assert [(item.raw_value, item.section_specimen) for item in result.candidates] == [
+        ("134", "serum"),
+        ("0", "urine"),
+    ]
+
+
 def test_discovery_preserves_provenance_and_parses_supported_numbers() -> None:
     """Verify accepted numeric forms preserve exact source provenance.
 

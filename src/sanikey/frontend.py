@@ -1506,7 +1506,7 @@ function extendedOrigin(point) {
 
 function extendedPointLabel(raw) {
   if (raw.component) {
-    return raw.component.label + ": " + raw.point[raw.component.field] + (raw.series.unit ? " " + raw.series.unit : "");
+    return raw.component.label + ": " + raw.point[raw.component.field] + (raw.component.unit ? " " + raw.component.unit : "");
   }
   const value = raw.point.raw_value || raw.point.value;
   const unit = raw.point.raw_value ? "" : (raw.point.raw_unit || raw.point.normalized_unit || raw.series.unit || "");
@@ -1553,19 +1553,47 @@ function appendExtendedChart(target, title, datasets, units) {
   new Chart(canvas, {type: "line", data: {datasets}, options: extendedChartOptions(units)});
 }
 
+function pressureMinutes(note) {
+  const value = extendedText(note).toLocaleLowerCase("it");
+  const clock = value.match(/(?:^|\D)([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?(?:$|\D)/);
+  if (clock) {
+    return Number(clock[1]) * 60 + Number(clock[2]);
+  }
+  const dayParts = {mattina: 9 * 60, pranzo: 12 * 60 + 30, pomeriggio: 16 * 60 + 30, sera: 21 * 60};
+  const dayPart = Object.keys(dayParts).find((name) => value.includes(name));
+  return dayPart ? dayParts[dayPart] : 12 * 60;
+}
+
+function orderedPressureData(points, series, component) {
+  const ordered = points.filter((point) => Number.isFinite(Number(point[component.field])))
+    .map((point, index) => ({
+      point,
+      index,
+      timestamp: Date.parse(point.date + "T00:00:00") + pressureMinutes(point.note) * 60 * 1000,
+    }))
+    .sort((left, right) => left.timestamp - right.timestamp
+      || extendedText(left.point.id).localeCompare(extendedText(right.point.id), "und")
+      || left.index - right.index);
+  let previous = Number.NEGATIVE_INFINITY;
+  return ordered.map((entry) => {
+    const x = Math.max(entry.timestamp, previous + 1000);
+    previous = x;
+    return {x, y: Number(entry.point[component.field]), point: entry.point, series, component};
+  });
+}
+
 function renderPressureChart(target, series, points) {
   const components = [
-    {field: "systolic", label: "Sistolica", color: "#1d4ed8"},
-    {field: "diastolic", label: "Diastolica", color: "#dc2626"},
-    {field: "pulse", label: "Polso", color: "#15803d"},
+    {field: "systolic", label: "Sistolica", unit: "mmHg", color: "#1d4ed8", yAxisID: "y"},
+    {field: "diastolic", label: "Diastolica", unit: "mmHg", color: "#dc2626", yAxisID: "y"},
+    {field: "pulse", label: "Polso", unit: "bpm", color: "#15803d", yAxisID: "y1"},
   ];
   const datasets = components.map((component) => {
-    const data = points.filter((point) => Number.isFinite(Number(point[component.field])))
-      .map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point[component.field]), point, series, component}));
-    return data.length ? {label: component.label, data, borderColor: component.color, backgroundColor: component.color, borderWidth: 2, tension: 0.15} : null;
+    const data = orderedPressureData(points, series, component);
+    return data.length ? {label: component.label, data, yAxisID: component.yAxisID, borderColor: component.color, backgroundColor: component.color, borderWidth: 2, tension: 0.15} : null;
   }).filter(Boolean);
   if (datasets.length) {
-    appendExtendedChart(target, series.name || series.id, datasets, [series.unit || "mmHg"]);
+    appendExtendedChart(target, series.name || series.id, datasets, [series.unit || "mmHg", "bpm"]);
   }
 }
 

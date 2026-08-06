@@ -182,6 +182,15 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert "function rendernumericcharts(target, entries)" in extended_script
     assert "scales.y1" in extended_script
     assert "function renderpressurechart(target, series, points)" in extended_script
+    assert "function pressureminutes(note)" in extended_script
+    assert "mattina: 9 * 60" in extended_script
+    assert "pranzo: 12 * 60 + 30" in extended_script
+    assert "pomeriggio: 16 * 60 + 30" in extended_script
+    assert "sera: 21 * 60" in extended_script
+    assert "function orderedpressuredata(points, series, component)" in extended_script
+    assert "previous + 1000" in extended_script
+    assert 'yaxisid: "y1"' in extended_script
+    assert '[series.unit || "mmhg", "bpm"]' in extended_script
     assert "observation_section_by_id" not in script
     assert "parametersearchtext" in script
     assert "data-parameter-series" in script

@@ -815,6 +815,8 @@ canonical_unit = "g/dL"
         person.local_build / "reports" / "parameter-accepted.txt",
         person.local_build / "reports" / "parameter-rejected.json",
         person.local_build / "reports" / "parameter-rejected.txt",
+        person.local_build / "reports" / "parameter-reconciliation.json",
+        person.local_build / "reports" / "parameter-reconciliation.txt",
         person.local_build / "exports" / "parameter-slices.json",
         person.local_build / "web" / "data" / "parameter-slices.js",
     )

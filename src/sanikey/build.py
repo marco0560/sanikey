@@ -25,6 +25,7 @@ from .metadata import load_curated_metadata
 from .observation_imports import ensure_observation_imports_current
 from .parameter_reports import (
     write_parameter_extraction_reports,
+    write_parameter_reconciliation,
     write_parameter_rejections,
 )
 from .parameter_rules import (
@@ -248,6 +249,12 @@ def build_patient(
         )
         metadata = merge_parameter_observations(metadata, parameter_result)
         write_parameter_extraction_reports(person.local_build, parameter_result)
+        write_parameter_reconciliation(
+            person.local_build,
+            parameter_discovery,
+            parameter_result,
+            parameter_rules,
+        )
     vital_signs = extract_vital_signs(
         documents,
         extracted,

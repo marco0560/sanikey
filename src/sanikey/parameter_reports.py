@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from .parameter_rules import ParameterBuildResult
+    from .parameter_rules import ParameterBuildResult, ParameterRules
     from .parameter_slices import CandidateGroup, DiscoveryResult
 
 
@@ -173,6 +173,106 @@ def write_parameter_rejections(
         reports, "rejected", rejected
     )
     return rejected_json, rejected_text
+
+
+def write_parameter_reconciliation(
+    build_root: Path,
+    discovery: DiscoveryResult,
+    result: ParameterBuildResult,
+    rules: ParameterRules,
+) -> tuple[Path, Path]:
+    """Write per-parameter coverage reconciliation diagnostics.
+
+    Parameters
+    ----------
+    build_root : pathlib.Path
+        Patient generated-artifact root.
+    discovery : sanikey.parameter_slices.DiscoveryResult
+        Configured-label mentions and syntactic candidates.
+    result : sanikey.parameter_rules.ParameterBuildResult
+        Curated rule decisions.
+    rules : sanikey.parameter_rules.ParameterRules
+        Enabled rules used for candidate evaluation.
+
+    Returns
+    -------
+    tuple[pathlib.Path, pathlib.Path]
+        JSON and tabular text reconciliation report paths.
+    """
+
+    reports = build_root / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    occurrences = dict(discovery.recognized_label_occurrences)
+    rows: list[dict[str, object]] = []
+    for rule in rules.rules:
+        if not rule.enabled:
+            continue
+        candidates = [
+            item
+            for item in discovery.candidates
+            if item.normalized_label in rule.synonyms
+        ]
+        decisions = [item for item in result.decisions if item.rule_id == rule.id]
+        accepted = [item for item in decisions if item.accepted]
+        substantive_rejections = [
+            item
+            for item in decisions
+            if not item.accepted and item.reason_code != "REJECTED_LABEL"
+        ]
+        label_mentions = sum(occurrences.get(label, 0) for label in rule.synonyms)
+        rows.append(
+            {
+                "parameter": rule.id,
+                "raw_label_mentions": label_mentions,
+                "structured_candidates": len(candidates),
+                "unmatched_label_mentions": max(label_mentions - len(candidates), 0),
+                "accepted": len(accepted),
+                "substantive_rejected": len(substantive_rejections),
+                "label_rejections": len(decisions)
+                - len(accepted)
+                - len(substantive_rejections),
+            }
+        )
+    rows.sort(key=lambda item: str(item["parameter"]))
+    json_path = reports / "parameter-reconciliation.json"
+    text_path = reports / "parameter-reconciliation.txt"
+    _write_json(json_path, {"schema_version": "1.0", "parameters": rows})
+    headings = (
+        "Parametro",
+        "Etichette grezze",
+        "Candidati",
+        "Etichette senza candidato",
+        "Accettati",
+        "Rifiuti sostanziali",
+        "Rifiuti etichetta",
+    )
+    values = [
+        headings,
+        *[
+            (
+                row["parameter"],
+                row["raw_label_mentions"],
+                row["structured_candidates"],
+                row["unmatched_label_mentions"],
+                row["accepted"],
+                row["substantive_rejected"],
+                row["label_rejections"],
+            )
+            for row in rows
+        ],
+    ]
+    widths = [
+        max(len(str(row[index])) for row in values) for index in range(len(headings))
+    ]
+    text_path.write_text(
+        "\n".join(
+            " | ".join(str(cell).ljust(widths[index]) for index, cell in enumerate(row))
+            for row in values
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return json_path, text_path
 
 
 def _write_parameter_decision_report(

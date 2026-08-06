@@ -234,11 +234,14 @@ class DiscoveryResult:
         Groups meeting the configured proposal thresholds.
     analyzed_lines : int
         Number of extracted-text lines scanned.
+    recognized_label_occurrences : tuple[tuple[str, int], ...]
+        Normalized configured-label mentions found in raw extracted text.
     """
 
     candidates: tuple[ParameterCandidate, ...]
     proposed_groups: tuple[CandidateGroup, ...]
     analyzed_lines: int
+    recognized_label_occurrences: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -295,6 +298,7 @@ def discover_candidates(
     hrefs = document_hrefs or {}
     candidates: list[ParameterCandidate] = []
     analyzed_lines = 0
+    label_occurrences = {label: 0 for label in accepted_labels or frozenset()}
     for extracted in sorted(extracted_text, key=lambda item: item.document_id):
         document = records_by_id.get(extracted.document_id)
         if document is None:
@@ -308,6 +312,10 @@ def discover_candidates(
             line_offset += len(original_line) + 1
         for index, original_line in enumerate(lines):
             analyzed_lines += 1
+            normalized_line = normalize_label(original_line)
+            for label in label_occurrences:
+                if _contains_label(normalized_line, label):
+                    label_occurrences[label] += 1
             source = _LineSource(
                 document=document,
                 text_digest=text_digest,
@@ -384,6 +392,7 @@ def discover_candidates(
         candidates=ordered_candidates,
         proposed_groups=groups,
         analyzed_lines=analyzed_lines,
+        recognized_label_occurrences=tuple(sorted(label_occurrences.items())),
     )
 
 
@@ -429,6 +438,7 @@ def discover_configured_candidates(
         candidates=discovery.candidates,
         proposed_groups=(),
         analyzed_lines=discovery.analyzed_lines,
+        recognized_label_occurrences=discovery.recognized_label_occurrences,
     )
 
 
@@ -515,13 +525,39 @@ def _section_specimen(lines: list[str], index: int) -> str | None:
 
     for line in reversed(lines[: index + 1]):
         normalized = normalize_label(line)
-        if normalized.startswith("u-esame") or (
-            normalized.startswith("esame") and "urine" in normalized
+        if (
+            normalized.startswith("u-esame")
+            or "urine complete" in normalized
+            or (normalized.startswith("esame") and "urine" in normalized)
         ):
             return "urine"
-        if normalized.startswith("s-esame") or "esami ematici" in normalized:
+        if (
+            normalized.startswith("s-esame")
+            or "esami ematici" in normalized
+            or "chimica clinica" in normalized
+            or "clinical chemistry" in normalized
+        ):
             return "serum"
     return None
+
+
+def _contains_label(line: str, label: str) -> bool:
+    """Return whether a normalized line contains a complete label token.
+
+    Parameters
+    ----------
+    line : str
+        Normalized extracted-text line.
+    label : str
+        Normalized configured label.
+
+    Returns
+    -------
+    bool
+        Whether ``label`` occurs as a complete sequence of words.
+    """
+
+    return re.search(rf"(?<!\w){re.escape(label)}(?!\w)", line) is not None
 
 
 def _candidate_from_line(

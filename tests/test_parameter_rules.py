@@ -414,8 +414,8 @@ document_categories = ["Laboratorio"]
 [[parameters.emoglobina_glicata.conversions]]
 from_unit = "mmol/mol"
 to_unit = "%"
-multiplier = 0.0915
-offset = 2.15
+multiplier = 0.09148
+offset = 2.152
 version = 1
 """.strip(),
         encoding="utf-8",
@@ -449,7 +449,7 @@ version = 1
         (point.raw_value, point.raw_unit, point.numeric_value)
         for point in result.points
     ) == [
-        ("32", "mmol/mol", 5.078),
-        ("53,0", "mmol/mol", 6.9995),
+        ("32", "mmol/mol", 5.07936),
+        ("53,0", "mmol/mol", 7.00044),
         ("7,0", "%", 7.0),
     ]

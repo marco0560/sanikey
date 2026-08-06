@@ -659,8 +659,14 @@ selezionata. Sugli schermi stretti mantiene la consultazione in una sola
 scheda. Il clic su un punto con documento sorgente apre direttamente l'originale.
 Il riquadro informativo dei punti indica sempre l'origine: nome del PDF per i
 punti estratti, oppure file e foglio CSV/Excel per quelli importati.
-Per una serie di pressione arteriosa, il grafico mostra sullo stesso asse le
-linee `Sistolica`, `Diastolica` e, quando presente, `Polso`.
+Per una serie di pressione arteriosa, il grafico connette tutte le misurazioni
+in ordine temporale. Gli orari espliciti sono usati quando disponibili; le
+annotazioni `mattina`, `pranzo`, `pomeriggio` e `sera` corrispondono
+rispettivamente a 09:00, 12:30, 16:30 e 21:00. I punti senza orario usano una
+posizione deterministica a mezzogiorno, soltanto per l'ordinamento grafico: la
+data, la nota e l'origine originali non vengono modificate. `Sistolica` e
+`Diastolica` usano l'asse sinistro in `mmHg`; `Polso`, quando presente, usa
+l'asse destro in `bpm`.
 
 Una serie importata e un parametro estratto con lo stesso nome vengono mostrati
 insieme quando hanno una rappresentazione scalare compatibile e la stessa unità
@@ -669,6 +675,14 @@ dopo la normalizzazione di maiuscole/minuscole e spazi; per esempio `mg/dL` e
 conversione esplicita nella regola del parametro. Se più fonti registrano un
 valore nella stessa data, la consultazione conserva tutti i punti e la loro
 provenienza.
+
+Durante la build, i report locali `reports/parameter-accepted.*`,
+`reports/parameter-rejected.*` e `reports/parameter-reconciliation.*`
+distinguono rispettivamente i valori inclusi, le esclusioni motivate e la
+copertura dell'estrazione per parametro. Il report di riconciliazione separa le
+menzioni grezze delle etichette dai candidati strutturati, dagli accettati e dai
+rifiuti sostanziali: serve a individuare layout OCR che richiedono una nuova
+regola di estrazione senza confonderli con i normali rifiuti di etichetta.
 
 ### Personalizzare la Consultazione
 
