@@ -1,3 +1,9 @@
+## [0.10.2](https://github.com/marco0560/sanikey/compare/v0.10.1...v0.10.2) (2026-09-03)
+
+### Bug Fixes
+
+* **release:** configure guarded semantic preview ([82e0d78](https://github.com/marco0560/sanikey/commit/82e0d782add9bdf8404b7339d5fd2ea25676ab4f))
+
 ## [0.10.1](https://github.com/marco0560/sanikey/compare/v0.10.0...v0.10.1) (2026-08-04)
 
 ### Bug Fixes
