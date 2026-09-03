@@ -37,7 +37,10 @@ git rel
 ```
 
 `git rel` e' l'unico percorso di push da `main`: aggiorna il ramo con
-fast-forward, esegue l'audit e invia il ramo. Attendere il workflow `Release`,
+fast-forward, esegue l'audit, esegue l'anteprima Semantic Release e invia il
+ramo. L'anteprima verifica GitHub e genera le note senza pubblicare: le
+credenziali GitHub esistono soltanto nel suo processo figlio SOPS. Attendere il
+workflow `Release`,
 quindi eseguire `git pull --ff-only && uv sync && uv run sanikey -V`; il comando
 mostrerà la versione esatta del tag creato dalla CI, non una versione di sviluppo
 `.postN`.

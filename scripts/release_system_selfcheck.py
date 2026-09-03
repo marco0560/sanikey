@@ -91,7 +91,12 @@ def main() -> int:
 
     print("[5] Controllo hook pre-push...")
     pre_push = (REPO_ROOT / ".githooks" / "pre-push").read_text(encoding="utf-8")
-    for marker in ("ALLOW_MAIN_PUSH", "git rel", "privacy_guard.py"):
+    for marker in (
+        '"${ALLOW_MAIN_PUSH:-}" = "1"',
+        "git rel",
+        "privacy_guard.py",
+        "release_preview.py",
+    ):
         if marker not in pre_push:
             print(f"ERRORE: controllo pre-push mancante: {marker}")
             failed = True

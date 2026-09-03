@@ -119,9 +119,17 @@ Questo script implementa `git release-audit`.
 ## `scripts/release_rel.py`
 
 Implementa il percorso controllato `git rel` per `main`: aggiorna dal remoto,
-esegue l'audit e invia il ramo con il bypass strettamente locale dell'hook.
+esegue l'audit e invia il ramo con il bypass strettamente locale dell'hook. Il
+bypass abilita anche l'anteprima Semantic Release, senza pubblicare nulla.
 Versione, changelog, tag e release GitHub sono creati dalla CI; terminato il
 workflow, eseguire `git pull --ff-only && uv sync && uv run sanikey -V`.
+
+## `scripts/release_preview.py`
+
+Esegue `semantic-release --dry-run` con la configurazione del repository. Le
+credenziali GitHub sono decrittate da SOPS soltanto nell'ambiente del processo
+Semantic Release; l'helper e l'hook non le ricevono. L'hook lo invoca soltanto
+per `ALLOW_MAIN_PUSH=1`, impostato dal percorso `git rel`.
 
 ## `scripts/release_system_selfcheck.py`
 

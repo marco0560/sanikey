@@ -13,11 +13,16 @@ fi
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-if [ "$BRANCH" = "main" ] && [ -z "${ALLOW_MAIN_PUSH:-}" ]; then
+if [ "$BRANCH" = "main" ] && [ "${ALLOW_MAIN_PUSH:-}" != "1" ]; then
   echo "ERRORE: la push diretta su main e' bloccata"
   echo "Usare: git rel"
   echo "Eccezione di emergenza: git push --no-verify"
   exit 1
+fi
+
+if [ "${ALLOW_MAIN_PUSH:-}" = "1" ]; then
+  echo "Running guarded Semantic Release preview..."
+  "$PYTHON_BIN" "$REPO_ROOT/scripts/release_preview.py"
 fi
 
 echo "Running SaniKey privacy guard..."
