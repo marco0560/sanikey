@@ -128,6 +128,9 @@ def write_parameter_rejections(
         Candidates with document provenance.
     result : sanikey.parameter_rules.ParameterBuildResult
         Rule decisions to filter for rejected candidates.
+    extra : tuple[dict[str, object], ...], optional
+        Additional decision rows, classified by ``reason_code`` and appended
+        to the accepted or rejected reports. Defaults to an empty tuple.
 
     Returns
     -------

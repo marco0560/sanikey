@@ -16,6 +16,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def load_bootstrap_module() -> object:
     """Load the bootstrap script as an importable module.
 
+    Parameters
+    ----------
+    None
+
     Returns
     -------
     object
