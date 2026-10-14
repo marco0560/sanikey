@@ -1,3 +1,9 @@
+## [0.10.3](https://github.com/marco0560/sanikey/compare/v0.10.2...v0.10.3) (2026-10-14)
+
+### Bug Fixes
+
+* **docs:** complete parameter report and bootstrap docstrings ([5afacb2](https://github.com/marco0560/sanikey/commit/5afacb29f15d19cf66baa821c4864b7c4cca6465))
+
 ## [0.10.2](https://github.com/marco0560/sanikey/compare/v0.10.1...v0.10.2) (2026-09-03)
 
 ### Bug Fixes
