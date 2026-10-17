@@ -753,6 +753,85 @@ def test_build_patient_catalogs_dicom_after_container_staging(
     ]
 
 
+@pytest.mark.parametrize("with_dictionary", [False, True])
+@pytest.mark.parametrize(
+    "invalid_file", ["missing-common", "common", "patient", "unknown-term"]
+)
+def test_parameter_rules_fail_before_build_work(
+    tmp_path: Path, *, with_dictionary: bool, invalid_file: str
+) -> None:
+    """Reject parameter configuration errors before any generated build work.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary test directory.
+    with_dictionary : bool
+        Whether common rules live beside a configured dictionary.
+    invalid_file : str
+        Missing or malformed configuration to exercise.
+
+    Returns
+    -------
+    None
+    """
+
+    base = _person(tmp_path)
+    person = PersonConfig(
+        id=base.id,
+        display_name=base.display_name,
+        source_documents=base.source_documents,
+        metadata_directory=base.metadata_directory,
+        local_build=base.local_build,
+        usb_uuid=base.usb_uuid,
+        search=SearchConfig(
+            dictionary=tmp_path / "config" / "dictionary.toml"
+            if with_dictionary
+            else None,
+        ),
+    )
+    person.metadata_directory.mkdir()
+    patient_path = person.metadata_directory / "parameters.toml"
+    patient_path.write_text("[parameters]\n", encoding="utf-8")
+    common_path = (
+        tmp_path / "config" / "parameters.toml"
+        if with_dictionary
+        else person.metadata_directory / "parameters.common.toml"
+    )
+    if invalid_file != "missing-common":
+        common_path.parent.mkdir(exist_ok=True)
+        common_path.write_text("[parameters]\n", encoding="utf-8")
+        if invalid_file == "unknown-term":
+            patient_path.write_text(
+                "[parameters.example]\n"
+                'display_name = "Esempio"\n'
+                'term = "termine_assente"\n'
+                "version = 1\n"
+                'value_type = "scalar"\n'
+                'number_formats = ["integer"]\n'
+                'unit_policy = "required"\n'
+                "enabled = true\n",
+                encoding="utf-8",
+            )
+        else:
+            invalid_path = common_path if invalid_file == "common" else patient_path
+            invalid_path.write_text("[", encoding="utf-8")
+    expected = (
+        "regole parametri comuni assenti"
+        if invalid_file == "missing-common"
+        else "TOML non valido"
+    )
+    if invalid_file == "unknown-term":
+        expected = "term non presente"
+    progress = ProgressRecorder()
+
+    with pytest.raises(ConfigError, match=expected):
+        build_patient(person, mode="full", progress=progress)
+
+    assert not person.local_build.exists()
+    assert progress.labels == []
+
+
 def test_parameter_slice_build_outputs_are_byte_stable(tmp_path: Path) -> None:
     """Verify two full builds preserve parameter reports and static exports.
 

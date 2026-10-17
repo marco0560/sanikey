@@ -179,11 +179,29 @@ def build_patient(
     ------
     ValueError
         If ``mode`` is unsupported.
+    ConfigError
+        If configured parameter rules are missing or invalid. Rules are checked
+        before downloads, document inspection, or text extraction.
     """
 
     if mode not in {"full", "incremental", "validation"}:
         msg = f"modalita' build non supportata: {mode}"
         raise ValueError(msg)
+    parameters_path = person.metadata_directory / "parameters.toml"
+    common_parameters_path = (
+        person.search.dictionary.parent / "parameters.toml"
+        if person.search.dictionary is not None
+        else parameters_path.parent / "parameters.common.toml"
+    )
+    parameter_rules = (
+        load_patient_parameter_rules(
+            common_parameters_path,
+            parameters_path,
+            person.search.dictionary_data,
+        )
+        if parameters_path.exists() or common_parameters_path.exists()
+        else None
+    )
     build_root = person.local_build
     build_root.mkdir(parents=True, exist_ok=True)
     metadata = load_curated_metadata(person.metadata_directory)
@@ -218,18 +236,7 @@ def build_patient(
         progress=progress,
     )
     extracted = extracted_result.items
-    parameters_path = person.metadata_directory / "parameters.toml"
-    common_parameters_path = (
-        person.search.dictionary.parent / "parameters.toml"
-        if person.search.dictionary is not None
-        else parameters_path.parent / "parameters.common.toml"
-    )
-    if parameters_path.exists() or common_parameters_path.exists():
-        parameter_rules = load_patient_parameter_rules(
-            common_parameters_path,
-            parameters_path,
-            person.search.dictionary_data,
-        )
+    if parameter_rules is not None:
         parameter_discovery = discover_configured_candidates(
             documents,
             extracted,
@@ -253,7 +260,7 @@ def build_patient(
         extracted,
         document_hrefs=_parameter_document_hrefs(person, documents),
     )
-    if parameters_path.exists() or common_parameters_path.exists():
+    if parameter_rules is not None:
         write_parameter_rejections(
             person.local_build,
             parameter_discovery,

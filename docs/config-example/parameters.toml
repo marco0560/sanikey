@@ -1,0 +1,5 @@
+# Regole parametri comuni: nessuna regola clinica preabilitata.
+# Aggiungere qui soltanto regole curate e revisionate.
+# Le regole specifiche restano in <patient>/metadata/parameters.toml.
+
+[parameters]

@@ -425,6 +425,22 @@ resta sempre disabilitato e va revisionato prima di essere copiato qui.
 Ogni build produce anche `reports/parameter-accepted.{json,txt}` e
 `reports/parameter-rejected.{json,txt}`; non è richiesto alcun flag di debug.
 
+Prima di usare regole locali, dalla radice del repository creare il file comune
+accanto al dizionario di ricerca configurato (normalmente in `config/`). Se non
+esiste ancora, copiare il modello senza regole cliniche preabilitate:
+
+```bash
+cp -n docs/config-example/parameters.toml config/parameters.toml
+```
+
+Il modello vuoto mantiene operative le sole regole locali, senza aggiungere
+regole comuni. Senza un dizionario su file, il percorso comune è invece
+`<patient>/metadata/parameters.common.toml`: copiare lì lo stesso modello.
+La build verifica le regole prima di download, scansione ed estrazione del testo.
+Se una build precedente si è fermata su questa configurazione dopo l'estrazione,
+correggere i file e riprendere con `uv run sanikey build-all --mode incremental`
+per riutilizzare la cache valida; `--mode full` ripete l'estrazione.
+
 ```toml
 [discovery]
 min_occurrences = 2

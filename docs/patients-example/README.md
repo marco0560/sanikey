@@ -15,7 +15,9 @@ identificativi e percorsi con quelli curati localmente.
   `import-observations`; `metadata/observations/` è invece generata dal comando
   e non va modificata manualmente;
 - `parameters.toml` è un modello separato per discovery e regole longitudinali;
-  copiarlo nella `metadata_directory` soltanto dopo aver configurato il termine
+  predisporre prima il file comune come descritto nel
+  [riferimento parametri](../process/metadata-toml-reference.md#parameterstoml),
+  poi copiarlo nella `metadata_directory` soltanto dopo aver configurato il termine
   corrispondente nel dizionario. Le regole restano disabilitate finché non sono
   state revisionate.
 
