@@ -1,3 +1,9 @@
+## [0.10.4](https://github.com/marco0560/sanikey/compare/v0.10.3...v0.10.4) (2026-10-17)
+
+### Bug Fixes
+
+* **build:** validate parameter rules before expensive processing ([57c3f82](https://github.com/marco0560/sanikey/commit/57c3f820d82e0baad267c5e6781aac8c23f76199))
+
 ## [0.10.3](https://github.com/marco0560/sanikey/compare/v0.10.2...v0.10.3) (2026-10-14)
 
 ### Bug Fixes
