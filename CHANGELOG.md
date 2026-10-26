@@ -1,3 +1,10 @@
+## [0.10.5](https://github.com/marco0560/sanikey/compare/v0.10.4...v0.10.5) (2026-10-26)
+
+### Bug Fixes
+
+* **dev:** moved secrets repo ([d0260ac](https://github.com/marco0560/sanikey/commit/d0260ac796552ec6940bc3830be21d2374af476c))
+* **generation:** stabilize parameter charts and USB exports ([fdad1d9](https://github.com/marco0560/sanikey/commit/fdad1d93e56496cc6cb9933b3089729175d5b5b3))
+
 ## [0.10.4](https://github.com/marco0560/sanikey/compare/v0.10.3...v0.10.4) (2026-10-17)
 
 ### Bug Fixes
