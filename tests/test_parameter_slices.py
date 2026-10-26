@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from sanikey.documents import ExtractedText
 from sanikey.models import DocumentRecord
 from sanikey.parameter_slices import (
@@ -391,3 +393,66 @@ def test_discovery_excludes_labels_without_letters_or_with_configured_exclusion(
     )
 
     assert result.candidates == ()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "CREATININA\nmet. Colorimetria\n\nvalore\n  0,93\n\nmg/dL\nadulto: 0,7 - 1,2\n",
+        "CREATININA\nMetodo: Enzimatico\nvalore 0,93 mg/dL adulto: 0,7 - 1,2\n",
+        "CREATININA\nmet. Colorimetria\nmg/dL\n(0,7-1,2)\n0,93\n",
+    ],
+)
+def test_configured_discovery_reads_annotated_lab_results(text: str) -> None:
+    """Read explicit lab results across method cells without using reference ranges.
+
+    Parameters
+    ----------
+    text : str
+        Synthetic annotated laboratory row.
+
+    Returns
+    -------
+    None
+    """
+
+    result = discover_configured_candidates(
+        (_document("doc-a"),),
+        (ExtractedText(document_id="doc-a", text=text),),
+        accepted_labels=("creatinina",),
+    )
+
+    assert len(result.candidates) == 1
+    candidate = result.candidates[0]
+    assert candidate.normalized_label == "creatinina"
+    assert candidate.parsed_value == Decimal("0.93")
+    assert candidate.raw_unit == "mg/dL"
+    assert candidate.original_line.startswith(
+        text[candidate.character_start : candidate.character_end]
+    )
+    assert candidate.original_line.startswith("CREATININA\n")
+    assert "0,93" in candidate.original_line
+
+
+def test_annotated_discovery_does_not_cross_another_parameter() -> None:
+    """Do not assign the next analyte's numeric result to a preceding label.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    text = "CREATININA\nmet. Colorimetria\nEmoglobina\nvalore 13,7 g/dL\n"
+    result = discover_configured_candidates(
+        (_document("doc-a"),),
+        (ExtractedText(document_id="doc-a", text=text),),
+        accepted_labels=("creatinina", "emoglobina"),
+    )
+
+    assert [candidate.normalized_label for candidate in result.candidates] == [
+        "emoglobina"
+    ]

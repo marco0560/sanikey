@@ -84,6 +84,9 @@ def build_frontend(person: PersonConfig) -> FrontendResult:
     stylesheet.write_text(_style_css(), encoding="utf-8")
     (web_dir / "usb-info.js").write_text(_usb_info_js(person), encoding="utf-8")
     helper.write_text(_ui_helper_js(), encoding="utf-8")
+    (assets_dir / "chart-navigation.js").write_text(
+        _chart_navigation_js(), encoding="utf-8"
+    )
     material_script.write_text(_material_web_js(), encoding="utf-8")
     material_stylesheet.write_text(_material_web_css(), encoding="utf-8")
     shutil.copy2(
@@ -167,7 +170,7 @@ def _index_html(person: PersonConfig) -> str:
   <title>SaniKey - {title}</title>
   <link rel="stylesheet" href="assets/material-web.css">
   <link rel="stylesheet" href="style.css">
-  <script type="module" src="assets/material-web.js"></script>
+  <script src="assets/material-web.js"></script>
 </head>
 <body>
   <header>
@@ -269,6 +272,7 @@ def _index_html(person: PersonConfig) -> str:
   <script src="usb-info.js"></script>
   <script src="assets/ui-helper.js"></script>
   <script src="assets/chart.umd.min.js"></script>
+  <script src="assets/chart-navigation.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
@@ -298,7 +302,7 @@ def _extended_chart_html(person: PersonConfig) -> str:
   <title>Grafici parametri - {title}</title>
   <link rel="stylesheet" href="assets/material-web.css">
   <link rel="stylesheet" href="style.css">
-  <script type="module" src="assets/material-web.js"></script>
+  <script src="assets/material-web.js"></script>
 </head>
 <body class="extended-chart-page">
   <main class="extended-chart-main">
@@ -318,6 +322,7 @@ def _extended_chart_html(person: PersonConfig) -> str:
   </main>
   <script src="data.js"></script>
   <script src="assets/chart.umd.min.js"></script>
+  <script src="assets/chart-navigation.js"></script>
   <script src="parameter-chart.js"></script>
 </body>
 </html>
@@ -472,12 +477,16 @@ function setupTimelineDetailLinks(documents) {
       return;
     }
     const detailId = text(link.dataset.detailLink);
-    let detail = document.getElementById(`entity-${detailId}`);
+    if (openParameterDetail(detailId)) {
+      event.preventDefault();
+      return;
+    }
+    let detail = findEntityDetail(detailId);
     if (!detail) {
       renderDocuments(documents);
       const search = document.querySelector("#search");
       search.value = "";
-      detail = document.getElementById(`entity-${detailId}`);
+      detail = findEntityDetail(detailId);
     }
     const panel = detail && detail.closest("[data-section-panel]");
     if (!panel) {
@@ -490,13 +499,18 @@ function setupTimelineDetailLinks(documents) {
 }
 
 function setupResultDetailLinks() {
-  const results = document.querySelector("#documents");
+  const results = document.querySelector("main");
   results.addEventListener("click", (event) => {
     const link = event.target.closest("[data-result-detail-link]");
     if (!link) {
       return;
     }
-    const detail = document.getElementById(`entity-${text(link.dataset.resultDetailLink)}`);
+    const detailId = text(link.dataset.resultDetailLink);
+    if (openParameterDetail(detailId)) {
+      event.preventDefault();
+      return;
+    }
+    const detail = findEntityDetail(detailId);
     const panel = detail && detail.closest("[data-section-panel]");
     if (!panel) {
       return;
@@ -505,6 +519,15 @@ function setupResultDetailLinks() {
     window.SaniKeyUi.showSection(panel.dataset.sectionPanel, "left");
     requestAnimationFrame(() => detail.scrollIntoView({block: "start"}));
   });
+}
+
+function findEntityDetail(id) {
+  return document.getElementById(`entity-${id}`) || document.getElementById(`summary-entity-${id}`);
+}
+
+function openParameterDetail(id) {
+  const panel = document.querySelector("#parameters");
+  return Boolean(panel && !panel.dispatchEvent(new CustomEvent("sanikeyselectparameter", {detail: id, cancelable: true})));
 }
 
 function renderDocuments(documents, query = "") {
@@ -560,7 +583,7 @@ function renderClinicalDashboard(clinical) {
     `<a href="#summary-${attr(section)}">${escapeHtml(SECTION_LABELS[section])} ${items.length}</a>`
   ).join("")}</nav>` + sections.map(([section, items]) =>
     `<section id="summary-${attr(section)}" class="summary-section"><h3>${escapeHtml(SECTION_LABELS[section])}</h3>
-      ${items.map((item) => renderEntityCard(item, section)).join("")}</section>`
+      ${items.map((item) => renderEntityCard(item, section, "summary-entity")).join("")}</section>`
   ).join("");
 }
 
@@ -612,8 +635,9 @@ function renderParameterSection(target, items) {
     .sort((left, right) => text(left.name || left.id).localeCompare(text(right.name || right.id), "it"));
   let selectedSeriesId = series[0] && series[0].id;
   let query = "";
-  const filters = {from: "", to: "", unit: "", category: "", qualified: "all", order: "desc"};
-  const units = [...new Set(items.map(({point}) => point.normalized_unit || point.raw_unit).filter(Boolean))].sort();
+  const defaultFilters = {from: "", to: "", unit: "", category: "", qualified: "all", order: "desc"};
+  const filters = {...defaultFilters};
+  const units = [...new Set(items.map(({point, series}) => parameterUnit(point, series)).filter(Boolean))].sort();
   const categories = [...new Set(items.map(({point}) => point.document_category).filter(Boolean))].sort();
   const detailPanel = document.querySelector("#parameter-detail");
   target.innerHTML = `<h2>Parametri</h2>
@@ -651,7 +675,7 @@ function renderParameterSection(target, items) {
     }
     list.innerHTML = visible.length ? visible.map((item) => {
       const count = items.filter(({series}) => series.id === item.id).length;
-      return `<button type="button" data-parameter-series="${attr(item.id)}" aria-pressed="${item.id === selectedSeriesId}">${escapeHtml(item.name || item.id)} <span>${count}</span></button>`;
+      return `<button id="entity-${attr(item.id)}" type="button" data-parameter-series="${attr(item.id)}" aria-pressed="${item.id === selectedSeriesId}">${escapeHtml(item.name || item.id)} <span>${count}</span></button>`;
     }).join("") : '<p class="muted">Nessun parametro corrispondente.</p>';
     renderSelectedParameter(content, items, selectedSeriesId, filters);
     list.querySelectorAll("[data-parameter-series]").forEach((button) => button.addEventListener("click", () => {
@@ -667,6 +691,23 @@ function renderParameterSection(target, items) {
     filters[control.dataset.parameterFilter] = control.value;
     render();
   }));
+  target.addEventListener("sanikeyselectparameter", (event) => {
+    const item = items.find(({series, point}) => series.id === event.detail || point.id === event.detail);
+    if (!item) { return; }
+    event.preventDefault();
+    selectedSeriesId = item.series.id;
+    query = "";
+    search.value = "";
+    Object.assign(filters, defaultFilters);
+    target.querySelectorAll("[data-parameter-filter]").forEach((control) => {
+      control.value = filters[control.dataset.parameterFilter];
+    });
+    render();
+    window.SaniKeyUi.showSection("parameters", "left");
+    const detail = findEntityDetail(event.detail);
+    if (detail?.matches("[data-parameter-point]")) { detail.click(); }
+    requestAnimationFrame(() => detail?.scrollIntoView({block: "start"}));
+  });
   window.addEventListener("sanikeylayoutchange", arrange);
   render();
   arrange();
@@ -676,29 +717,49 @@ function parameterSearchText(series) {
   return normalizeSearchText([series.name, series.id, ...(series.synonyms || [])].join(" "));
 }
 
+function parameterUnit(point, series) {
+  return point.normalized_unit || point.raw_unit || series.unit || "";
+}
+
+function hasNumericValue(value) {
+  return value !== null && value !== undefined && text(value).trim() !== "" && Number.isFinite(Number(value));
+}
+
+function destroyParameterCharts(target) {
+  if (typeof Chart !== "undefined") {
+    target.querySelectorAll("canvas").forEach((canvas) => Chart.getChart(canvas)?.destroy());
+  }
+}
+
 function renderSelectedParameter(target, items, seriesId, filters) {
+  destroyParameterCharts(target);
   const selected = items.filter(({series, point}) => series.id === seriesId
     && (!filters.from || point.date >= filters.from)
     && (!filters.to || point.date <= filters.to)
-    && (!filters.unit || (point.normalized_unit || point.raw_unit) === filters.unit)
+    && (!filters.unit || parameterUnit(point, series) === filters.unit)
     && (!filters.category || point.document_category === filters.category)
     && (filters.qualified === "all" || (filters.qualified === "only") === Boolean(point.qualifier)))
     .sort((left, right) => filters.order === "asc"
       ? text(left.point.date).localeCompare(text(right.point.date))
       : text(right.point.date).localeCompare(text(left.point.date)));
   if (!selected.length) {
-    target.innerHTML = '<p class="muted">Selezionare un parametro.</p>';
+    target.innerHTML = seriesId
+      ? '<p class="muted">Nessuna misurazione corrisponde ai filtri selezionati.</p>'
+      : '<p class="muted">Selezionare un parametro.</p>';
     return;
   }
   const series = selected[0].series;
   target.innerHTML = `<h3>${escapeHtml(series.name || series.id)}</h3>
     ${series.synonyms && series.synonyms.length ? `<p class="muted">Sinonimi: ${escapeHtml(series.synonyms.join(", "))}</p>` : ""}
     <div class="parameter-chart-host"></div><div class="parameter-detail" aria-live="polite"></div>
-    <table class="observation-table"><thead><tr><th>Data</th><th>Valore originale</th><th>Unita'</th><th>Documento</th><th>Etichetta trovata</th><th>Provenienza</th></tr></thead><tbody>${selected.map(({point}) =>
-      `<tr tabindex="0" data-parameter-point="${attr(point.id)}"><td>${escapeHtml(formatDate(point.date))}</td><td>${escapeHtml((point.qualifier || "") + (point.raw_value || point.value || ""))}</td><td>${escapeHtml(point.raw_unit || point.normalized_unit || "")}</td><td>${point.document_href ? `<a href="${attr(point.document_href)}" target="_blank" rel="noopener">Apri documento</a>` : escapeHtml(point.document_title || "")}</td><td>${escapeHtml(point.matched_label || "")}</td><td>${escapeHtml(point.source_reference || "")}</td></tr>`
-    ).join("")}</tbody></table>`;
+    <div class="parameter-table-scroll"><table class="observation-table"><thead><tr><th>Data</th><th>Valore originale</th><th>Unita'</th><th>Documento</th><th>Etichetta trovata</th><th>Provenienza</th></tr></thead><tbody>${selected.map(({point}) =>
+      `<tr id="entity-${attr(point.id)}" tabindex="0" data-parameter-point="${attr(point.id)}"><td>${escapeHtml(formatDate(point.date))}</td><td>${escapeHtml((point.qualifier || "") + (point.raw_value || point.value || ""))}</td><td>${escapeHtml(point.raw_unit || point.normalized_unit || series.unit || "")}</td><td>${point.document_href ? `<a href="${attr(point.document_href)}" target="_blank" rel="noopener">Apri documento</a>` : escapeHtml(point.document_title || "")}</td><td>${escapeHtml(point.matched_label || "")}</td><td>${escapeHtml(point.source_reference || "")}</td></tr>`
+    ).join("")}</tbody></table></div>`;
   const detail = target.querySelector(".parameter-detail");
-  const showPoint = (point) => { detail.innerHTML = renderParameterDetail(point, series); };
+  const showPoint = (point) => {
+    detail.innerHTML = renderParameterDetail(point, series);
+    window.SaniKeyCharts.reveal(target.querySelector("canvas"), Date.parse(point.date + "T00:00:00"));
+  };
   target.querySelectorAll("[data-parameter-point]").forEach((row) => {
     const point = selected.find(({point: item}) => item.id === row.dataset.parameterPoint).point;
     row.addEventListener("click", () => showPoint(point));
@@ -718,8 +779,9 @@ function renderParameterDetail(point, series) {
 function observationDisplayValue(point, seriesUnit = "") {
   const raw = point.raw_value || point.value;
   const qualifier = point.qualifier || "";
-  const unit = point.raw_value ? "" : (point.raw_unit || point.normalized_unit || seriesUnit);
-  return qualifier + raw + (unit ? " " + unit : "");
+  const unit = point.raw_unit || point.normalized_unit || seriesUnit;
+  const includesUnit = unit && text(raw).trim().toLowerCase().endsWith(unit.toLowerCase());
+  return qualifier + raw + (unit && !includesUnit ? " " + unit : "");
 }
 
 function pointOrigin(point) {
@@ -755,7 +817,7 @@ function renderParameterChart(target, items, onPointSelected) {
     return;
   }
   const bloodPressure = items[0] && items[0].series.value_type === "blood_pressure";
-  const numeric = items.filter(({point}) => Number.isFinite(Number(point.numeric_value)));
+  const numeric = items.filter(({point}) => hasNumericValue(point.numeric_value));
   if (!bloodPressure && !numeric.length) {
     return;
   }
@@ -763,12 +825,15 @@ function renderParameterChart(target, items, onPointSelected) {
   canvas.className = "parameter-chart";
   canvas.setAttribute("role", "img");
   canvas.setAttribute("aria-label", "Grafico temporale dei parametri disponibili");
-  target.appendChild(canvas);
+  const plot = document.createElement("div");
+  plot.className = "parameter-chart-plot";
+  plot.appendChild(canvas);
+  target.appendChild(plot);
   const datasets = bloodPressure ? bloodPressureDatasets(items) : numericDatasets(numeric);
   if (!datasets.length) {
     return;
   }
-  new Chart(canvas, {
+  window.SaniKeyCharts.create(canvas, {
     type: "line",
     data: {datasets},
     options: {
@@ -779,6 +844,12 @@ function renderParameterChart(target, items, onPointSelected) {
           type: "linear",
           ticks: {callback: (value) => new Date(Number(value)).toLocaleDateString("it-IT")},
         },
+        ...(bloodPressure ? {
+          y: {type: "linear", position: "left", title: {display: true, text: items[0].series.unit || "mmHg"}},
+          ...(datasets.some((dataset) => dataset.yAxisID === "y1") ? {
+            y1: {type: "linear", position: "right", title: {display: true, text: "bpm"}, grid: {drawOnChartArea: false}},
+          } : {}),
+        } : {}),
       },
       plugins: {
         tooltip: {
@@ -801,7 +872,7 @@ function renderParameterChart(target, items, onPointSelected) {
         onPointSelected(point);
       },
     },
-  });
+  }, bloodPressure ? 31 : 92);
 }
 
 function numericDatasets(numeric) {
@@ -816,21 +887,36 @@ function numericDatasets(numeric) {
     grouped.set(key, entries);
   });
   const datasets = [];
-  grouped.forEach((entry) => {
+  const colors = ["#1d4ed8", "#dc2626", "#047857", "#7c3aed", "#b45309"];
+  grouped.forEach((entry, index) => {
+    const color = colors[index % colors.length];
     const regular = entry.points.filter((point) => !point.qualifier);
     const qualified = entry.points.filter((point) => point.qualifier);
     if (regular.length) {
       datasets.push({
         label: entry.label,
         data: regular.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point, series: entry.series})),
+        borderColor: color,
+        backgroundColor: color,
+        pointBackgroundColor: color,
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 1.5,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        pointHitRadius: 8,
         borderWidth: 2,
-        tension: 0.15,
+        tension: 0,
       });
     }
     if (qualified.length) {
       datasets.push({
         label: entry.label + " (qualificati)",
         data: qualified.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point, series: entry.series})),
+        borderColor: color,
+        backgroundColor: color,
+        pointBackgroundColor: color,
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 1.5,
         showLine: false,
         pointStyle: "triangle",
         pointRadius: 6,
@@ -847,22 +933,30 @@ function bloodPressureDatasets(items) {
     {field: "pulse", label: "Polso", color: "#15803d"},
   ];
   return components.map((component) => {
-    const data = items.filter(({point}) => Number.isFinite(Number(point[component.field])))
+    const data = items.filter(({point}) => hasNumericValue(point[component.field]))
       .map(({series, point}) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point[component.field]), point, series, component}));
     return data.length ? {
       label: component.label,
+      yAxisID: component.field === "pulse" ? "y1" : "y",
       data,
       borderColor: component.color,
       backgroundColor: component.color,
+      pointBackgroundColor: component.color,
+      pointBorderColor: "#ffffff",
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 7,
+      pointHitRadius: 8,
       borderWidth: 2,
-      tension: 0.15,
+      tension: 0,
     } : null;
   }).filter(Boolean);
 }
 
 function chartPointLabel(raw) {
   if (raw.component) {
-    return raw.component.label + ": " + raw.point[raw.component.field] + (raw.series.unit ? " " + raw.series.unit : "");
+    const unit = raw.component.field === "pulse" ? "bpm" : (raw.series.unit || "mmHg");
+    return raw.component.label + ": " + raw.point[raw.component.field] + " " + unit;
   }
   return observationDisplayValue(raw.point, raw.series.unit);
 }
@@ -936,8 +1030,8 @@ function isDicomTechnicalDocument(item) {
   return recordKind(item).startsWith("dicom_");
 }
 
-function renderEntityCard(item, section) {
-  return `<article id="entity-${attr(item.id)}"><h4>${escapeHtml(item.title)}</h4>
+function renderEntityCard(item, section, idPrefix = "entity") {
+  return `<article id="${idPrefix}-${attr(item.id)}"><h4>${escapeHtml(item.title)}</h4>
     ${item.date || item.start_date ? `<p>${escapeHtml(formatDate(item.date || item.start_date))}</p>` : ""}
     ${renderFields(item.fields || [])}
     ${renderEntityActions(item, section)}</article>`;
@@ -991,9 +1085,9 @@ function renderSearchResults(target, records, heading, emptyMessage) {
   const total = records.length;
   target.innerHTML = `<h2>${escapeHtml(heading)}</h2><p class="result-count">${total} risultati</p>
     <nav class="section-links" aria-label="Sezioni risultati">${sections.map(([section, items]) =>
-      `<a href="#results-${attr(section)}">${escapeHtml(SECTION_LABELS[section])} ${items.length}</a>`
+      `<a href="#${attr(target.id)}-results-${attr(section)}">${escapeHtml(SECTION_LABELS[section])} ${items.length}</a>`
     ).join("")}</nav>` + sections.map(([section, items]) =>
-    `<section id="results-${attr(section)}"><h3>${escapeHtml(SECTION_LABELS[section])}</h3>
+    `<section id="${attr(target.id)}-results-${attr(section)}"><h3>${escapeHtml(SECTION_LABELS[section])}</h3>
         ${items.map((item) => renderResultCard(item, section)).join("")}</section>`
     ).join("");
 }
@@ -1490,6 +1584,10 @@ function extendedDate(value) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : extendedText(value);
 }
 
+function hasNumericValue(value) {
+  return value !== null && value !== undefined && extendedText(value).trim() !== "" && Number.isFinite(Number(value));
+}
+
 function extendedOrigin(point) {
   if (point.document_href) {
     return "Documento: " + decodeURIComponent(extendedText(point.document_href).split("/").pop());
@@ -1502,11 +1600,13 @@ function extendedOrigin(point) {
 
 function extendedPointLabel(raw) {
   if (raw.component) {
-    return raw.component.label + ": " + raw.point[raw.component.field] + (raw.series.unit ? " " + raw.series.unit : "");
+    const unit = raw.component.field === "pulse" ? "bpm" : (raw.series.unit || "mmHg");
+    return raw.component.label + ": " + raw.point[raw.component.field] + " " + unit;
   }
   const value = raw.point.raw_value || raw.point.value;
-  const unit = raw.point.raw_value ? "" : (raw.point.raw_unit || raw.point.normalized_unit || raw.series.unit || "");
-  return value + (unit ? " " + unit : "");
+  const unit = raw.point.raw_unit || raw.point.normalized_unit || raw.series.unit || "";
+  const includesUnit = unit && extendedText(value).trim().toLowerCase().endsWith(unit.toLowerCase());
+  return (raw.point.qualifier || "") + value + (unit && !includesUnit ? " " + unit : "");
 }
 
 function extendedChartOptions(units) {
@@ -1536,7 +1636,7 @@ function extendedChartOptions(units) {
   };
 }
 
-function appendExtendedChart(target, title, datasets, units) {
+function appendExtendedChart(target, title, datasets, units, windowDays = 92) {
   const card = document.createElement("section");
   card.className = "extended-chart-card";
   card.innerHTML = `<h2>${extendedEscape(title)}</h2>`;
@@ -1544,9 +1644,12 @@ function appendExtendedChart(target, title, datasets, units) {
   canvas.className = "extended-parameter-chart";
   canvas.setAttribute("role", "img");
   canvas.setAttribute("aria-label", title);
-  card.appendChild(canvas);
+  const plot = document.createElement("div");
+  plot.className = "extended-chart-plot";
+  plot.appendChild(canvas);
+  card.appendChild(plot);
   target.appendChild(card);
-  new Chart(canvas, {type: "line", data: {datasets}, options: extendedChartOptions(units)});
+  window.SaniKeyCharts.create(canvas, {type: "line", data: {datasets}, options: extendedChartOptions(units)}, windowDays);
 }
 
 function renderPressureChart(target, series, points) {
@@ -1556,16 +1659,19 @@ function renderPressureChart(target, series, points) {
     {field: "pulse", label: "Polso", color: "#15803d"},
   ];
   const datasets = components.map((component) => {
-    const data = points.filter((point) => Number.isFinite(Number(point[component.field])))
+    const data = points.filter((point) => hasNumericValue(point[component.field]))
       .map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point[component.field]), point, series, component}));
-    return data.length ? {label: component.label, data, borderColor: component.color, backgroundColor: component.color, borderWidth: 2, tension: 0.15} : null;
+    return data.length ? {label: component.label, data, yAxisID: component.field === "pulse" ? "y1" : "y", borderColor: component.color, backgroundColor: component.color, pointBackgroundColor: component.color, pointBorderColor: "#ffffff", pointBorderWidth: 1.5, pointRadius: 4, pointHoverRadius: 7, pointHitRadius: 8, borderWidth: 2, tension: 0} : null;
   }).filter(Boolean);
   if (datasets.length) {
-    appendExtendedChart(target, series.name || series.id, datasets, [series.unit || "mmHg"]);
+    const units = [series.unit || "mmHg"];
+    if (datasets.some((dataset) => dataset.yAxisID === "y1")) { units.push("bpm"); }
+    appendExtendedChart(target, series.name || series.id, datasets, units, 31);
   }
 }
 
 function renderNumericCharts(target, entries) {
+  if (!entries.length) { return; }
   const byUnit = new Map();
   entries.forEach((entry) => {
     const unit = entry.series.unit || "Senza unita'";
@@ -1578,15 +1684,27 @@ function renderNumericCharts(target, entries) {
   const colors = ["#7c3aed", "#ea580c", "#0f766e", "#be123c", "#0369a1"];
   chartGroups.forEach((chartGroup) => {
     const units = chartGroup.map(([unit]) => unit);
-    const datasets = chartGroup.flatMap(([unit, group], unitIndex) => group.map((entry, index) => ({
+    const datasets = chartGroup.flatMap(([unit, group], unitIndex) => group.map((entry) => {
+      const index = entry.styleIndex ?? entries.indexOf(entry);
+      const color = index < colors.length ? colors[index] : `hsl(${(index * 137.508) % 360}, 65%, 38%)`;
+      return {
       label: entry.series.name || entry.series.id,
       yAxisID: unitIndex ? "y1" : "y",
       data: entry.points.map((point) => ({x: Date.parse(point.date + "T00:00:00"), y: Number(point.numeric_value), point, series: entry.series})),
-      borderColor: colors[index % colors.length],
-      backgroundColor: colors[index % colors.length],
+      borderColor: color,
+      backgroundColor: color,
+      pointBackgroundColor: color,
+      pointBorderColor: "#ffffff",
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 7,
+      pointHitRadius: 8,
+      pointStyle: ["circle", "rect", "triangle", "rectRot", "crossRot"][index % 5],
+      borderDash: index < colors.length ? [] : [4 + index % 4, 3],
       borderWidth: 2,
       tension: 0.15,
-    })));
+      };
+    }));
     const title = chartGroup.flatMap(([, group]) => group.map((entry) => entry.series.name || entry.series.id)).join(" · ");
     appendExtendedChart(target, title, datasets, units);
   });
@@ -1607,13 +1725,15 @@ function main() {
       input.checked ? selected.add(input.value) : selected.delete(input.value);
       render();
     }));
+    chartTarget.querySelectorAll("canvas").forEach((canvas) => Chart.getChart(canvas)?.destroy());
     chartTarget.replaceChildren();
     const entries = series.filter((item) => selected.has(item.id)).map((item) => ({
       series: item,
+      styleIndex: series.indexOf(item),
       points: points.filter((point) => point.series_id === item.id && (!filters.from || point.date >= filters.from) && (!filters.to || point.date <= filters.to)),
     }));
     entries.filter((entry) => entry.series.value_type === "blood_pressure").forEach((entry) => renderPressureChart(chartTarget, entry.series, entry.points));
-    const numeric = entries.map((entry) => ({...entry, points: entry.points.filter((point) => Number.isFinite(Number(point.numeric_value)))})).filter((entry) => entry.series.value_type !== "blood_pressure" && entry.points.length);
+    const numeric = entries.map((entry) => ({...entry, points: entry.points.filter((point) => hasNumericValue(point.numeric_value))})).filter((entry) => entry.series.value_type !== "blood_pressure" && entry.points.length);
     renderNumericCharts(chartTarget, numeric);
     if (!chartTarget.children.length) {
       chartTarget.innerHTML = '<p class="muted">Nessun punto grafico nel periodo selezionato.</p>';
@@ -1629,6 +1749,109 @@ function main() {
 if (typeof Chart !== "undefined") {
   main();
 }
+"""
+
+
+def _chart_navigation_js() -> str:
+    """Return shared temporal-window navigation for parameter charts.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    str
+        Offline chart controller with a proportional horizontal scrollbar.
+    """
+
+    return r"""(() => {
+"use strict";
+const DAY = 86400000;
+const DEFAULT_WINDOW_DAYS = 92;
+const controllers = new WeakMap();
+function domain(datasets) {
+  let min = Infinity, max = -Infinity;
+  datasets.forEach(dataset => dataset.data.forEach(point => {
+    if (Number.isFinite(point.x)) { min = Math.min(min, point.x); max = Math.max(max, point.x); }
+  }));
+  return Number.isFinite(min) ? {min: min - DAY, max: max + DAY} : {min: 0, max: DAY};
+}
+function create(canvas, config, windowDays = DEFAULT_WINDOW_DAYS) {
+  const original = config.data.datasets.map(dataset => ({...dataset, data: dataset.data.slice()}));
+  const bounds = domain(original);
+  const windowSpan = Math.max(1, windowDays) * DAY;
+  const span = Math.min(windowSpan, bounds.max - bounds.min);
+  const travel = bounds.max - bounds.min - span;
+  let start = bounds.max - span;
+  let chart, frame = 0, disposed = false;
+  const controls = document.createElement("div");
+  controls.className = "chart-navigation";
+  controls.innerHTML = '<div class="chart-navigation-actions"><button type="button" data-pan="first">Prime misure</button><button type="button" data-pan="previous">← Periodo precedente</button><button type="button" data-pan="next">Periodo successivo →</button><button type="button" data-pan="last">Ultime misure</button></div><output class="chart-navigation-range"></output><div class="chart-navigation-scroll" tabindex="0" role="region" aria-label="Scorri la storia del parametro: frecce, Pagina su o giù, Inizio e Fine"><div class="chart-navigation-track"></div></div><div class="chart-navigation-empty" aria-live="polite"></div>';
+  canvas.parentElement.after(controls);
+  const scroll = controls.querySelector(".chart-navigation-scroll");
+  const track = controls.querySelector(".chart-navigation-track");
+  const range = controls.querySelector("output");
+  const empty = controls.querySelector(".chart-navigation-empty");
+  const buttons = [...controls.querySelectorAll("button")];
+  function draw() {
+    const end = start + span;
+    config.options.scales.x.min = start;
+    config.options.scales.x.max = end;
+    const datasets = original.map(dataset => ({...dataset, data: dataset.data.filter(point => point.x >= start && point.x <= end)}));
+    if (chart) { chart.data.datasets = datasets; chart.options.scales.x.min = start; chart.options.scales.x.max = end; chart.update("none"); }
+    else { config.data.datasets = datasets; }
+    const windowLabel = windowDays <= 45 ? "finestra di circa un mese" : "finestra di circa tre mesi";
+    range.textContent = new Date(start).toLocaleDateString("it-IT") + " – " + new Date(end).toLocaleDateString("it-IT") + " · " + windowLabel;
+    empty.textContent = datasets.some(dataset => dataset.data.length) ? "" : "Nessuna misurazione in questo periodo.";
+    buttons.forEach(button => { button.disabled = ["first", "previous"].includes(button.dataset.pan) ? start <= bounds.min : start >= bounds.max - span; });
+  }
+  function position() {
+    if (!scroll.clientWidth) { return; }
+    track.style.width = Math.max(scroll.clientWidth, scroll.clientWidth * (bounds.max - bounds.min) / span) + "px";
+    scroll.scrollLeft = travel ? (start - bounds.min) / travel * (scroll.scrollWidth - scroll.clientWidth) : 0;
+    scroll.hidden = !travel;
+  }
+  function move(value) {
+    start = Math.max(bounds.min, Math.min(bounds.max - span, value));
+    draw(); position();
+  }
+  function onScroll() {
+    if (disposed || !scroll.clientWidth || !travel) { return; }
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      if (disposed) { return; }
+      start = bounds.min + scroll.scrollLeft / Math.max(1, scroll.scrollWidth - scroll.clientWidth) * travel;
+      draw();
+    });
+  }
+  function onKey(event) {
+    const steps = {ArrowLeft: -span / 4, ArrowRight: span / 4, PageUp: -span, PageDown: span};
+    if (event.key in steps || event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      move(event.key === "Home" ? bounds.min : event.key === "End" ? bounds.max : start + steps[event.key]);
+    }
+  }
+  buttons.forEach(button => button.addEventListener("click", () => move({first: bounds.min, previous: start - span, next: start + span, last: bounds.max}[button.dataset.pan])));
+  scroll.addEventListener("scroll", onScroll);
+  scroll.addEventListener("keydown", onKey);
+  const observer = new ResizeObserver(position);
+  observer.observe(scroll);
+  config.plugins = [...(config.plugins || []), {id: "sanikeyTimeWindow", afterDestroy() {
+    disposed = true; cancelAnimationFrame(frame); observer.disconnect();
+    scroll.removeEventListener("scroll", onScroll); scroll.removeEventListener("keydown", onKey);
+    controllers.delete(canvas); controls.remove();
+  }}];
+  draw();
+  chart = new Chart(canvas, config);
+  controllers.set(canvas, {reveal(value) {
+    if (Number.isFinite(value) && (value < start || value > start + span)) { move(value - span / 2); }
+  }});
+  position();
+  return chart;
+}
+window.SaniKeyCharts = {create, reveal(canvas, value) { controllers.get(canvas)?.reveal(value); }};
+})();
 """
 
 
@@ -2237,16 +2460,39 @@ dd {
 
 .parameter-chart {
   display: block;
-  height: 20rem !important;
-  margin: 0.75rem 0 1rem;
+  height: 100% !important;
   max-width: 100%;
   width: 100% !important;
 }
+
+.parameter-chart-plot, .extended-chart-plot {
+  position: relative;
+  min-width: 0;
+  contain: inline-size;
+  height: 20rem;
+}
+.extended-chart-plot { height: min(68dvh, 44rem); }
+.chart-navigation { margin: 0.5rem 0 1rem; min-width: 0; contain: inline-size; }
+.chart-navigation-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.chart-navigation-range { display: block; margin: 0.4rem 0; }
+.chart-navigation-scroll { overflow-x: scroll; max-width: 100%; height: 1.5rem; }
+.chart-navigation-track { height: 1px; }
+.chart-navigation-empty { min-height: 1.4rem; }
 
 .parameter-layout {
   display: grid;
   gap: 1rem;
   grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr);
+}
+
+.parameter-content,
+.parameter-table-scroll {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.parameter-table-scroll {
+  overflow-x: auto;
 }
 
 .parameter-filters {
@@ -2330,7 +2576,7 @@ dd {
 
 .extended-parameter-chart {
   display: block;
-  height: min(68dvh, 44rem) !important;
+  height: 100% !important;
   max-width: 100%;
   width: 100% !important;
 }
@@ -2448,7 +2694,7 @@ body[data-density="compact"] md-text-button {
 
 @media (max-width: 44rem) {
   .parameter-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   header {

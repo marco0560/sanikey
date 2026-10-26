@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -403,7 +404,7 @@ def _rsync_directory_contents(
     *,
     progress: ProgressReporter | None = None,
 ) -> None:
-    """Mirror directory contents with rsync.
+    """Mirror directory contents with rsync without a total-duration limit.
 
     Parameters
     ----------
@@ -421,7 +422,13 @@ def _rsync_directory_contents(
     Raises
     ------
     UsbError
-        If rsync returns a non-zero exit status.
+        If rsync returns a non-zero exit status or the copy is interrupted.
+
+    Notes
+    -----
+    Completed-file records are streamed without filenames and reported as
+    progress. Unchanged target files are reused when retrying a failed copy.
+    Only the last twenty diagnostic lines are retained in memory.
     """
 
     files = sorted(path for path in source.rglob("*") if path.is_file())
@@ -431,15 +438,47 @@ def _rsync_directory_contents(
     if rsync is None:
         _copy_directory_contents(source, target, progress=progress)
         return
-    completed = subprocess.run(
-        [rsync, "-a", "--delete", f"{source}/", f"{target}/"],
-        check=False,
-        capture_output=True,
+    diagnostics: deque[str] = deque(maxlen=20)
+    transferred = 0
+    with subprocess.Popen(
+        [
+            rsync,
+            "-a",
+            "--delete",
+            "--outbuf=L",
+            "--out-format=SANIKEY:%i:%b",
+            f"{source}/",
+            f"{target}/",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
-        timeout=3600,
-    )
-    if completed.returncode != 0:
-        message = (completed.stderr or completed.stdout or "rsync non riuscito").strip()
+        errors="replace",
+        bufsize=1,
+    ) as process:
+        try:
+            if process.stdout is not None:
+                for line in process.stdout:
+                    if line.startswith("SANIKEY:"):
+                        itemized = line.split(":", 2)[1]
+                        if len(itemized) > 1 and itemized[1] == "f":
+                            transferred += 1
+                            if progress is not None:
+                                progress.advance(transferred, total=len(files))
+                    elif line.strip():
+                        diagnostics.append(line.strip())
+            returncode = process.wait()
+        except KeyboardInterrupt:
+            process.terminate()
+            process.wait()
+            if progress is not None:
+                progress.done("interrotto")
+            message = "copia USB interrotta; rieseguire export-usb per riprendere"
+            raise UsbError(message) from None
+    if returncode != 0:
+        if progress is not None:
+            progress.done("errore")
+        message = "\n".join(diagnostics) or f"rsync terminato con codice {returncode}"
         error = f"copia USB rsync non riuscita: {message}"
         raise UsbError(error)
     if progress is not None:

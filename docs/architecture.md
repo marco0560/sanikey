@@ -72,12 +72,24 @@ struttura USB.
 - `exports.py`: scrive export JSON statici e il bundle dati JavaScript per
   ricerca, timeline e sommari.
 - `frontend.py`: renderizza l'entrypoint web statico consultabile anche tramite
-  `file://`.
+  `file://`. Gli elementi locali di compatibilità Material sono caricati come
+  script classico, senza moduli ES che richiedano CORS su file locali. I grafici
+  vengono distrutti prima di sostituire le loro canvas; colori e simboli delle
+  serie estese sono assegnati indipendentemente dai gruppi di unità. Il controller
+  condiviso `assets/chart-navigation.js` mantiene una canvas della larghezza
+  disponibile e finestre temporali iniziali di 92 giorni per gli altri parametri
+  e 31 giorni per la pressione, sulle misure più recenti. La barra scorre su
+  tutta la storia con distanze temporali
+  proporzionali; soltanto i punti della finestra sono disegnati, lasciando
+  vuoti gli intervalli senza dati. I dati originali restano nel controller,
+  liberato insieme alla canvas.
 - `build.py`: coordina la pipeline locale di build paziente e la cache
   incrementale dell'estrazione testo.
 - `usb.py`: esporta e valida la struttura USB.
   Controlla anche link frontend relativi, UUID/fstype/spazio dei target fisici
-  configurati e copia con `rsync` quando disponibile.
+  configurati e copia con `rsync` quando disponibile. La copia con `rsync` non
+  impone un limite di durata totale, riutilizza i file invariati al rilancio e
+  riporta l'avanzamento al completamento dei singoli file aggiornati.
 - `cli.py`: espone l'interfaccia a riga di comando.
 
 ## Modello di Paziente Configurato

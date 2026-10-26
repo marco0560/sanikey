@@ -734,39 +734,70 @@ mkdir -p local-data/usb-target
 findmnt --json --output TARGET,FSTYPE,UUID --target local-data/usb-target
 ```
 
-Per eseguire il solo smoke test locale, usare una copia temporanea della
-configurazione con l'UUID del filesystem locale. Non registrare questo UUID come
-UUID definitivo della chiavetta.
+Per eseguire il solo smoke test locale, usare una copia della configurazione
+con l'UUID del filesystem locale e senza requisito exFAT. Tenere la copia in
+`config/`, accanto all'originale, per preservare la risoluzione dei percorsi
+relativi e la posizione dell'immagine canonica. Non registrare questo UUID come
+UUID definitivo della chiavetta. Eseguire dalla radice del repository; il blocco
+seguente si interrompe al primo errore senza modificare la configurazione originale.
 
 ```bash
-export LOCAL_USB_UUID="$(findmnt -no UUID --target local-data/usb-target)"
-test -n "$LOCAL_USB_UUID"
-cp config/accounts.toml local-data/accounts.local-usb.toml
-python - <<'PY'
+bash <<'SH'
+set -euo pipefail
+mkdir -p local-data/usb-target
+export LOCAL_USB_UUID
+LOCAL_USB_UUID="$(findmnt -no UUID --target "$PWD/local-data/usb-target")"
+uv run python - <<'PY'
 from pathlib import Path
 import os
 import re
 
-path = Path("local-data/accounts.local-usb.toml")
-uuid = os.environ["LOCAL_USB_UUID"]
-text = path.read_text(encoding="utf-8")
+from sanikey.config import parse_accounts_data
+import tomllib
+
+path = Path("config/accounts.local-usb.toml")
+uuid = os.environ["LOCAL_USB_UUID"].strip()
+if not uuid:
+    raise SystemExit(
+        "UUID locale non rilevato: verificare local-data/usb-target "
+        "con findmnt; configurazione di prova non modificata."
+    )
+text = Path("config/accounts.toml").read_text(encoding="utf-8")
 text = re.sub(
-    r'usb_uuid = "[^"]*"',
-    f'usb_uuid = "{uuid}"',
+    r'(?m)^(\s*usb_uuid\s*=\s*)"[^"]*"',
+    lambda match: f'{match[1]}"{uuid}"',
     text,
 )
+text = re.sub(
+    r'(?m)^(\s*require_exfat\s*=\s*)(true|false)\b',
+    lambda match: f"{match[1]}false",
+    text,
+)
+config = parse_accounts_data(tomllib.loads(text), path=path.resolve())
+if config.usb.usb_uuid != uuid or config.usb.require_exfat:
+    raise SystemExit(
+        "Configurare [global.usb].usb_uuid nell'originale e ripetere; "
+        "configurazione di prova non modificata."
+    )
 path.write_text(text, encoding="utf-8")
 PY
-uv run sanikey validate-config local-data/accounts.local-usb.toml
+uv run sanikey validate-config config/accounts.local-usb.toml
+SH
 ```
 
 ```bash
-rm -rf exports/usb-image local-data/usb-target
-uv run sanikey export-usb exports/usb-image
-uv run sanikey export-usb --config local-data/accounts.local-usb.toml local-data/usb-target
+bash <<'SH'
+set -euo pipefail
+uv run sanikey export-usb --config config/accounts.local-usb.toml local-data/usb-target
 uv run sanikey validate-usb exports/usb-image
 uv run sanikey validate-usb local-data/usb-target
+SH
 ```
+
+L'export rigenera già l'immagine canonica: non serve cancellare le directory né
+eseguire un primo export con la configurazione della chiavetta fisica. Se la
+preparazione fallisce, correggere il rilevamento dell'UUID e ripetere il primo
+blocco; procedere al secondo soltanto dopo `stato=ok`.
 
 `export-usb` stampa progress interattivo su `stderr` durante generazione
 immagine, checksum/manifest e copia verso il target. Se serve un log senza
@@ -895,10 +926,28 @@ L'export verso una chiavetta fisica sostituisce il contenuto SaniKey nel target:
 usare solo un mountpoint verificato e dedicato.
 
 ```bash
+bash -s -- "${USB_MOUNT:-}" <<'SH'
+set -euo pipefail
+USB_MOUNT=$1
+: "${USB_MOUNT:?Impostare USB_MOUNT con il mountpoint verificato della chiavetta}"
 uv run sanikey export-usb "$USB_MOUNT"
 sync
 uv run sanikey validate-usb "$USB_MOUNT"
+SH
 ```
+
+Con `copy_strategy = "rsync-preferred"`, la copia non ha un limite di durata
+totale: può superare un'ora. I punti avanzano al completamento dei singoli file
+aggiornati, quindi un file grande può richiedere tempo prima del punto successivo.
+I file già presenti e invariati vengono riutilizzati. Se una copia precedente è
+stata interrotta, lasciare intatta la chiavetta e ripetere lo stesso blocco:
+`export-usb` rigenera l'immagine locale e completa la sincronizzazione del target.
+Non è necessario rilanciare `build-all`.
+
+Un errore di `rsync` o un'interruzione con Ctrl+C fanno fallire l'export;
+il blocco non prosegue con `validate-usb`. `sync` scarica le scritture pendenti
+ma non completa una copia interrotta. Considerare la chiavetta pronta soltanto
+dopo una copia terminata con successo e `validate-usb` con `stato=ok`.
 
 Il comando `validate-usb` deve stampare:
 

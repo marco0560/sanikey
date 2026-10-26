@@ -724,6 +724,7 @@ def _evaluate(
             if candidate.normalized_label.startswith("s-")
             else "urine"
             if candidate.normalized_label.startswith("u-")
+            or "urinari" in candidate.normalized_label
             else None
         )
         observed = explicit or candidate.section_specimen

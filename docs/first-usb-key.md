@@ -112,15 +112,42 @@ Il comando crea database, export, pagina web e report nelle cartelle
 `local_build`. Controllare gli avvisi indicati nel report. Se si importano
 osservazioni, eseguire prima `uv run sanikey import-observations ID_PAZIENTE`.
 
+I grafici dei parametri mostrano misurazioni riconosciute, non il numero di
+menzioni del termine nei documenti. Configurare le regole come descritto nel
+[riferimento dei parametri](process/metadata-toml-reference.md#parameterstoml).
+Nel grafico esteso le serie mantengono colori distinti e stabili quando cambia
+la selezione. Sui dispositivi stretti la tabella delle misurazioni scorre
+orizzontalmente senza allargare l'intera pagina. I collegamenti dei risultati
+di ricerca aprono il parametro richiesto e azzerano i suoi eventuali filtri.
+Il polso usa una scala separata in bpm rispetto alla pressione in mmHg;
+i valori assenti non vengono disegnati come zeri.
+
+I grafici numerici aprono una finestra di circa tre mesi sulle misure più
+recenti. Per rendere più leggibile la pressione, il suo grafico apre una
+finestra di circa un mese. La barra orizzontale sotto ciascun grafico permette
+comunque di esplorare tutta la storia; i pulsanti passano al periodo
+precedente o successivo, oppure alle
+prime o ultime misure. Con la barra attiva si possono usare anche le frecce,
+Pagina su/giù e Inizio/Fine. Le distanze tra le date restano proporzionali:
+un periodo senza dati appare vuoto. I filtri di data delimitano la storia
+esplorabile. Selezionare una riga della tabella porta il grafico alla data
+della misura.
+
 ## 6. Preparare e scrivere la chiavetta
 
 Montare una chiavetta vuota o dedicata e verificare con attenzione il suo
 percorso. L'export modifica il contenuto del target scelto.
 
 ```bash
-uv run sanikey export-usb /media/NOME_CHIAVETTA
+uv run sanikey export-usb /media/NOME_CHIAVETTA &&
+sync &&
 uv run sanikey validate-usb /media/NOME_CHIAVETTA
 ```
+
+La copia con `rsync` può durare più di un'ora e mostra punti al completamento
+dei file aggiornati. Se viene interrotta, ripetere il comando senza svuotare la
+chiavetta: i file invariati vengono riutilizzati. La validazione parte soltanto
+se l'export riesce.
 
 In alternativa `deploy-usb` costruisce e poi esporta in un solo passaggio:
 

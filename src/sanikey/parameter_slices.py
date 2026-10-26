@@ -47,6 +47,8 @@ _GLYCATED_HEMOGLOBIN_LABEL_RE = re.compile(
 )
 _LETTER_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]")
 _SPACE_RE = re.compile(r"\s+")
+_TABLE_METHOD_RE = re.compile(r"^(?:met\.|metodo\s*:).*$", re.IGNORECASE)
+_INLINE_RESULT_RE = re.compile(r"^\s*valore\s+(?P<content>.+)$", re.IGNORECASE)
 _TRAILING_SEPARATOR_RE = re.compile(r"\s*[:=]\s*$")
 _ERR_MIN_LABEL_LENGTH = "min_label_length deve essere positivo"
 _ERR_MAX_LABEL_LENGTH = "max_label_length non puo' essere minore del minimo"
@@ -337,6 +339,14 @@ def discover_candidates(
                     settings,
                 )
             if candidate is None:
+                candidate = _candidate_from_annotated_result(
+                    source,
+                    lines,
+                    index,
+                    line_offsets,
+                    settings,
+                )
+            if candidate is None:
                 candidate = _candidate_from_described_value_cells(
                     source,
                     lines,
@@ -600,6 +610,98 @@ def _candidate_from_line(
     )
 
 
+def _following_table_cells(
+    lines: list[str], label_index: int, count: int
+) -> list[tuple[int, str]]:
+    """Read nearby table cells, skipping only blank lines and method annotations.
+
+    Parameters
+    ----------
+    lines : list[str]
+        Extracted document lines.
+    label_index : int
+        Zero-based label line.
+    count : int
+        Maximum number of non-annotation cells to return.
+
+    Returns
+    -------
+    list[tuple[int, str]]
+        Original line indices and contents, limited to twelve following lines.
+    """
+
+    cells: list[tuple[int, str]] = []
+    for index in range(label_index + 1, min(len(lines), label_index + 13)):
+        line = lines[index]
+        stripped = line.strip()
+        if not stripped or _TABLE_METHOD_RE.fullmatch(stripped):
+            continue
+        if stripped.casefold() == "valore":
+            continue
+        cells.append((index, line))
+        if len(cells) == count:
+            break
+    return cells
+
+
+def _candidate_from_annotated_result(
+    source: _LineSource,
+    lines: list[str],
+    label_index: int,
+    line_offsets: list[int],
+    settings: DiscoverySettings,
+) -> ParameterCandidate | None:
+    """Read an explicit inline result after a label and optional method line.
+
+    Parameters
+    ----------
+    source : _LineSource
+        Document-wide provenance.
+    lines : list[str]
+        Extracted document lines.
+    label_index : int
+        Zero-based label line.
+    line_offsets : list[int]
+        Original character offsets for each line.
+    settings : DiscoverySettings
+        Label constraints.
+
+    Returns
+    -------
+    ParameterCandidate | None
+        Candidate for a nearby ``valore <number> <unit>`` result, preserving
+        original offsets and the entire source fragment.
+    """
+
+    cells = _following_table_cells(lines, label_index, 1)
+    if not cells:
+        return None
+    value_index, value_line = cells[0]
+    match = _INLINE_RESULT_RE.fullmatch(value_line)
+    if match is None:
+        return None
+    label = lines[label_index]
+    candidate = _candidate_from_line(
+        source,
+        f"{label} {match['content']}",
+        label_index + 1,
+        line_offsets[label_index],
+        settings,
+    )
+    if candidate is None:
+        return None
+    consumed = candidate.character_end - line_offsets[label_index] - len(label) - 1
+    character_end = line_offsets[value_index] + match.start("content") + consumed
+    return replace(
+        candidate,
+        stable_id=hashlib.sha256(
+            f"{candidate.stable_id}\x1f{character_end}".encode()
+        ).hexdigest(),
+        character_end=character_end,
+        original_line="\n".join(lines[label_index : value_index + 1]),
+    )
+
+
 def _candidate_from_stacked_cells(
     source: _LineSource,
     lines: list[str],
@@ -628,13 +730,7 @@ def _candidate_from_stacked_cells(
         Candidate when three stacked cells form a valid measurement.
     """
 
-    following = [
-        (index, item)
-        for index, item in enumerate(
-            lines[label_index + 1 : label_index + 5], label_index + 1
-        )
-        if item.strip()
-    ]
+    following = _following_table_cells(lines, label_index, 2)
     if len(following) < 2:
         return None
     _, value_line = following[0]
@@ -724,13 +820,7 @@ def _candidate_from_unit_reference_value_cells(
         Candidate when four stacked cells form a valid measurement.
     """
 
-    following = [
-        (index, item)
-        for index, item in enumerate(
-            lines[label_index + 1 : label_index + 7], label_index + 1
-        )
-        if item.strip()
-    ]
+    following = _following_table_cells(lines, label_index, 3)
     if len(following) < 3:
         return None
     unit_index, unit_line = following[0]

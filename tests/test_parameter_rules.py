@@ -429,3 +429,56 @@ version = 1
         ("53,0", "mmol/mol", 6.9995),
         ("7,0", "%", 7.0),
     ]
+
+
+def test_serum_and_urine_rules_keep_explicit_specimens_separate(tmp_path: Path) -> None:
+    """Separate serum and urine results sharing a label, including explicit urine.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    path = tmp_path / "parameters.toml"
+    sections = []
+    for specimen in ("serum", "urine"):
+        sections.append(
+            f"[parameters.{specimen}]\n"
+            f'display_name = "Creatinina {specimen}"\n'
+            'term = "creatinina"\n'
+            "version = 1\n"
+            'value_type = "scalar"\n'
+            'number_formats = ["integer", "decimal-point"]\n'
+            'unit_policy = "required"\n'
+            "enabled = true\n"
+            'units = ["mg/dL"]\n'
+            'canonical_unit = "mg/dL"\n'
+            f'specimen = "{specimen}"\n'
+        )
+    path.write_text("\n".join(sections), encoding="utf-8")
+    rules = load_parameter_rules(
+        path,
+        SearchDictionary(
+            terms={"creatinina": ("creatinina", "s-creatinina", "creatinina urinaria")}
+        ),
+    )
+    discovery = discover_candidates(
+        (_document("doc-a"),),
+        (
+            ExtractedText(
+                document_id="doc-a",
+                text="S-Creatinina 0.9 mg/dL\nESAME COMPLETO DELLE URINE\nCreatinina 55 mg/dL\nCreatinina urinaria 40 mg/dL\n",
+            ),
+        ),
+    )
+
+    result = build_parameter_slices(discovery.candidates, rules)
+
+    assert len(result.points) == 3
+    assert sum(point.series_id == "serum" for point in result.points) == 1
+    assert sum(point.series_id == "urine" for point in result.points) == 2

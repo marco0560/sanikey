@@ -464,6 +464,38 @@ modo per consentire alla regola di creare punti. Le conversioni sono ammesse
 solo in blocchi `[[parameters.<id>.conversions]]` espliciti e versionati. Vedere
 l'[esempio sintetico](../patients-example/parameters.toml).
 
+Una menzione nella ricerca testuale non equivale a un punto del grafico: il
+riconoscimento richiede una regola abilitata, un'etichetta configurata, un valore,
+una data e un'unità ammessa dalla regola. Le richieste di esami, le frasi
+discorsive e le unità OCR sconosciute non vengono trasformate automaticamente in
+misurazioni. I report locali spiegano gli scarti dei candidati riconosciuti;
+le righe che non formano un candidato non entrano in questi report.
+
+Il parser supporta anche righe di laboratorio estratte verticalmente, con celle
+`met. ...`, `Metodo: ...` e `valore` tra l'etichetta e il risultato. Per esempio:
+
+```text
+CREATININA
+met. Colorimetria
+valore
+0,93
+mg/dL
+adulto: 0,7 - 1,2
+```
+
+Il risultato è `0,93`, non il riferimento `0,7 - 1,2`. È supportata anche una
+cella `valore 0,93 mg/dL` dopo l'etichetta. Non vengono saltate etichette di altri
+esami per cercare un risultato più avanti nel documento.
+
+Per mantenere distinti sangue e urine, usare regole con `specimen = "serum"`
+e `specimen = "urine"` e `series_id` differenti. I prefissi espliciti `s-`, `u-`
+e le etichette urinarie distinguono il campione; altrimenti viene usata
+l'intestazione della sezione. `default_specimen_labels` autorizza esplicitamente
+il campione predefinito per le sole etichette elencate: non va aggiunto se una
+stessa etichetta è ambigua nei propri documenti. Un campione esplicito diverso
+viene comunque rifiutato. L'abilitazione delle regole avviene nella
+configurazione locale, senza modificare il codice o abilitare regole per tutti.
+
 ## `timeline_events.toml`
 
 Contiene eventi manuali da mostrare nella timeline.

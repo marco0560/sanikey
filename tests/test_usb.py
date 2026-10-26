@@ -7,6 +7,7 @@ import os
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -18,6 +19,8 @@ from sanikey.rendering import ConsultationRenderResult
 from sanikey.usb import export_usb, usb_image_root, validate_usb
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from sanikey.models import DocumentRecord
 
 
@@ -95,6 +98,8 @@ class ProgressRecorder:
         """
 
         self.labels: list[str] = []
+        self.advances: list[tuple[int, int | None]] = []
+        self.summaries: list[str] = []
 
     def begin(
         self,
@@ -122,7 +127,7 @@ class ProgressRecorder:
         self.labels.append(label)
 
     def advance(self, completed: int, *, total: int | None = None) -> None:
-        """Ignore progress advancement.
+        """Record progress advancement.
 
         Parameters
         ----------
@@ -136,8 +141,10 @@ class ProgressRecorder:
         None
         """
 
+        self.advances.append((completed, total))
+
     def done(self, summary: str = "done") -> None:
-        """Ignore progress completion.
+        """Record progress completion.
 
         Parameters
         ----------
@@ -148,6 +155,8 @@ class ProgressRecorder:
         -------
         None
         """
+
+        self.summaries.append(summary)
 
 
 def test_export_usb_writes_chapter_three_layout(tmp_path: Path) -> None:
@@ -755,6 +764,167 @@ def test_replace_tree_preserves_existing_target_for_rsync(
     usb._replace_tree(source, target, copy_strategy="rsync-preferred")
 
     assert calls == [(source, target)]
+
+
+def test_rsync_streams_completed_files_without_duration_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Report completed files while the child is still running, without a deadline.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ("first.txt", "second.txt"):
+        (source / name).write_text("synthetic", encoding="utf-8")
+    progress = ProgressRecorder()
+    process = MagicMock()
+
+    def output() -> Iterator[str]:
+        """Emit directory and completed-file records before process exit.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        Iterator[str]
+            Synthetic rsync output.
+        """
+
+        yield "SANIKEY:cd+++++++++:0\n"
+        yield "SANIKEY:>f+++++++++:9\n"
+        assert progress.advances == [(1, 2)]
+        process.wait.assert_not_called()
+        yield "SANIKEY:>f+++++++++:9\n"
+
+    process.stdout = output()
+    process.wait.return_value = 0
+    process.__enter__.return_value = process
+    popen = MagicMock(return_value=process)
+    monkeypatch.setattr(usb.shutil, "which", lambda _name: "/usr/bin/rsync")
+    monkeypatch.setattr(usb.subprocess, "Popen", popen)
+
+    usb._rsync_directory_contents(source, tmp_path / "target", progress=progress)
+
+    assert "timeout" not in popen.call_args.kwargs
+    process.wait.assert_called_once_with()
+    assert progress.advances[:2] == [(1, 2), (2, 2)]
+    assert progress.summaries == ["done files=2"]
+
+
+def test_rsync_failure_keeps_bounded_diagnostics_and_no_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Surface copy failures with bounded diagnostics and no completion message.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    progress = ProgressRecorder()
+    process = MagicMock()
+    process.stdout = iter(f"errore-{index:02d}\n" for index in range(30))
+    process.wait.return_value = 23
+    process.__enter__.return_value = process
+    monkeypatch.setattr(usb.shutil, "which", lambda _name: "/usr/bin/rsync")
+    monkeypatch.setattr(usb.subprocess, "Popen", MagicMock(return_value=process))
+
+    with pytest.raises(UsbError, match="errore-29") as error:
+        usb._rsync_directory_contents(tmp_path, tmp_path / "target", progress=progress)
+
+    assert "errore-00" not in str(error.value)
+    assert "errore-10" in str(error.value)
+    assert progress.summaries == ["errore"]
+
+
+def test_rsync_interruption_stops_child_and_reports_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stop the child on interruption and explain how to retry the copy.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+
+    Returns
+    -------
+    None
+    """
+
+    progress = ProgressRecorder()
+    process = MagicMock()
+    process.stdout.__iter__.side_effect = KeyboardInterrupt
+    process.__enter__.return_value = process
+    monkeypatch.setattr(usb.shutil, "which", lambda _name: "/usr/bin/rsync")
+    monkeypatch.setattr(usb.subprocess, "Popen", MagicMock(return_value=process))
+
+    with pytest.raises(UsbError, match="rieseguire export-usb"):
+        usb._rsync_directory_contents(tmp_path, tmp_path / "target", progress=progress)
+
+    process.terminate.assert_called_once_with()
+    process.wait.assert_called_once_with()
+    assert progress.summaries == ["interrotto"]
+
+
+@pytest.mark.skipif(usb.shutil.which("rsync") is None, reason="rsync non disponibile")
+def test_rsync_retries_reuse_copied_files_and_finish_mirror(tmp_path: Path) -> None:
+    """Complete an interrupted mirror with real rsync, retaining unchanged files.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory provided by pytest.
+
+    Returns
+    -------
+    None
+    """
+
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "kept.txt").write_text("already copied", encoding="utf-8")
+    (source / "missing.txt").write_text("remaining file", encoding="utf-8")
+    usb.shutil.copy2(source / "kept.txt", target / "kept.txt")
+    (target / "obsolete.txt").write_text("stale", encoding="utf-8")
+    kept_inode = (target / "kept.txt").stat().st_ino
+    progress = ProgressRecorder()
+
+    usb._replace_tree(
+        source, target, copy_strategy="rsync-preferred", progress=progress
+    )
+
+    assert (target / "kept.txt").stat().st_ino == kept_inode
+    assert (target / "missing.txt").read_bytes() == (
+        source / "missing.txt"
+    ).read_bytes()
+    assert not (target / "obsolete.txt").exists()
+    assert progress.advances[0] == (1, 2)
+    assert progress.summaries == ["done files=2"]
 
 
 def test_export_usb_optional_real_filesystem_target(tmp_path: Path) -> None:

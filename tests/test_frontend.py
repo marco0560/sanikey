@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from typing import TYPE_CHECKING
+
+import pytest
 
 from sanikey.config import PersonConfig, UiConfig
 from sanikey.frontend import build_frontend
@@ -40,6 +44,10 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert result.script.is_file()
     assert result.stylesheet.is_file()
     assert result.helper.is_file()
+    assert (result.web_dir / "assets" / "chart-navigation.js").is_file()
+    for page in (result.index, result.extended_chart):
+        html = page.read_text(encoding="utf-8")
+        assert html.index("chart.umd.min.js") < html.index("chart-navigation.js")
     assert result.material_script.is_file()
     assert result.material_stylesheet.is_file()
     assert (
@@ -103,7 +111,9 @@ def test_build_frontend_writes_offline_static_files(tmp_path: Path) -> None:
     assert 'script src="data.js"' in index
     assert 'script src="usb-info.js"' in index
     assert 'script src="assets/ui-helper.js"' in index
-    assert 'script type="module" src="assets/material-web.js"' in index
+    assert 'script src="assets/material-web.js"' in index
+    assert 'type="module"' not in index
+    assert 'type="module"' not in extended_chart
     assert 'href="assets/material-web.css"' in index
     logo_path = "assets/sanikey-logo-horizontal-transparent.svg"
     assert f'class="header-logo" src="{logo_path}" alt="sanikey"' in index
@@ -309,3 +319,256 @@ def test_build_frontend_copies_configured_background_image(tmp_path: Path) -> No
     assert (result.web_dir / "assets" / "background.png").read_bytes() == (
         b"synthetic image"
     )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js non disponibile")
+def test_extended_chart_series_have_distinct_stable_styles() -> None:
+    """Execute chart grouping to verify distinct colors across units and selections.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    from sanikey.frontend import _extended_chart_js
+
+    program = r"""
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const fs = require('node:fs');
+const context = {};
+vm.runInNewContext(fs.readFileSync(0, 'utf8'), context);
+let charts = [];
+context.appendExtendedChart = (_target, _title, datasets) => charts.push(datasets);
+context.renderNumericCharts({}, []);
+assert.equal(charts.length, 0);
+const first = {series: {id: 'first', name: 'First', unit: 'mg/dL'}, styleIndex: 0,
+  points: [{date: '2026-01-02', numeric_value: 1}]};
+const second = {series: {id: 'second', name: 'Second', unit: 'kg'}, styleIndex: 1,
+  points: [{date: '2026-01-02', numeric_value: 2}]};
+context.renderNumericCharts({}, [first, second]);
+assert.equal(charts.length, 1);
+assert.notEqual(charts[0][0].borderColor, charts[0][1].borderColor);
+assert.notEqual(charts[0][0].pointStyle, charts[0][1].pointStyle);
+assert.equal(charts[0][0].yAxisID, 'y');
+assert.equal(charts[0][1].yAxisID, 'y1');
+const color = charts[0][1].borderColor;
+charts = [];
+context.renderNumericCharts({}, [second]);
+assert.equal(charts[0][0].borderColor, color);
+for (const value of [null, undefined, '', ' ', 'not-a-number']) {
+  assert.equal(context.hasNumericValue(value), false);
+}
+assert.equal(context.hasNumericValue(0), true);
+assert.equal(context.hasNumericValue('1.25'), true);
+assert.equal(context.extendedPointLabel({point: {raw_value: '1,2', raw_unit: 'mg/dL'}, series: {unit: 'mg/dL'}}), '1,2 mg/dL');
+let pressureUnits;
+context.appendExtendedChart = (_target, _title, datasets, units) => {charts = [datasets]; pressureUnits = units;};
+context.renderPressureChart({}, {unit: 'mmHg'}, [{date: '2026-01-02', systolic: 120, diastolic: 80, pulse: 70}]);
+assert.equal(charts[0][2].yAxisID, 'y1');
+assert.equal(pressureUnits[1], 'bpm');
+assert.equal(context.extendedPointLabel(charts[0][2].data[0]), 'Polso: 70 bpm');
+"""
+    result = subprocess.run(
+        [shutil.which("node") or "node", "-e", program],
+        input=_extended_chart_js(),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js non disponibile")
+def test_parameter_units_and_chart_cleanup_behave_at_runtime() -> None:
+    """Keep imported units and destroy replaced charts without plotting nulls.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    from sanikey.frontend import _app_js
+
+    program = r"""
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const fs = require('node:fs');
+const context = {window: {}, document: {body: {insertAdjacentHTML() {}}}};
+vm.runInNewContext(fs.readFileSync(0, 'utf8'), context);
+assert.equal(context.parameterUnit({}, {unit: 'kg/m2'}), 'kg/m2');
+assert.equal(context.parameterUnit({normalized_unit: 'mg/dL', raw_unit: 'g/L'}, {unit: 'g/L'}), 'mg/dL');
+let destroyed = 0;
+context.Chart = {getChart: () => ({destroy: () => destroyed++})};
+context.destroyParameterCharts({querySelectorAll: () => [{}, {}]});
+assert.equal(destroyed, 2);
+const points = [{series: {unit: 'mmHg'}, point: {date: '2026-01-02', systolic: 120, diastolic: 80, pulse: null}}];
+const datasets = context.bloodPressureDatasets(points);
+assert.equal(datasets.length, 2);
+assert.equal(datasets.some(dataset => dataset.label === 'Polso'), false);
+points[0].point.pulse = 70;
+const withPulse = context.bloodPressureDatasets(points);
+assert.equal(withPulse[2].yAxisID, 'y1');
+assert.equal(context.chartPointLabel(withPulse[2].data[0]), 'Polso: 70 bpm');
+assert.equal(context.hasNumericValue(null), false);
+assert.equal(context.hasNumericValue(''), false);
+assert.equal(context.hasNumericValue(0), true);
+assert.equal(context.observationDisplayValue({raw_value: '1,2', raw_unit: 'mg/dL'}), '1,2 mg/dL');
+assert.equal(context.observationDisplayValue({raw_value: '80 kg', raw_unit: 'kg'}), '80 kg');
+"""
+    result = subprocess.run(
+        [shutil.which("node") or "node", "-e", program],
+        input=_app_js(),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js non disponibile")
+def test_search_navigation_covers_both_search_modes_and_prefers_canonical_cards() -> (
+    None
+):
+    """Delegate search navigation from main and prefer dedicated clinical cards.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
+    from sanikey.frontend import _app_js
+
+    program = r"""
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const fs = require('node:fs');
+const context = {window: {}, document: {body: {insertAdjacentHTML() {}}}};
+vm.runInNewContext(fs.readFileSync(0, 'utf8'), context);
+let listener;
+const panel = {dataset: {sectionPanel: 'therapies'}};
+let scrolled = false;
+const canonical = {closest: () => panel, scrollIntoView: () => scrolled = true};
+const summary = {};
+context.document.getElementById = id => ({'entity-therapy': canonical, 'summary-entity-therapy': summary, 'summary-entity-problem': summary})[id];
+assert.equal(context.findEntityDetail('therapy'), canonical);
+assert.equal(context.findEntityDetail('problem'), summary);
+context.CustomEvent = class {constructor(_name, options) {this.detail = options.detail;}};
+context.document.querySelector = selector => {
+  if (selector === 'main') return {addEventListener: (_name, handler) => listener = handler};
+  if (selector === '#parameters') return {dispatchEvent: () => true};
+  throw new Error('Unexpected delegation target: ' + selector);
+};
+const opened = [];
+context.window.SaniKeyUi = {showSection: (...args) => opened.push(args)};
+context.requestAnimationFrame = callback => callback();
+context.setupResultDetailLinks();
+let prevented = false;
+listener({target: {closest: () => ({dataset: {resultDetailLink: 'therapy'}})}, preventDefault: () => prevented = true});
+assert.equal(prevented, true);
+assert.equal(scrolled, true);
+assert.deepEqual(opened, [['therapies', 'left']]);
+let selected;
+context.document.querySelector = () => ({dispatchEvent: event => {selected = event.detail; return false;}});
+assert.equal(context.openParameterDetail('point-a'), true);
+assert.equal(selected, 'point-a');
+const basicResults = {id: 'documents'};
+const advancedResults = {id: 'advanced-results'};
+const records = [{id: 'point-a', type: 'observation_point', title: 'Synthetic', section: 'parameters'}];
+context.renderSearchResults(basicResults, records, 'Results', 'None');
+context.renderSearchResults(advancedResults, records, 'Results', 'None');
+assert.equal(basicResults.innerHTML.includes('id="documents-results-parameters"'), true);
+assert.equal(advancedResults.innerHTML.includes('id="advanced-results-results-parameters"'), true);
+assert.equal(advancedResults.innerHTML.includes('href="#advanced-results-results-parameters"'), true);
+"""
+    result = subprocess.run(
+        [shutil.which("node") or "node", "-e", program],
+        input=_app_js(),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js non disponibile")
+def test_chart_navigation_preserves_history_and_disposes_controls() -> None:
+    """Check temporal panning, empty periods, selection and lifecycle cleanup.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+    import json
+
+    from sanikey.frontend import _chart_navigation_js
+
+    script = (
+        r"""
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+function element() {
+  return {style: {}, dataset: {}, clientWidth: 400, scrollWidth: 40000, scrollLeft: 0,
+    listeners: {}, addEventListener(k, f) { this.listeners[k] = f; },
+    removeEventListener(k) { delete this.listeners[k]; }, remove() { this.removed = true; }};
+}
+const scroll = element(), track = element(), range = element(), empty = element();
+const buttons = ['first', 'previous', 'next', 'last'].map(pan => ({...element(), dataset: {pan}}));
+const controls = {...element(), querySelector(s) { return s === 'output' ? range : s.endsWith('scroll') ? scroll : s.endsWith('track') ? track : empty; }, querySelectorAll() { return buttons; }};
+let disconnected = false;
+const context = {window: {}, document: {createElement() {return controls;}},
+  ResizeObserver: class {observe() {} disconnect() {disconnected = true;}},
+  requestAnimationFrame(f) {f(); return 1;}, cancelAnimationFrame() {},
+  Chart: class {constructor(canvas, c) {this.data = c.data; this.options = c.options; this.config = c;} update() {} destroy() {this.config.plugins.forEach(p => p.afterDestroy());}}};
+vm.createContext(context);
+"""
+        + "vm.runInContext("
+        + json.dumps(_chart_navigation_js())
+        + ", context);"
+        + r"""
+const api = context.window.SaniKeyCharts;
+const date = value => Date.parse(value + 'T00:00:00');
+const source = [{x: date('2002-10-10'), y: 120}, {x: date('2026-04-01'), y: 130}, {x: date('2026-06-27'), y: 125}];
+const canvas = {parentElement: {after() {}}};
+const chart = api.create(canvas, {data: {datasets: [{data: source}]}, options: {scales: {x: {}}}});
+assert.equal(chart.data.datasets[0].data.length, 2);
+assert.equal(chart.options.scales.x.max - chart.options.scales.x.min, 92 * 86400000);
+assert.equal(source.length, 3);
+buttons[0].listeners.click();
+assert.equal(chart.data.datasets[0].data[0].x, source[0].x);
+buttons[2].listeners.click();
+assert.equal(chart.data.datasets[0].data.length, 0);
+assert.match(empty.textContent, /Nessuna misurazione/);
+api.reveal(canvas, source[2].x);
+assert.equal(chart.data.datasets[0].data.at(-1).x, source[2].x);
+scroll.scrollLeft = 0; scroll.listeners.scroll();
+assert.equal(chart.data.datasets[0].data[0].x, source[0].x);
+scroll.listeners.keydown({key:'End', preventDefault() {}});
+assert.equal(chart.data.datasets[0].data.length, 2);
+chart.destroy();
+assert.equal(disconnected, true);
+assert.equal(controls.removed, true);
+assert.equal(Object.keys(scroll.listeners).length, 0);
+api.reveal(canvas, source[0].x);
+"""
+    )
+    subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
