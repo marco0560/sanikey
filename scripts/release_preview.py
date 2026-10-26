@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-GITHUB_ENV = Path.home() / ".config/personal-secrets/secrets/github.env"
+GITHUB_ENV = Path.home() / "credentials/personal-secrets/secrets/github.env"
 SEMANTIC_RELEASE_COMMAND = "npx semantic-release --dry-run --config .releaserc.json"
 
 
